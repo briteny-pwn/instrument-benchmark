@@ -40,10 +40,11 @@ Hidden evaluation artifacts live outside this instance directory:
 Run the external reference solution through the external grader:
 
 ```bash
-python ../../evaluations/pyvisa_dc_power_supply_basic/grader.py \
+../../.venv/bin/python ../../evaluations/pyvisa_dc_power_supply_basic/grader.py \
   ../../evaluations/pyvisa_dc_power_supply_basic/reference_solution/experiment.py
 ```
 
 The important idea is that validation does not rely only on `result.json`.
-The fake instrument records connection, configuration, SCPI commands, semantic
-actions, state transitions, and cleanup.
+The hidden evaluation runs candidate code against a pyvisa-sim instrument and
+records connection, configuration, SCPI commands, semantic actions, state
+transitions, and cleanup.

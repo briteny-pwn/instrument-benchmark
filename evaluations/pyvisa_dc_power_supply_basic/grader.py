@@ -14,11 +14,12 @@ import tempfile
 from pathlib import Path
 from types import ModuleType
 
-import fake_pyvisa
+import trace_pyvisa
 
 
 def load_candidate(path: Path) -> ModuleType:
-    sys.modules["pyvisa"] = fake_pyvisa
+    trace_pyvisa.reset_trace()
+    trace_pyvisa.install()
     spec = importlib.util.spec_from_file_location("candidate_solution", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Cannot load candidate from {path}")
@@ -32,22 +33,26 @@ def grade(candidate_path: Path) -> dict:
     if not hasattr(module, "run_experiment"):
         raise RuntimeError("Candidate solution must expose run_experiment(output_path=...)")
 
+    feedback: list[str] = []
+    pyvisa_sim_execution = 1.0
+    result_from_file: dict = {}
+
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = Path(tmpdir) / "result.json"
-        result = module.run_experiment(output_path)
-        if output_path.exists():
-            result_from_file = json.loads(output_path.read_text(encoding="utf-8"))
-        else:
-            result_from_file = result
+        try:
+            result = module.run_experiment(output_path)
+            if output_path.exists():
+                result_from_file = json.loads(output_path.read_text(encoding="utf-8"))
+            else:
+                result_from_file = result
+        except Exception as exc:
+            pyvisa_sim_execution = 0.0
+            feedback.append(f"Candidate failed while running against pyvisa-sim: {exc}")
 
-    trace = []
-    resource = None
-    for obj in fake_pyvisa.RESOURCE_MANAGERS:
-        trace.extend(obj.trace)
-        if obj.resource is not None:
-            resource = obj.resource
+    trace = trace_pyvisa.TRACE
 
     scores = {
+        "pyvisa_sim_execution": pyvisa_sim_execution,
         "connection": 0.0,
         "configuration": 0.0,
         "protocol_mapping": 0.0,
@@ -55,23 +60,24 @@ def grade(candidate_path: Path) -> dict:
         "experiment_result": 0.0,
         "cleanup": 0.0,
     }
-    feedback: list[str] = []
 
-    if any(event.kind == "open_resource" and event.payload.get("resource_name") == fake_pyvisa.RESOURCE_NAME for event in trace):
+    if any(event.kind == "open_resource" and event.payload.get("resource_name") == trace_pyvisa.RESOURCE_NAME for event in trace):
         scores["connection"] = 1.0
     else:
         feedback.append("Did not open the expected PyVISA resource.")
 
-    if resource is not None:
-        config_score = 0
-        config_score += resource.timeout == 5000
-        config_score += resource.read_termination == "\n"
-        config_score += resource.write_termination == "\n"
-        scores["configuration"] = config_score / 3
-        if scores["configuration"] < 1:
-            feedback.append("Missing or incorrect timeout/read_termination/write_termination.")
-    else:
-        feedback.append("No fake resource was created.")
+    attributes = {
+        event.payload["name"]: event.payload["value"]
+        for event in trace
+        if event.kind == "set_attribute"
+    }
+    config_score = 0
+    config_score += attributes.get("timeout") == 5000
+    config_score += attributes.get("read_termination") == "\n"
+    config_score += attributes.get("write_termination") == "\n"
+    scores["configuration"] = config_score / 3
+    if scores["configuration"] < 1:
+        feedback.append("Missing or incorrect timeout/read_termination/write_termination.")
 
     semantic = [event.payload for event in trace if event.kind == "semantic"]
     required = [
@@ -92,7 +98,10 @@ def grade(candidate_path: Path) -> dict:
     else:
         feedback.append("Command order does not prove a valid state transition before measurement.")
 
-    scores["experiment_result"] = _grade_result(result_from_file, feedback)
+    if result_from_file:
+        scores["experiment_result"] = _grade_result(result_from_file, feedback)
+    else:
+        feedback.append("No experiment result was produced.")
 
     closed_resource = any(event.kind == "close_resource" for event in trace)
     closed_rm = any(event.kind == "close_resource_manager" for event in trace)

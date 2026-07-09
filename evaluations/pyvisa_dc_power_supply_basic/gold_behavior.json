@@ -1,4 +1,5 @@
 {
+  "simulation_backend": "pyvisa-sim",
   "resource_name": "USB0::0x9999::0x0001::DP100001::INSTR",
   "required_configuration": {
     "timeout": 5000,
@@ -21,4 +22,3 @@
     "output_enabled": true
   }
 }
-
