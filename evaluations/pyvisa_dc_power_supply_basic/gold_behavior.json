@@ -1,0 +1,24 @@
+{
+  "resource_name": "USB0::0x9999::0x0001::DP100001::INSTR",
+  "required_configuration": {
+    "timeout": 5000,
+    "read_termination": "\n",
+    "write_termination": "\n"
+  },
+  "semantic_trace": [
+    {"action": "identify"},
+    {"action": "set_voltage", "channel": 1, "value": 3.3, "unit": "V"},
+    {"action": "set_current_limit", "channel": 1, "value": 0.5, "unit": "A"},
+    {"action": "enable_output", "channel": 1, "value": true},
+    {"action": "measure_voltage", "channel": 1}
+  ],
+  "result_schema": {
+    "instrument": "MockDP100",
+    "channel": 1,
+    "target_voltage_v": 3.3,
+    "current_limit_a": 0.5,
+    "measured_voltage_v_range": [3.25, 3.35],
+    "output_enabled": true
+  }
+}
+
