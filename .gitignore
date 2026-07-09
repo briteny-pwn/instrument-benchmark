@@ -1,0 +1,6 @@
+/Instructment access Benchmark.md
+/.venv/
+/PyVISA/
+.DS_Store
+__pycache__/
+*.py[cod]
