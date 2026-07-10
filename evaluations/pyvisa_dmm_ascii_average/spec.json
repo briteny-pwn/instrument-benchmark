@@ -1,0 +1,23 @@
+{
+  "instance_id": "pyvisa_dmm_ascii_average",
+  "simulator": "pyvisa_sim/mockdmm2000.yaml",
+  "expected_result": {
+    "instrument": "MockDMM2000",
+    "measurement": "dc_voltage",
+    "sample_count": 5,
+    "samples_v": [1.001, 1.003, 0.999, 1.002, 1.0],
+    "average_voltage_v": {"close": 1.001, "abs_tol": 1e-9},
+    "unit": "V"
+  },
+  "access": {
+    "expected_resources": ["GPIB0::12::INSTR"],
+    "communication": {
+      "timeout": 10000,
+      "read_termination": "\n",
+      "write_termination": "\n"
+    },
+    "transfer_expectations": [
+      {"kind": "query_ascii_values", "command": "TRACE:DATA?"}
+    ]
+  }
+}
