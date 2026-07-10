@@ -1,0 +1,29 @@
+{
+  "instance_id": "pyvisa_scope_binary_waveform",
+  "simulator": "pyvisa_sim/mockscope500.yaml",
+  "expected_result": {
+    "instrument": "MockScope500",
+    "source": "CH1",
+    "sample_count": 8,
+    "raw_codes": [65, 66, 67, 68, 69, 70, 49, 50],
+    "voltage_scale_v": {"close": 0.02, "abs_tol": 1e-12},
+    "voltage_offset_code": 128,
+    "voltages_v": [-1.26, -1.24, -1.22, -1.2, -1.18, -1.16, -1.58, -1.56],
+    "unit": "V"
+  },
+  "access": {
+    "expected_resources": ["TCPIP0::192.0.2.50::inst0::INSTR"],
+    "communication": {
+      "timeout": 8000,
+      "read_termination": "\n",
+      "write_termination": "\n"
+    },
+    "transfer_expectations": [
+      {
+        "kind": "query_binary_values",
+        "command": "CURVE?",
+        "kwargs": {"datatype": "B", "expect_termination": false}
+      }
+    ]
+  }
+}
