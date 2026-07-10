@@ -1,0 +1,20 @@
+{
+  "instance_id": "pyvisa_dc_power_supply_basic",
+  "simulator": "pyvisa_sim/mockdp100.yaml",
+  "expected_result": {
+    "instrument": "MockDP100",
+    "channel": 1,
+    "target_voltage_v": {"close": 3.3, "abs_tol": 1e-6},
+    "current_limit_a": {"close": 0.5, "abs_tol": 1e-6},
+    "measured_voltage_v": {"range": [3.25, 3.35]},
+    "output_enabled": true
+  },
+  "access": {
+    "expected_resources": ["USB0::0x9999::0x0001::DP100001::INSTR"],
+    "communication": {
+      "timeout": 5000,
+      "read_termination": "\n",
+      "write_termination": "\n"
+    }
+  }
+}
