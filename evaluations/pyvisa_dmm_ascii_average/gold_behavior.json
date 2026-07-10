@@ -1,0 +1,28 @@
+{
+  "simulation_backend": "pyvisa-sim",
+  "resource_name": "GPIB0::12::INSTR",
+  "required_configuration": {
+    "timeout": 10000,
+    "read_termination": "\n",
+    "write_termination": "\n"
+  },
+  "semantic_trace": [
+    {"action": "identify"},
+    {"action": "reset"},
+    {"action": "configure_dc_voltage"},
+    {"action": "set_voltage_range", "range_v": 10.0},
+    {"action": "set_voltage_resolution", "resolution_v": 0.001},
+    {"action": "set_sample_count", "count": 5},
+    {"action": "initiate"},
+    {"action": "read_trace_data"},
+    {"action": "clear_trace"}
+  ],
+  "result_schema": {
+    "instrument": "MockDMM2000",
+    "measurement": "dc_voltage",
+    "sample_count": 5,
+    "samples_v": [1.001, 1.003, 0.999, 1.002, 1.0],
+    "average_voltage_v": 1.001,
+    "unit": "V"
+  }
+}
