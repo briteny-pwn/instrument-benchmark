@@ -1,0 +1,51 @@
+spec: "1.1"
+
+devices:
+  MockLoad10:
+    eom:
+      USB INSTR:
+        q: "\n"
+        r: "\n"
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockLoad10,LOAD100001,1.0"
+
+  MockLogger300:
+    eom:
+      TCPIP INSTR:
+        q: "\n"
+        r: "\n"
+
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockLogger300,LOGGER300001,1.0"
+      - q: "*RST"
+      - q: "MEAS:TEMP? A"
+        r: "23.45"
+      - q: "MEAS:HUM? A"
+        r: "45.6"
+
+    properties:
+      channel:
+        default: "A"
+        setter:
+          q: "SENS:CHAN {:s}"
+        specs:
+          type: str
+          valid: ["A", "B"]
+
+resources:
+  USB::0x9999::0x0200::LOAD100001::INSTR:
+    device: MockLoad10
+  TCPIP::198.51.100.30::inst0::INSTR:
+    device: MockLogger300
+
