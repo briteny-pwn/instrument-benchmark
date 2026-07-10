@@ -1,0 +1,69 @@
+spec: "1.1"
+
+devices:
+  MockScope500:
+    eom:
+      TCPIP INSTR:
+        q: "\n"
+        r: ""
+
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockScope500,SCOPE500001,1.0\n"
+      - q: "*RST"
+      - q: "CURVE?"
+        r: "#18ABCDEF12"
+
+    properties:
+      data_source:
+        default: "CH1"
+        setter:
+          q: "DATA:SOURCE {:s}"
+        specs:
+          type: str
+          valid: ["CH1", "CH2"]
+
+      data_encoding:
+        default: "ASCII"
+        setter:
+          q: "DATA:ENCODING {:s}"
+        specs:
+          type: str
+          valid: ["RIBINARY", "ASCII"]
+
+      data_width:
+        default: 1
+        setter:
+          q: "DATA:WIDTH {:d}"
+        specs:
+          min: 1
+          max: 2
+          type: int
+
+      y_mult:
+        default: 0.02
+        setter:
+          q: "WFMOUTPRE:YMULT {:g}"
+        specs:
+          min: 0
+          max: 10
+          type: float
+
+      y_off:
+        default: 128
+        setter:
+          q: "WFMOUTPRE:YOFF {:g}"
+        specs:
+          min: 0
+          max: 255
+          type: float
+
+resources:
+  TCPIP::192.0.2.50::inst0::INSTR:
+    device: MockScope500
+
