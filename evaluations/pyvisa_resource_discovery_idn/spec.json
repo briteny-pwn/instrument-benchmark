@@ -1,0 +1,20 @@
+{
+  "instance_id": "pyvisa_resource_discovery_idn",
+  "simulator": "pyvisa_sim/mocklogger300.yaml",
+  "expected_result": {
+    "instrument": "MockLogger300",
+    "selected_resource": "TCPIP0::198.51.100.30::inst0::INSTR",
+    "channel": "A",
+    "temperature_c": {"close": 23.45, "abs_tol": 1e-9},
+    "relative_humidity_percent": {"close": 45.6, "abs_tol": 1e-9}
+  },
+  "access": {
+    "require_resource_discovery": true,
+    "expected_resources": ["TCPIP0::198.51.100.30::inst0::INSTR"],
+    "communication": {
+      "timeout": 4000,
+      "read_termination": "\n",
+      "write_termination": "\n"
+    }
+  }
+}
