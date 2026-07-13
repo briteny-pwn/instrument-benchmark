@@ -7,11 +7,16 @@ from pathlib import Path
 
 
 FORBIDDEN_IMPORT_ROOTS = {
+    "caproto",
+    "epics",
     "pyvisa",
+    "pyepics",
     "qcodes",
     "qcodes_contrib_drivers",
     "lab_drivers",
     "pymeasure",
+    "pcaspy",
+    "softioc",
     "bluesky",
     "ophyd",
     "pylabrobot",
@@ -36,4 +41,3 @@ def check_candidate_imports(candidate_path: Path) -> list[str]:
             if root in FORBIDDEN_IMPORT_ROOTS:
                 violations.append(node.module)
     return sorted(set(violations))
-

@@ -16,6 +16,7 @@ from typing import Any
 
 from . import import_guard, raw_trace
 from .raw_sim_gateway import Gateway
+from .state_machine_gateway import Gateway as StateMachineGateway
 
 
 DEFAULT_WEIGHTS = {
@@ -40,7 +41,7 @@ def grade(candidate_path: Path, spec_path: Path) -> dict[str, Any]:
         feedback.append(f"Forbidden instrument/framework imports observed: {', '.join(forbidden_imports)}.")
 
     sim_path = spec_path.parent / spec["simulator"]
-    gateway = Gateway(sim_path)
+    gateway = _make_gateway(spec, sim_path)
     host, port = gateway.start()
     old_host = os.environ.get("INSTRUMENT_SIM_HOST")
     old_port = os.environ.get("INSTRUMENT_SIM_PORT")
@@ -118,6 +119,12 @@ def _load_candidate(path: Path) -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _make_gateway(spec: dict[str, Any], sim_path: Path) -> Any:
+    if spec.get("gateway", "pyvisa_sim") == "state_machine":
+        return StateMachineGateway(sim_path)
+    return Gateway(sim_path)
 
 
 @contextmanager
