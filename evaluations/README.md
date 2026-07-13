@@ -1,53 +1,42 @@
 # Evaluations
 
-Evaluation is split into a reusable framework and per-instance specifications.
+This directory contains hidden or external scoring logic.
 
-## Common Framework
+The shared raw-protocol evaluation layer is in `evaluations/common/`:
 
-`evaluations/common/` contains the shared runner, PyVISA trace wrapper, and
-observation-first grader.
+- `raw_sim_gateway.py`: starts the local TCP JSON-line gateway and connects it
+  to the hidden simulator backend.
+- `raw_trace.py`: records resource, command, query, socket, and cleanup events.
+- `import_guard.py`: rejects candidate solutions that import forbidden
+  instrument frameworks.
+- `grader_core.py`: combines execution, import guard, trace, state transition,
+  observation, and cleanup scores.
 
-The common grader:
-
-- runs candidate `run_experiment(output_path=...)` against pyvisa-sim;
-- records generic PyVISA access evidence;
-- scores the returned or written result against `spec.json`;
-- treats trace evidence as supporting access information rather than the main
-  source of truth.
-
-Default score weights are:
+Per-instance evaluations live under:
 
 ```text
-pyvisa_sim_execution: 0.2
-observation:          0.5
-access:               0.2
-cleanup:              0.1
+evaluations/{source}/{instance_id}/
 ```
 
-Instances may override these weights in `spec.json`, but the intended default
-is to judge whether the requested experiment was completed and observed
-correctly.
+Each evaluation provides:
 
-## Per-Instance Files
+- `spec.json`: expected observations and expected protocol evidence.
+- `grader.py`: thin entry point into the common raw grader.
+- `reference_solution/`: standard-library-only solution.
+- `pyvisa_sim/`: hidden simulator definitions, when pyvisa-sim is used.
 
-Each `evaluations/{instance_id}/` directory provides:
+The candidate never sees these files during the task. Even when `pyvisa-sim` is
+used internally, evaluation exposes only the raw socket protocol described in
+the model-visible `simulator_protocol.md`.
 
-- `spec.json`: hidden scoring specification and expected observations;
-- `pyvisa_sim/*.yaml`: pyvisa-sim instrument definition;
-- `grader.py`: thin compatibility entry point for the common grader;
-- `reference_solution/experiment.py`: reference implementation for validation.
+Scores:
 
-`spec.json` is the main hidden contract. It describes:
-
-- `simulator`: pyvisa-sim YAML used for the run;
-- `expected_result`: observed result fields and tolerances;
-- `access`: generic PyVISA evidence such as expected resources, communication
-  settings, resource discovery, and value-transfer helpers.
-
-The usual command remains:
-
-```bash
-cd evaluations/{instance_id}
-../../.venv/bin/python grader.py path/to/solution.py
+```text
+sim_execution
+forbidden_api
+interface_implementation
+protocol_trace
+state_transition
+observation
+cleanup
 ```
-

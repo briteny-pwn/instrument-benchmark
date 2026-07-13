@@ -2,7 +2,9 @@
 /.venv/
 /PyVISA/
 .DS_Store
+.claude/
 __pycache__/
 *.py[cod]
 /experience/
 /evaluations/*/solution.py
+/evaluations/*/*/solution.py

@@ -1,134 +1,198 @@
 # Instrument Access Benchmark
 
 This repository contains benchmark instances for evaluating whether a model can
-access simulated scientific instruments through PyVISA and complete simple
-instrument experiments.
+implement an instrument interface from scratch, connect to a simulated
+instrument, and complete a small instrument-related experiment.
 
-The benchmark is designed around two principles:
+The model-facing input is deliberately small:
 
-- model-visible tasks should look like real instrument access work;
-- evaluation should primarily judge observed experiment results, with PyVISA
-  trace evidence used as supporting access evidence.
+```text
+instance = prompt + instrument manual + raw simulator protocol
+```
+
+The candidate must write its own client/driver code over a bare protocol. It
+must not call PyVISA, QCoDeS, qcodes_contrib_drivers, lab drivers, PyMeasure,
+Bluesky/Ophyd, or any other prebuilt instrument framework.
 
 ## Repository Layout
 
 ```text
 instances/
-  {instance_id}/
-    README.md
-    prompt.md
-    environment/
-      README.md
-      instrument_manual.md
+  {source}/
+    {instance_id}/
+      prompt.md
+      environment/
+        instrument_manual.md
+        simulator_protocol.md
 
 evaluations/
   common/
+    raw_sim_gateway.py
+    raw_trace.py
+    import_guard.py
     grader_core.py
-    trace_pyvisa.py
-  {instance_id}/
-    spec.json
-    grader.py
-    pyvisa_sim/*.yaml
-    reference_solution/experiment.py
+  {source}/
+    {instance_id}/
+      README.md
+      spec.json
+      grader.py
+      reference_solution/
+      pyvisa_sim/
 
 experience/
-  {instance_id}/
-    prompt.md
-    environment/
-    solution.py
+  {source}/
+    {instance_id}/
+      prompt.md
+      environment/
+      solution.py
+
+docs/
+  instances.md
+  sources/
+    pyvisa.md
+    qcodes.md
 ```
 
-## Instance Boundary
+Boundaries:
 
-`instances/{instance_id}/` contains the model-visible task environment:
+- `instances/`: model-visible task input only.
+- `evaluations/`: hidden scoring logic, raw gateway, simulator definitions,
+  traces, specs, and reference solutions.
+- `experience/`: ignored local workspaces for real model trials.
+- `docs/`: human-facing notes and summaries that are not part of the model
+  input.
 
-- `prompt.md`: task environment introduction, task objective, and output format;
-- `environment/instrument_manual.md`: instrument documentation available to the
-  model;
-- `environment/README.md`: brief environment note.
+## Source Semantics
 
-The model should not see hidden simulation or scoring files.
+`source` means the historical or technical source used to construct the
+simulated protocol material. It does not mean the candidate may call that
+framework.
 
-`evaluations/{instance_id}/` contains hidden evaluation materials:
+- `pyvisa`: hidden evaluation may use `pyvisa-sim` to model instrument behavior,
+  but the candidate only sees a raw socket protocol.
+- `qcodes`: tasks may be inspired by QCoDeS station/driver patterns, but the
+  candidate still writes a raw protocol client from the manual.
 
-- `spec.json`: expected observations and access evidence requirements;
-- `pyvisa_sim/*.yaml`: pyvisa-sim instrument behavior;
-- `grader.py`: compatibility entry point into the common grader;
-- `reference_solution/experiment.py`: validation solution.
+## Candidate Contract
 
-## Evaluation Architecture
-
-The current architecture is spec-driven and observation-first.
-
-The common evaluator in `evaluations/common/`:
-
-1. redirects `pyvisa.ResourceManager()` to the instance pyvisa-sim backend;
-2. runs candidate `run_experiment(output_path=...)`;
-3. reads the returned dictionary or written `result.json`;
-4. compares observed result fields against `spec.json`;
-5. records generic PyVISA trace events as supporting evidence.
-
-The main score is weighted toward the experiment result:
-
-```text
-pyvisa_sim_execution: 0.2
-observation:          0.5
-access:               0.2
-cleanup:              0.1
-```
-
-This means a solution is rewarded primarily for completing the instrument
-experiment and producing the expected observations. Trace evidence is used for
-general access quality, such as connection, communication parameters, PyVISA
-value-transfer helpers, resource discovery, and cleanup.
-
-## Running an Instance
-
-For a model-facing trial, copy or use the prepared environment in:
-
-```text
-experience/{instance_id}/
-```
-
-The candidate should create:
-
-```text
-experience/{instance_id}/solution.py
-```
-
-with:
+Each solution exposes:
 
 ```python
 def run_experiment(output_path: str = "result.json") -> dict:
     ...
 ```
 
-Then run the hidden grader:
+Allowed implementation tools are Python standard library modules such as
+`socket`, `json`, `base64`, `struct`, `time`, `pathlib`, and `statistics`.
+
+Forbidden imports include:
+
+```text
+pyvisa
+qcodes
+qcodes_contrib_drivers
+lab_drivers
+pymeasure
+bluesky
+ophyd
+pylabrobot
+opentrons
+```
+
+The solution should connect to the simulator endpoint from:
+
+```text
+INSTRUMENT_SIM_HOST
+INSTRUMENT_SIM_PORT
+```
+
+It should implement resource discovery/open/write/query/parsing/cleanup itself.
+
+## Evaluation Contract
+
+Evaluation starts a hidden TCP gateway. Internally that gateway may connect to
+`pyvisa-sim`, but externally it exposes only JSON-line socket operations:
+
+```json
+{"op": "list_resources"}
+{"op": "open", "resource": "USB0::...::INSTR"}
+{"op": "write", "handle": "h1", "command": "*RST"}
+{"op": "query", "handle": "h1", "command": "*IDN?"}
+{"op": "close", "handle": "h1"}
+```
+
+Scoring dimensions:
+
+- `sim_execution`: candidate runs against the raw simulator gateway.
+- `forbidden_api`: candidate avoids blocked framework imports.
+- `interface_implementation`: candidate connects, discovers, and opens expected
+  resources through its own client.
+- `protocol_trace`: candidate sends expected instrument commands.
+- `state_transition`: candidate follows the required configuration/measurement
+  sequence.
+- `observation`: final experiment result matches the expected observation.
+- `cleanup`: candidate closes handles and sockets.
+
+## Running Instances
+
+Prepare or use:
+
+```text
+experience/{source}/{instance_id}/
+```
+
+Place the candidate solution at:
+
+```text
+experience/{source}/{instance_id}/solution.py
+```
+
+Run an instance:
 
 ```bash
-cd evaluations/{instance_id}
-../../.venv/bin/python grader.py ../../experience/{instance_id}/solution.py
+cd evaluations/{source}/{instance_id}
+../../../.venv/bin/python grader.py ../../../experience/{source}/{instance_id}/solution.py
 ```
 
 ## Current Instances
 
-- `pyvisa_dc_power_supply_basic`: single DC power supply setup and measurement.
-- `pyvisa_dmm_ascii_average`: DMM DC voltage acquisition and averaging.
-- `pyvisa_scope_binary_waveform`: oscilloscope IEEE binary block acquisition.
-- `pyvisa_awg_ascii_upload`: AWG waveform upload with `write_ascii_values`.
-- `pyvisa_resource_discovery_idn`: resource discovery and IDN-based selection.
-- `pyvisa_mixed_signal_calibration`: multi-instrument calibration workflow.
+PyVISA-sourced raw protocol instances:
 
-## Adding a New Experiment
+- `pyvisa_dc_power_supply_basic`
+- `pyvisa_dmm_ascii_average`
+- `pyvisa_scope_binary_waveform`
+- `pyvisa_awg_ascii_upload`
+- `pyvisa_resource_discovery_idn`
+- `pyvisa_mixed_signal_calibration`
+- `pyvisa_multi_instrument_dut_validation`
 
-Prefer adding a new `spec.json` and pyvisa-sim behavior over writing a custom
-grader. A good instance should define:
+QCoDeS-sourced raw protocol instance:
 
-- what instrument documentation the model can see;
-- what experiment the model must perform;
-- what observed result fields prove success;
-- what PyVISA access evidence is useful but not overly prescriptive.
+- `qcodes_station_sweep_basic`
 
-For the same instrument, multiple experiments can share a simulator and differ
-mainly in prompt/manual details and expected observations.
+## Adding a New Instance
 
+Add model-visible files under:
+
+```text
+instances/{source}/{instance_id}/
+```
+
+Add hidden scoring files under:
+
+```text
+evaluations/{source}/{instance_id}/
+```
+
+A good instance should define:
+
+- instrument command manual and response formats;
+- raw simulator connection instructions;
+- a concrete instrument-related experiment;
+- output schema;
+- cleanup and forbidden-library requirements.
+
+Keep starter TODO code out of the model-visible input. Keep gold behavior,
+reference solutions, hidden simulators, and graders out of `instances/`.
+Keep human-facing summaries in `docs/` instead of inside concrete instance
+directories.
