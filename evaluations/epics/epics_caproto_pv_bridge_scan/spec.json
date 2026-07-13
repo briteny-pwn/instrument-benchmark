@@ -1,0 +1,43 @@
+{
+  "instance_id": "epics_caproto_pv_bridge_scan",
+  "gateway": "state_machine",
+  "simulator": "sim/pv_bridge_scan.json",
+  "expected_result": {
+    "instrument": "CaprotoPvBridge",
+    "pv_prefix": "MOCK:",
+    "bias_setpoints_v": [-0.2, 0.0, 0.2, 0.4],
+    "bias_readbacks_v": [-0.198, 0.002, 0.201, 0.399],
+    "detector_counts": [102, 150, 197, 241],
+    "count_slope_per_v": {"close": 231.6666666667, "abs_tol": 1e-9},
+    "snapshot": {
+      "MOCK:BIAS:SP": {"close": 0.4, "abs_tol": 1e-12},
+      "MOCK:BIAS:RBV": {"close": 0.399, "abs_tol": 1e-12},
+      "MOCK:DETECTOR:COUNT": 241
+    },
+    "monitor_history": ["BIAS:SP=-0.2", "BIAS:SP=0.0", "BIAS:SP=0.2", "BIAS:SP=0.4"]
+  },
+  "raw_protocol": {
+    "require_resource_discovery": true,
+    "expected_resources": ["CA::PVBRIDGE::SIM"],
+    "expected_commands": [
+      {"kind": "query", "command": "*IDN?"},
+      {"kind": "write", "command": "PVPUT MOCK:BIAS:SP -0.2"},
+      {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"},
+      {"kind": "query", "command": "PVGET MOCK:DETECTOR:COUNT"},
+      {"kind": "query", "command": "MONITOR? MOCK:BIAS:SP"},
+      {"kind": "write", "command": "PVPUT MOCK:BIAS:SP 0.4"}
+    ],
+    "expected_sequence": [
+      {"kind": "write", "command": "PVPUT MOCK:BIAS:SP -0.2"},
+      {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"},
+      {"kind": "query", "command": "PVGET MOCK:DETECTOR:COUNT"},
+      {"kind": "query", "command": "MONITOR? MOCK:BIAS:SP"},
+      {"kind": "write", "command": "PVPUT MOCK:BIAS:SP 0.0"},
+      {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"},
+      {"kind": "write", "command": "PVPUT MOCK:BIAS:SP 0.2"},
+      {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"},
+      {"kind": "write", "command": "PVPUT MOCK:BIAS:SP 0.4"},
+      {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"}
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "instance_id": "epics_asyn_serial_pump_interlock",
+  "gateway": "state_machine",
+  "simulator": "sim/pump_interlock.json",
+  "expected_result": {
+    "instrument": "AsynPumpBus",
+    "pump": "P1",
+    "interlock": "OK",
+    "start_attempts": 2,
+    "running": true,
+    "initial_pressure_torr": {"close": 0.00082, "abs_tol": 1e-12},
+    "final_pressure_torr": {"close": 0.000046, "abs_tol": 1e-12},
+    "speed_rpm": 45000
+  },
+  "raw_protocol": {
+    "require_resource_discovery": true,
+    "expected_resources": ["ASYN::SERIAL0::PUMPCTL::INSTR"],
+    "expected_commands": [
+      {"kind": "query", "command": "*IDN?"},
+      {"kind": "query", "command": "@G1 PRES?"},
+      {"kind": "query", "command": "@P1 ILK?"},
+      {"kind": "query", "command": "@P1 START"},
+      {"kind": "query", "command": "@P1 START?"},
+      {"kind": "query", "command": "@P1 RPM?"}
+    ],
+    "expected_sequence": [
+      {"kind": "query", "command": "@G1 PRES?"},
+      {"kind": "query", "command": "@P1 ILK?"},
+      {"kind": "query", "command": "@P1 START"},
+      {"kind": "query", "command": "@P1 START"},
+      {"kind": "query", "command": "@P1 START?"},
+      {"kind": "query", "command": "@G1 PRES?"},
+      {"kind": "query", "command": "@P1 RPM?"}
+    ]
+  }
+}

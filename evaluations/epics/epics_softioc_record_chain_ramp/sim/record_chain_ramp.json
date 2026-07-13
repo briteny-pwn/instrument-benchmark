@@ -1,0 +1,19 @@
+{
+  "resources": [
+    {
+      "name": "IOC::RAMPCHAIN::SIM",
+      "commands": [
+        {"kind": "query", "command": "*IDN?", "response": "EPICSIM,SoftIocRampChain,IOC-RAMP-01,1.0"},
+        {"kind": "write", "command": "PSU:ENABLE 1", "response": "OK"},
+        {"kind": "write", "command": "PSU:SET 0.0", "response": "OK"},
+        {"kind": "write", "command": "PSU:SET 1.0", "response": "OK"},
+        {"kind": "write", "command": "PSU:SET 2.0", "response": "OK"},
+        {"kind": "write", "command": "PSU:SET 3.0", "response": "OK"},
+        {"kind": "query", "command": "DMM:READ? 0.0", "response": "READ 0.01 V"},
+        {"kind": "query", "command": "DMM:READ? 1.0", "response": "READ 1.01 V"},
+        {"kind": "query", "command": "DMM:READ? 2.0", "response": "READ 2.00 V"},
+        {"kind": "query", "command": "DMM:READ? 3.0", "response": "READ 3.02 V"}
+      ]
+    }
+  ]
+}

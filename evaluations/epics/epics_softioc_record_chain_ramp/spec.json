@@ -1,0 +1,37 @@
+{
+  "instance_id": "epics_softioc_record_chain_ramp",
+  "gateway": "state_machine",
+  "simulator": "sim/record_chain_ramp.json",
+  "expected_result": {
+    "instrument": "SoftIocRampChain",
+    "setpoints_v": [0.0, 1.0, 2.0, 3.0],
+    "readbacks_v": [0.01, 1.01, 2.0, 3.02],
+    "errors_v": [0.01, 0.01, 0.0, 0.02],
+    "max_abs_error_v": {"close": 0.02, "abs_tol": 1e-12},
+    "alarm": "NO_ALARM",
+    "processed_records": ["ao:setpoint", "bo:enable", "ai:readback", "calc:error", "bi:alarm"]
+  },
+  "raw_protocol": {
+    "require_resource_discovery": true,
+    "expected_resources": ["IOC::RAMPCHAIN::SIM"],
+    "expected_commands": [
+      {"kind": "query", "command": "*IDN?"},
+      {"kind": "write", "command": "PSU:ENABLE 1"},
+      {"kind": "write", "command": "PSU:SET 0.0"},
+      {"kind": "query", "command": "DMM:READ? 0.0"},
+      {"kind": "write", "command": "PSU:SET 3.0"},
+      {"kind": "query", "command": "DMM:READ? 3.0"}
+    ],
+    "expected_sequence": [
+      {"kind": "write", "command": "PSU:ENABLE 1"},
+      {"kind": "write", "command": "PSU:SET 0.0"},
+      {"kind": "query", "command": "DMM:READ? 0.0"},
+      {"kind": "write", "command": "PSU:SET 1.0"},
+      {"kind": "query", "command": "DMM:READ? 1.0"},
+      {"kind": "write", "command": "PSU:SET 2.0"},
+      {"kind": "query", "command": "DMM:READ? 2.0"},
+      {"kind": "write", "command": "PSU:SET 3.0"},
+      {"kind": "query", "command": "DMM:READ? 3.0"}
+    ]
+  }
+}

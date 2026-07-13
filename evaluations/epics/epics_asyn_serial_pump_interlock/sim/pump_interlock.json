@@ -1,0 +1,15 @@
+{
+  "resources": [
+    {
+      "name": "ASYN::SERIAL0::PUMPCTL::INSTR",
+      "commands": [
+        {"kind": "query", "command": "*IDN?", "response": "EPICSIM,AsynPumpBus,ASYN-PUMP-01,1.0"},
+        {"kind": "query", "command": "@G1 PRES?", "responses": ["PRES 8.2E-4 TORR", "PRES 4.6E-5 TORR"]},
+        {"kind": "query", "command": "@P1 ILK?", "response": "ILK OK"},
+        {"kind": "query", "command": "@P1 START", "responses": ["NAK BUSY", "ACK"]},
+        {"kind": "query", "command": "@P1 START?", "response": "RUN 1"},
+        {"kind": "query", "command": "@P1 RPM?", "response": "RPM 45000"}
+      ]
+    }
+  ]
+}

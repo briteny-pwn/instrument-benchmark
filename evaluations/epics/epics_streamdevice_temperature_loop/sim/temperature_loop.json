@@ -1,0 +1,17 @@
+{
+  "resources": [
+    {
+      "name": "TCPIP0::10.10.0.11::4001::SOCKET",
+      "commands": [
+        {"kind": "query", "command": "*IDN?", "response": "EPICSIM,TempLoop336,TC336001,1.0"},
+        {"kind": "write", "command": "SETP 1,37.0", "response": "OK"},
+        {"kind": "write", "command": "RANGE 1,MED", "response": "OK"},
+        {"kind": "query", "command": "SETP? 1", "response": "SETP 1,37.00"},
+        {"kind": "query", "command": "RANGE? 1", "response": "RANGE 1,MED"},
+        {"kind": "query", "command": "KRDG? A", "responses": ["TEMP 22.40 C", "TEMP 31.20 C", "TEMP 36.70 C", "TEMP 37.02 C", "TEMP 37.00 C"]},
+        {"kind": "query", "command": "HTR? 1", "responses": ["HTR 1,68.0 %", "HTR 1,38.0 %", "HTR 1,18.0 %", "HTR 1,13.0 %", "HTR 1,12.5 %"]},
+        {"kind": "query", "command": "STB?", "responses": ["LOOP RAMPING", "LOOP RAMPING", "LOOP RAMPING", "LOOP STABLE", "LOOP STABLE"]}
+      ]
+    }
+  ]
+}
