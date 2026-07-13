@@ -1,0 +1,55 @@
+spec: "1.1"
+
+devices:
+  MockGateSource:
+    eom:
+      TCPIP INSTR:
+        q: "\n"
+        r: "\n"
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockGateSource,SRC001,1.0"
+      - q: "*RST"
+      - q: "OUTP ON"
+      - q: "SOUR:GATE -0.1"
+      - q: "SOUR:GATE 0.0"
+      - q: "SOUR:GATE 0.1"
+      - q: "SOUR:GATE 0.2"
+      - q: "SOUR:GATE 0.3"
+      - q: "OUTP?"
+        r: "1"
+
+  MockDMM7510:
+    eom:
+      TCPIP INSTR:
+        q: "\n"
+        r: "\n"
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockDMM7510,DMM7510001,1.0"
+      - q: "*RST"
+      - q: "CONF:VOLT:DC"
+      - q: "READ:VOLT? -0.1"
+        r: "-0.190"
+      - q: "READ:VOLT? 0.0"
+        r: "0.010"
+      - q: "READ:VOLT? 0.1"
+        r: "0.210"
+      - q: "READ:VOLT? 0.2"
+        r: "0.410"
+      - q: "READ:VOLT? 0.3"
+        r: "0.610"
+
+resources:
+  TCPIP::203.0.113.210::inst0::INSTR:
+    device: MockGateSource
+  TCPIP::203.0.113.211::inst0::INSTR:
+    device: MockDMM7510

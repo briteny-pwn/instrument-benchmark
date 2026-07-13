@@ -1,0 +1,48 @@
+{
+  "instance_id": "qcodes_station_sweep_basic",
+  "simulator": "pyvisa_sim/station_sweep_bench.yaml",
+  "expected_result": {
+    "framework": "raw_protocol",
+    "instruments": {
+      "source": "MockGateSource",
+      "dmm": "MockDMM7510"
+    },
+    "resources": {
+      "source": "TCPIP0::203.0.113.210::inst0::INSTR",
+      "dmm": "TCPIP0::203.0.113.211::inst0::INSTR"
+    },
+    "sweep_setpoints_v": [-0.1, 0.0, 0.1, 0.2, 0.3],
+    "measured_voltage_v": [-0.19, 0.01, 0.21, 0.41, 0.61],
+    "slope": {"close": 2.0, "abs_tol": 1e-9},
+    "intercept": {"close": 0.01, "abs_tol": 1e-9},
+    "validation_passed": true
+  },
+  "raw_protocol": {
+    "require_resource_discovery": true,
+    "expected_resources": [
+      "TCPIP0::203.0.113.210::inst0::INSTR",
+      "TCPIP0::203.0.113.211::inst0::INSTR"
+    ],
+    "expected_commands": [
+      {"kind": "query", "command": "*IDN?"},
+      {"kind": "write", "command": "OUTP ON"},
+      {"kind": "write", "command": "SOUR:GATE -0.1"},
+      {"kind": "query", "command": "READ:VOLT? -0.1"},
+      {"kind": "write", "command": "SOUR:GATE 0.3"},
+      {"kind": "query", "command": "READ:VOLT? 0.3"}
+    ],
+    "expected_sequence": [
+      {"kind": "write", "command": "OUTP ON"},
+      {"kind": "write", "command": "SOUR:GATE -0.1"},
+      {"kind": "query", "command": "READ:VOLT? -0.1"},
+      {"kind": "write", "command": "SOUR:GATE 0.0"},
+      {"kind": "query", "command": "READ:VOLT? 0.0"},
+      {"kind": "write", "command": "SOUR:GATE 0.1"},
+      {"kind": "query", "command": "READ:VOLT? 0.1"},
+      {"kind": "write", "command": "SOUR:GATE 0.2"},
+      {"kind": "query", "command": "READ:VOLT? 0.2"},
+      {"kind": "write", "command": "SOUR:GATE 0.3"},
+      {"kind": "query", "command": "READ:VOLT? 0.3"}
+    ]
+  }
+}
