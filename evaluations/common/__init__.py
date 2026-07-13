@@ -1,2 +1,2 @@
-"""Common evaluation helpers for instrument access instances."""
+"""Shared raw-protocol evaluation helpers."""
 
