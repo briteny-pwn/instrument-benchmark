@@ -1,0 +1,30 @@
+{
+  "instance_id": "pyvisa_dmm_ascii_average",
+  "simulator": "pyvisa_sim/mockdmm2000.yaml",
+  "expected_result": {
+    "instrument": "MockDMM2000",
+    "measurement": "dc_voltage",
+    "sample_count": 5,
+    "samples_v": [1.001, 1.003, 0.999, 1.002, 1.0],
+    "average_voltage_v": {"close": 1.001, "abs_tol": 1e-9},
+    "unit": "V"
+  },
+  "raw_protocol": {
+    "expected_resources": ["GPIB0::12::INSTR"],
+    "expected_commands": [
+      {"kind": "query", "command": "*IDN?"},
+      {"kind": "write", "command": "*RST"},
+      {"kind": "write", "command": "CONF:VOLT:DC"},
+      {"kind": "write", "command": "VOLT:RANG 10"},
+      {"kind": "write", "command": "SAMP:COUN 5"},
+      {"kind": "write", "command": "INIT"},
+      {"kind": "query", "command": "TRACE:DATA?"}
+    ],
+    "expected_sequence": [
+      {"kind": "write", "command": "CONF:VOLT:DC"},
+      {"kind": "write", "command": "SAMP:COUN 5"},
+      {"kind": "write", "command": "INIT"},
+      {"kind": "query", "command": "TRACE:DATA?"}
+    ]
+  }
+}

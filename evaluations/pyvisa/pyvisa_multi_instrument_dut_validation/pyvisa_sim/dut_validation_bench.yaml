@@ -1,0 +1,134 @@
+spec: "1.1"
+
+devices:
+  MockPSU320:
+    eom:
+      USB INSTR:
+        q: "\n"
+        r: "\n"
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockPSU320,PSU320001,1.0"
+      - q: "*RST"
+      - q: ":SOUR:VOLT 5"
+      - q: ":SOUR:CURR 0.2"
+      - q: ":OUTP ON"
+      - q: ":OUTP?"
+        r: "1"
+      - q: ":MEAS:VOLT?"
+        r: "5.001"
+
+  MockSwitch48:
+    eom:
+      GPIB INSTR:
+        q: "\n"
+        r: "\n"
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockSwitch48,SW480001,1.0"
+      - q: "*RST"
+      - q: "ROUT:OPEN:ALL"
+      - q: "ROUT:CLOS (@101,102)"
+      - q: "ROUT:CLOS?"
+        r: "(@101,102)"
+
+  MockAWG900:
+    eom:
+      USB INSTR:
+        q: "\n"
+        r: "\n"
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockAWG900,AWG900001,1.0"
+      - q: "*RST"
+      - q: "DATA:ARB DUT_STAIR,0.000000,0.300000,0.600000,0.900000,1.200000,0.900000,0.600000,0.300000"
+      - q: "FUNC:ARB DUT_STAIR"
+      - q: "VOLT 1.2"
+      - q: "VOLT:OFFS 0.0"
+      - q: "FREQ 1000"
+      - q: "OUTP ON"
+      - q: "OUTP?"
+        r: "1"
+
+  MockScope1200:
+    eom:
+      TCPIP INSTR:
+        q: "\n"
+        r: ""
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockScope1200,SCOPE1200001,1.0\n"
+      - q: "*RST"
+      - q: "DATA:SOURCE CH1"
+      - q: "DATA:ENCODING RIBINARY"
+      - q: "DATA:WIDTH 1"
+      - q: "WFMOUTPRE:YMULT 0.02"
+      - q: "WFMOUTPRE:YOFF 50"
+      - q: "WFMOUTPRE:YZERO 0.0"
+      - q: "CURVE?"
+        r: "#182AP_n_PA"
+
+  MockDMM7510:
+    eom:
+      GPIB INSTR:
+        q: "\n"
+        r: "\n"
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockDMM7510,DMM7510001,1.0"
+      - q: "*RST"
+      - q: "CONF:VOLT:DC"
+      - q: "VOLT:RANG 10"
+      - q: "SAMP:COUN 8"
+      - q: "TRIG:SOUR IMM"
+      - q: "INIT"
+      - q: "FETCH:VOLT?"
+        r: "0.000,0.300,0.600,0.900,1.200,0.900,0.600,0.300"
+
+  MockCounter10:
+    eom:
+      USB INSTR:
+        q: "\n"
+        r: "\n"
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockCounter10,CNT10001,1.0"
+
+resources:
+  USB::0x9999::0x0320::PSU320001::INSTR:
+    device: MockPSU320
+  GPIB::7::INSTR:
+    device: MockSwitch48
+  USB::0x9999::0x0900::AWG900001::INSTR:
+    device: MockAWG900
+  TCPIP::203.0.113.120::inst0::INSTR:
+    device: MockScope1200
+  GPIB::24::INSTR:
+    device: MockDMM7510
+  USB::0x9999::0x0010::CNT10001::INSTR:
+    device: MockCounter10
+

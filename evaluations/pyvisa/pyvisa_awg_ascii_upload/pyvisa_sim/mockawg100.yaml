@@ -1,0 +1,28 @@
+spec: "1.1"
+
+devices:
+  MockAWG100:
+    eom:
+      USB INSTR:
+        q: "\n"
+        r: "\n"
+
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockAWG100,AWG100001,1.0"
+      - q: "*RST"
+      - q: "DATA:ARB RAMP,0.000000,0.250000,0.500000,0.750000,1.000000"
+      - q: "FUNC:ARB RAMP"
+      - q: "VOLT 2"
+      - q: "OUTP ON"
+      - q: "OUTP?"
+        r: "1"
+
+resources:
+  USB::0x9999::0x0100::AWG100001::INSTR:
+    device: MockAWG100

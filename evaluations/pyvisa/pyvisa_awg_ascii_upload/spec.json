@@ -1,0 +1,30 @@
+{
+  "instance_id": "pyvisa_awg_ascii_upload",
+  "simulator": "pyvisa_sim/mockawg100.yaml",
+  "expected_result": {
+    "instrument": "MockAWG100",
+    "waveform": "RAMP",
+    "points": [0.0, 0.25, 0.5, 0.75, 1.0],
+    "point_count": 5,
+    "amplitude_vpp": {"close": 2.0, "abs_tol": 1e-12},
+    "output_enabled": true
+  },
+  "raw_protocol": {
+    "expected_resources": ["USB0::0x9999::0x0100::AWG100001::INSTR"],
+    "expected_commands": [
+      {"kind": "query", "command": "*IDN?"},
+      {"kind": "write", "command": "*RST"},
+      {"kind": "write", "command": "DATA:ARB RAMP,0.000000,0.250000,0.500000,0.750000,1.000000"},
+      {"kind": "write", "command": "FUNC:ARB RAMP"},
+      {"kind": "write", "command": "VOLT 2"},
+      {"kind": "write", "command": "OUTP ON"},
+      {"kind": "query", "command": "OUTP?"}
+    ],
+    "expected_sequence": [
+      {"kind": "write", "command": "DATA:ARB RAMP,0.000000,0.250000,0.500000,0.750000,1.000000"},
+      {"kind": "write", "command": "FUNC:ARB RAMP"},
+      {"kind": "write", "command": "OUTP ON"},
+      {"kind": "query", "command": "OUTP?"}
+    ]
+  }
+}
