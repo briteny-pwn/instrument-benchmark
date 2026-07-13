@@ -28,6 +28,7 @@ instances/
 evaluations/
   common/
     raw_sim_gateway.py
+    state_machine_gateway.py
     raw_trace.py
     import_guard.py
     grader_core.py
@@ -51,6 +52,7 @@ docs/
   sources/
     pyvisa.md
     qcodes.md
+    epics.md
 ```
 
 Boundaries:
@@ -72,6 +74,9 @@ framework.
   but the candidate only sees a raw socket protocol.
 - `qcodes`: tasks may be inspired by QCoDeS station/driver patterns, but the
   candidate still writes a raw protocol client from the manual.
+- `epics`: tasks may be inspired by EPICS StreamDevice, asyn, soft IOC, or
+  caproto behavior, but the candidate still writes a raw protocol client from
+  the manual.
 
 ## Candidate Contract
 
@@ -89,10 +94,15 @@ Forbidden imports include:
 
 ```text
 pyvisa
+caproto
+epics
+pyepics
 qcodes
 qcodes_contrib_drivers
 lab_drivers
 pymeasure
+pcaspy
+softioc
 bluesky
 ophyd
 pylabrobot
@@ -111,7 +121,8 @@ It should implement resource discovery/open/write/query/parsing/cleanup itself.
 ## Evaluation Contract
 
 Evaluation starts a hidden TCP gateway. Internally that gateway may connect to
-`pyvisa-sim`, but externally it exposes only JSON-line socket operations:
+`pyvisa-sim` or a standard-library state-machine simulator, but externally it
+exposes only JSON-line socket operations:
 
 ```json
 {"op": "list_resources"}
@@ -132,6 +143,19 @@ Scoring dimensions:
   sequence.
 - `observation`: final experiment result matches the expected observation.
 - `cleanup`: candidate closes handles and sockets.
+
+### EPICS Evaluation Status
+
+The current `epics` evaluations do not start native EPICS soft IOCs,
+StreamDevice/asyn stacks, or caproto servers. They use
+`evaluations/common/state_machine_gateway.py`, a standard-library finite-state
+simulator that reproduces the task-specific behavior derived from those
+ecosystems.
+
+This keeps the benchmark portable and preserves the candidate contract: the
+model sees only a manual plus a raw socket protocol, and still writes the
+instrument interface from scratch. Native-framework evaluation backends are a
+future improvement tracked in `evaluations/TODO.md`.
 
 ## Running Instances
 
@@ -169,6 +193,13 @@ PyVISA-sourced raw protocol instances:
 QCoDeS-sourced raw protocol instance:
 
 - `qcodes_station_sweep_basic`
+
+EPICS-sourced raw protocol instances:
+
+- `epics_streamdevice_temperature_loop`
+- `epics_asyn_serial_pump_interlock`
+- `epics_softioc_record_chain_ramp`
+- `epics_caproto_pv_bridge_scan`
 
 ## Adding a New Instance
 

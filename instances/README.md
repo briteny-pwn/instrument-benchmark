@@ -27,5 +27,7 @@ Current source families:
 
 - `pyvisa`: protocol material derived from PyVISA/pyvisa-sim style instruments.
 - `qcodes`: protocol material derived from QCoDeS-style station/driver tasks.
+- `epics`: protocol material derived from EPICS StreamDevice, asyn, soft IOC,
+  and caproto-style tasks.
 
-In both families, the candidate writes its own raw client from scratch.
+In all source families, the candidate writes its own raw client from scratch.
