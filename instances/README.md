@@ -29,5 +29,9 @@ Current source families:
 - `qcodes`: protocol material derived from QCoDeS-style station/driver tasks.
 - `epics`: protocol material derived from EPICS StreamDevice, asyn, soft IOC,
   and caproto-style tasks.
+- `tango`: protocol material derived from Tango Controls and SimulatorDS-style
+  device, command, attribute, property, state, and event tasks.
+- `yaq`: protocol material derived from yaq daemon, trait, state, and
+  yaqd-fakes simulated instrument tasks.
 
 In all source families, the candidate writes its own raw client from scratch.
