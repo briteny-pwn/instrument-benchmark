@@ -1,0 +1,20 @@
+{
+  "initial_state": {"device": {"alarm_limit_c": 100.0, "temperature_c": 20.0, "state": "ON", "status": "Temperature within configured alarm limit"}},
+  "resources": [
+    {
+      "name": "TANGO://sys/tg_test/temp/2",
+      "commands": [
+        {"kind": "query", "command": "COMMAND info", "response": "CLASS SimulatorDS DEVICE sys/tg_test/temp/2"},
+        {"kind": "write", "command_regex": "^WRITE_ATTR ALARM_LIMIT ([-+0-9.]+)$", "state_from_groups": {"device.alarm_limit_c": {"group": 1, "type": "float"}}},
+        {"kind": "query", "command": "READ_ATTR alarm_limit", "response_template": "LIMIT {device.alarm_limit_c} C"},
+        {"kind": "query", "command": "READ_ATTR temperature", "requires_state": {"device.alarm_limit_c": 30.0}, "steps": [
+          {"response": "TEMP -5.0 C", "state_updates": {"device.temperature_c": -5.0, "device.state": "ON", "device.status": "Temperature within configured alarm limit"}},
+          {"response": "TEMP 12.5 C", "state_updates": {"device.temperature_c": 12.5, "device.state": "ON", "device.status": "Temperature within configured alarm limit"}},
+          {"response": "TEMP 29.9 C", "state_updates": {"device.temperature_c": 29.9, "device.state": "ON", "device.status": "Temperature within configured alarm limit"}}
+        ]},
+        {"kind": "query", "command": "COMMAND State", "response_state": "device.state"},
+        {"kind": "query", "command": "COMMAND Status", "response_state": "device.status"}
+      ]
+    }
+  ]
+}

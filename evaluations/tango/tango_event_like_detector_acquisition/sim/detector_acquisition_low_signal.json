@@ -1,0 +1,22 @@
+{
+  "initial_state": {"detector": {"exposure_s": 0.0, "state": "ON", "requested_frames": 0, "frame_count": 0, "mean_intensity": 0.0}},
+  "resources": [
+    {
+      "name": "TANGO://detector/sim/2",
+      "commands": [
+        {"kind": "query", "command": "COMMAND info", "response": "CLASS SimDetector DEVICE detector/sim/2"},
+        {"kind": "write", "command_regex": "^WRITE_ATTR EXPOSURE ([-+0-9.]+)$", "state_from_groups": {"detector.exposure_s": {"group": 1, "type": "float"}}},
+        {"kind": "query", "command_regex": "^COMMAND STARTACQUISITION (\\d+)$", "requires_state": {"detector.exposure_s": 0.05}, "response": "RUNNING", "state_updates": {"detector.state": "RUNNING", "detector.frame_count": 0}, "state_from_groups": {"detector.requested_frames": {"group": 1, "type": "int"}}},
+        {"kind": "query", "command": "READ_EVENT frame", "requires_state": {"detector.state": "RUNNING"}, "steps": [
+          {"response": "FRAME 1 INTENSITY -2.5", "state_increments": {"detector.frame_count": 1}},
+          {"response": "FRAME 2 INTENSITY 0.0", "state_increments": {"detector.frame_count": 1}},
+          {"response": "FRAME 3 INTENSITY 3.5", "state_increments": {"detector.frame_count": 1}},
+          {"response": "FRAME 4 INTENSITY 7.0", "state_increments": {"detector.frame_count": 1}, "state_updates": {"detector.mean_intensity": 2.0, "detector.state": "ON"}}
+        ]},
+        {"kind": "query", "command": "COMMAND State", "response_state": "detector.state"},
+        {"kind": "query", "command": "READ_ATTR frame_count", "response_template": "FRAME_COUNT {detector.frame_count}"},
+        {"kind": "query", "command": "READ_ATTR mean_intensity", "response_template": "MEAN_INTENSITY {detector.mean_intensity}"}
+      ]
+    }
+  ]
+}

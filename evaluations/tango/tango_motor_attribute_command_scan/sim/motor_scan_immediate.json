@@ -1,0 +1,20 @@
+{
+  "initial_state": {"motor": {"on": false, "state": "OFF", "velocity_mm_s": 0.0, "target_mm": 0.0, "position_mm": 4.0, "stopped": false}},
+  "resources": [
+    {
+      "name": "TANGO://motor/axis/2",
+      "commands": [
+        {"kind": "query", "command": "COMMAND info", "response": "CLASS SimuMotor DEVICE motor/axis/2"},
+        {"kind": "query", "command": "COMMAND On", "response": "OK", "state_updates": {"motor.on": true, "motor.state": "ON"}},
+        {"kind": "write", "command_regex": "^WRITE_ATTR VELOCITY ([-+0-9.]+)$", "requires_state": {"motor.on": true}, "state_from_groups": {"motor.velocity_mm_s": {"group": 1, "type": "float"}}},
+        {"kind": "query", "command": "READ_ATTR velocity", "response_template": "VELOCITY {motor.velocity_mm_s} MM/S"},
+        {"kind": "query", "command_regex": "^COMMAND MOVE ([-+0-9.]+)$", "requires_state": {"motor.on": true, "motor.velocity_mm_s": 2.0}, "response": "MOVING", "state_updates": {"motor.state": "MOVING", "motor.stopped": false}, "state_from_groups": {"motor.target_mm": {"group": 1, "type": "float"}, "motor.position_mm": {"group": 1, "type": "float"}}},
+        {"kind": "query", "command": "COMMAND State", "steps": [
+          {"response": "ON", "state_updates": {"motor.state": "ON"}}, {"response": "ON", "state_updates": {"motor.state": "ON"}}, {"response": "ON", "state_updates": {"motor.state": "ON"}}
+        ]},
+        {"kind": "query", "command": "READ_ATTR position", "requires_state": {"motor.state": "ON"}, "response_template": "POSITION {motor.position_mm} MM"},
+        {"kind": "query", "command": "COMMAND Stop", "response": "OK", "requires_state": {"motor.on": true}, "state_updates": {"motor.state": "ON", "motor.stopped": true}}
+      ]
+    }
+  ]
+}

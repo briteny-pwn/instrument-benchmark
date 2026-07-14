@@ -1,0 +1,35 @@
+{
+  "instance_id": "tango_simulatords_dynamic_temperature_alarm",
+  "spec_version": 2,
+  "gateway": "state_machine",
+  "pass_threshold": 0.85,
+  "rubric": {"sim_execution": 0.05, "forbidden_api": 0.10, "task_success": 0.40, "instrument_access": 0.15, "protocol_correctness": 0.10, "state_process": 0.10, "safety_and_cleanup": 0.10},
+  "suite": {"robustness_weight": 0.20, "minimum_pass_rate": 1.0, "repetitions": 1},
+  "scenarios": [
+    {"id": "temperature_above_limit", "simulator": "sim/temperature_alarm.json"},
+    {"id": "temperature_below_limit", "simulator": "sim/temperature_no_alarm.json"},
+    {"id": "final_temperature_equals_limit", "simulator": "sim/temperature_threshold_edge.json"}
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0}, {"dimension": "instrument_access", "min": 1.0},
+    {"check": "temperature_trace_oracle", "min": 1.0}, {"check": "state_oracle", "min": 1.0},
+    {"check": "status_oracle", "min": 1.0}, {"check": "alarm_decision_oracle", "min": 1.0},
+    {"check": "temperature_alarm_process", "min": 1.0}, {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {"name": "result_contract", "type": "result_json", "dimension": "task_success", "expected": {"class": "SimulatorDS", "alarm_limit_c": {"close": 30.0, "abs_tol": 1e-12}}},
+    {"name": "class_oracle", "type": "trace_response", "dimension": "task_success", "selector": {"kind": "query", "command": "COMMAND info"}, "parse": "regex_group", "response_regex": "^CLASS\\s+(\\S+)\\s+DEVICE\\s+(\\S+)$", "group": 1, "expected": "SimulatorDS", "result_path": "$.class"},
+    {"name": "device_oracle", "type": "trace_response", "dimension": "task_success", "selector": {"kind": "query", "command": "COMMAND info"}, "parse": "regex_group", "response_regex": "^CLASS\\s+(\\S+)\\s+DEVICE\\s+(\\S+)$", "group": 2, "result_path": "$.device"},
+    {"name": "temperature_trace_oracle", "type": "trace_numeric_aggregate", "dimension": "task_success", "selector": {"kind": "query", "command": "READ_ATTR temperature"}, "response_regex": "^TEMP\\s+([-+0-9.eE]+)\\s+C$", "assertions": [{"result_path": "$.temperature_history_c", "aggregate": "values", "abs_tol": 1e-9}]},
+    {"name": "state_oracle", "type": "trace_response", "dimension": "task_success", "selector": {"kind": "query", "command": "COMMAND State"}, "result_path": "$.final_state"},
+    {"name": "status_oracle", "type": "trace_response", "dimension": "task_success", "selector": {"kind": "query", "command": "COMMAND Status"}, "result_path": "$.status"},
+    {"name": "alarm_decision_oracle", "type": "result_threshold_decision", "dimension": "task_success", "result_path": "$.alarm", "conditions": [{"path": "$.final_state", "equals": "ALARM"}]},
+    {"name": "configured_limit_state", "type": "sim_state", "dimension": "task_success", "path": "$.state.device.alarm_limit_c", "expected": {"close": 30.0, "abs_tol": 1e-9}},
+    {"name": "final_state_binding", "type": "result_sim_state_binding", "dimension": "task_success", "result_path": "$.final_state", "sim_path": "$.state.device.state"},
+    {"name": "raw_interface_evidence", "type": "trace_coverage", "dimension": "instrument_access", "expectations": [{"kind": "socket_connect"}, {"kind": "list_resources"}, {"kind": "open"}, {"kind": "query", "command": "COMMAND info"}]},
+    {"name": "protocol_commands", "type": "trace_coverage", "dimension": "protocol_correctness", "expectations": [{"kind": "write", "command_regex": "^WRITE_ATTR ALARM_LIMIT 30(?:\\.0*)?$"}, {"kind": "query", "command": "READ_ATTR temperature"}, {"kind": "query", "command": "COMMAND State"}, {"kind": "query", "command": "COMMAND Status"}]},
+    {"name": "temperature_alarm_process", "type": "ordered_milestones", "dimension": "state_process", "milestones": [{"kind": "query", "command": "COMMAND info"}, {"kind": "write", "command_regex": "^WRITE_ATTR ALARM_LIMIT 30(?:\\.0*)?$"}, {"kind": "query", "command": "READ_ATTR temperature"}, {"kind": "query", "command": "READ_ATTR temperature"}, {"kind": "query", "command": "READ_ATTR temperature"}, {"kind": "query", "command": "COMMAND State"}, {"kind": "query", "command": "COMMAND Status"}]},
+    {"name": "anti_hardcode", "type": "anti_hardcode", "dimension": "instrument_access", "requires": ["socket_connect", "list_resources", "open", "write", "query"]},
+    {"name": "cleanup", "type": "cleanup", "dimension": "safety_and_cleanup"}
+  ]
+}

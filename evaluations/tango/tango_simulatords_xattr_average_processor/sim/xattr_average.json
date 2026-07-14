@@ -1,0 +1,18 @@
+{
+  "initial_state": {"sensors": {"a_c": 21.5, "b_c": 24.5}, "processor": {"average_c": 23.0, "deviation_c": 1.5, "state": "ON"}},
+  "resources": [
+    {"name": "TANGO://sim/sensor/a", "commands": [
+      {"kind": "query", "command": "READ_ATTR temperature", "response_template": "TEMP {sensors.a_c} C"},
+      {"kind": "query", "command": "COMMAND State", "response": "ON"}
+    ]},
+    {"name": "TANGO://sim/sensor/b", "commands": [
+      {"kind": "query", "command": "READ_ATTR temperature", "response_template": "TEMP {sensors.b_c} C"},
+      {"kind": "query", "command": "COMMAND State", "response": "ON"}
+    ]},
+    {"name": "TANGO://sim/processor/avg", "commands": [
+      {"kind": "query", "command": "READ_ATTR average_temperature", "response_template": "AVG {processor.average_c} C"},
+      {"kind": "query", "command": "READ_ATTR deviation", "response_template": "DEV {processor.deviation_c} C"},
+      {"kind": "query", "command": "COMMAND State", "response_state": "processor.state"}
+    ]}
+  ]
+}

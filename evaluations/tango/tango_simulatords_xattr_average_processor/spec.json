@@ -1,0 +1,32 @@
+{
+  "instance_id": "tango_simulatords_xattr_average_processor",
+  "spec_version": 2,
+  "gateway": "state_machine",
+  "pass_threshold": 0.85,
+  "rubric": {"sim_execution": 0.05, "forbidden_api": 0.10, "task_success": 0.40, "instrument_access": 0.15, "protocol_correctness": 0.10, "state_process": 0.10, "safety_and_cleanup": 0.10},
+  "suite": {"robustness_weight": 0.20, "minimum_pass_rate": 1.0, "repetitions": 1},
+  "scenarios": [
+    {"id": "nominal_processor", "simulator": "sim/xattr_average.json"},
+    {"id": "wide_range_and_resource_order", "simulator": "sim/xattr_average_wide_range.json"},
+    {"id": "faulty_processor", "simulator": "sim/xattr_average_faulty_processor.json"}
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0}, {"dimension": "instrument_access", "min": 1.0},
+    {"check": "sensor_trace_oracle", "min": 1.0}, {"check": "average_trace_oracle", "min": 1.0},
+    {"check": "deviation_trace_oracle", "min": 1.0}, {"check": "processor_validation_oracle", "min": 1.0},
+    {"check": "xattr_process", "min": 1.0}, {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {"name": "result_contract", "type": "result_json", "dimension": "task_success", "expected": {"devices": {"sensor_a": "sim/sensor/a", "sensor_b": "sim/sensor/b", "processor": "sim/processor/avg"}}},
+    {"name": "sensor_trace_oracle", "type": "trace_numeric_aggregate", "dimension": "task_success", "selector": {"kind": "query", "command": "READ_ATTR temperature"}, "response_regex": "^TEMP\\s+([-+0-9.eE]+)\\s+C$", "assertions": [{"result_path": "$.sensor_temperatures_c", "aggregate": "values", "abs_tol": 1e-9}]},
+    {"name": "average_trace_oracle", "type": "trace_numeric_aggregate", "dimension": "task_success", "selector": {"kind": "query", "resource": "TANGO://sim/processor/avg", "command": "READ_ATTR average_temperature"}, "response_regex": "^AVG\\s+([-+0-9.eE]+)\\s+C$", "assertions": [{"result_path": "$.average_temperature_c", "aggregate": "last", "abs_tol": 1e-9}]},
+    {"name": "deviation_trace_oracle", "type": "trace_numeric_aggregate", "dimension": "task_success", "selector": {"kind": "query", "resource": "TANGO://sim/processor/avg", "command": "READ_ATTR deviation"}, "response_regex": "^DEV\\s+([-+0-9.eE]+)\\s+C$", "assertions": [{"result_path": "$.deviation_c", "aggregate": "last", "abs_tol": 1e-9}]},
+    {"name": "processor_state_oracle", "type": "trace_response", "dimension": "task_success", "selector": {"kind": "query", "resource": "TANGO://sim/processor/avg", "command": "COMMAND State"}, "result_path": "$.processor_state"},
+    {"name": "processor_validation_oracle", "type": "result_mean_deviation_validation", "dimension": "task_success", "values_path": "$.sensor_temperatures_c", "average_path": "$.average_temperature_c", "deviation_path": "$.deviation_c", "result_path": "$.validation_passed", "abs_tol": 1e-12},
+    {"name": "raw_interface_evidence", "type": "trace_coverage", "dimension": "instrument_access", "expectations": [{"kind": "socket_connect"}, {"kind": "list_resources"}, {"kind": "open", "resource": "TANGO://sim/sensor/a"}, {"kind": "open", "resource": "TANGO://sim/sensor/b"}, {"kind": "open", "resource": "TANGO://sim/processor/avg"}]},
+    {"name": "protocol_commands", "type": "trace_coverage", "dimension": "protocol_correctness", "expectations": [{"kind": "query", "resource": "TANGO://sim/sensor/a", "command": "READ_ATTR temperature"}, {"kind": "query", "resource": "TANGO://sim/sensor/b", "command": "READ_ATTR temperature"}, {"kind": "query", "resource": "TANGO://sim/processor/avg", "command": "READ_ATTR average_temperature"}, {"kind": "query", "resource": "TANGO://sim/processor/avg", "command": "READ_ATTR deviation"}, {"kind": "query", "resource": "TANGO://sim/processor/avg", "command": "COMMAND State"}]},
+    {"name": "xattr_process", "type": "ordered_milestones", "dimension": "state_process", "milestones": [{"kind": "query", "resource": "TANGO://sim/sensor/a", "command": "READ_ATTR temperature"}, {"kind": "query", "resource": "TANGO://sim/sensor/b", "command": "READ_ATTR temperature"}, {"kind": "query", "resource": "TANGO://sim/processor/avg", "command": "READ_ATTR average_temperature"}, {"kind": "query", "resource": "TANGO://sim/processor/avg", "command": "READ_ATTR deviation"}, {"kind": "query", "resource": "TANGO://sim/processor/avg", "command": "COMMAND State"}]},
+    {"name": "anti_hardcode", "type": "anti_hardcode", "dimension": "instrument_access", "requires": ["socket_connect", "list_resources", "open", "query"]},
+    {"name": "cleanup", "type": "cleanup", "dimension": "safety_and_cleanup"}
+  ]
+}
