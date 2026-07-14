@@ -6,16 +6,16 @@ count data. Treat it as an instrument exposed through the raw command protocol
 described separately.
 
 Discover the concrete resource and identify it with `*IDN?`. A typical
-resource is:
+resource identifiers follow this form:
 
 ```text
-YAQ::fake-spectrometer::1
+YAQ::fake-spectrometer::<instance>
 ```
 
 Identity:
 
 ```text
-*IDN? -> YAQ,fake-spectrometer,triggered_spectrometer,YSPEC001
+*IDN? -> YAQ,fake-spectrometer,triggered_spectrometer,<serial>
 ```
 
 Commands:

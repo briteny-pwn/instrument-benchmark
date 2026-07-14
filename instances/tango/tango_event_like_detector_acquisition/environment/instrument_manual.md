@@ -4,10 +4,10 @@ This device is documented with Tango command/attribute/event concepts. The raw
 simulator provides event-like records as query responses.
 
 Discover the concrete simulator resource, then use `COMMAND info` to identify
-the device. A typical resource is:
+the device. Resource names follow this form:
 
 ```text
-TANGO://detector/sim/1
+TANGO://<authority>/detector/<name>
 ```
 
 Identity:

@@ -1,6 +1,6 @@
 # Raw Simulator Protocol
 
-The evaluator starts a local TCP simulator gateway before running your code.
+A TCP instrument service is available while your program runs.
 Read the connection endpoint from these environment variables:
 
 - `INSTRUMENT_SIM_HOST`

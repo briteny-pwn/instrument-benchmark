@@ -93,7 +93,7 @@ READ:VOLT? <setpoint>
 ```
 
 Responses are decimal voltage strings determined by the source's current
-setpoint and the hidden transfer behavior. The setpoint argument must match the
+setpoint and the device transfer behavior. The setpoint argument must match the
 source value most recently written.
 
 ## Required Analysis

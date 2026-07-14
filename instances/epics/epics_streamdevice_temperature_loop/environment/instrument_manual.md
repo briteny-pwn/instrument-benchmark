@@ -4,16 +4,17 @@ This device is documented in the style of an EPICS StreamDevice byte-stream
 protocol. Commands and replies are ASCII text terminated by CR LF.
 
 The simulator assigns the concrete resource identifier. Discover the available
-resource and identify the controller with `*IDN?`. A typical resource is:
+resource and identify the controller with `*IDN?`. Resource names follow this
+form:
 
 ```text
-TCPIP0::10.10.0.11::4001::SOCKET
+TCPIP0::<address>::<port>::SOCKET
 ```
 
 Identification:
 
 ```text
-*IDN? -> EPICSIM,TempLoop336,TC336001,1.0
+*IDN? -> <vendor>,TempLoop336,<serial>,<firmware>
 ```
 
 Loop 1 commands:

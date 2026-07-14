@@ -1,6 +1,6 @@
 # Raw Simulator Protocol
 
-The evaluator starts a local TCP simulator gateway before running your code.
+A TCP instrument service is available while your program runs.
 Read the endpoint from:
 
 - `INSTRUMENT_SIM_HOST`
@@ -13,7 +13,7 @@ Allowed operations:
 
 ```json
 {"op": "list_resources"}
-{"op": "open", "resource": "YAQ::fake-spectrometer::1", "timeout": 5000}
+{"op": "open", "resource": "<resource returned by list_resources>", "timeout": 5000}
 {"op": "write", "handle": "h1", "command": "SET_CENTER 550.0"}
 {"op": "query", "handle": "h1", "command": "MEASURE"}
 {"op": "query", "handle": "h1", "command": "BUSY?"}

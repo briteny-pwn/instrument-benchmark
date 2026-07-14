@@ -6,9 +6,9 @@ Tango devices, similar to formulas that use `XATTR(...)`.
 Resources:
 
 ```text
-TANGO://sim/sensor/a
-TANGO://sim/sensor/b
-TANGO://sim/processor/avg
+TANGO://<authority>/sensor/<name>
+TANGO://<authority>/sensor/<name>
+TANGO://<authority>/processor/<name>
 ```
 
 Sensor attributes:

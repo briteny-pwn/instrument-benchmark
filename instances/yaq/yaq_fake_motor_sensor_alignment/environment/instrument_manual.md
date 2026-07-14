@@ -5,11 +5,11 @@ daemon with its own resource. Treat both devices as instruments exposed through
 the raw command protocol described separately.
 
 Discover the concrete resources and classify them using `*IDN?`. Typical
-resources are:
+resource identifiers follow these forms:
 
 ```text
-YAQ::fake-continuous-hardware::axis
-YAQ::fake-sensor::alignment
+YAQ::fake-continuous-hardware::<instance>
+YAQ::fake-sensor::<instance>
 ```
 
 Identity:

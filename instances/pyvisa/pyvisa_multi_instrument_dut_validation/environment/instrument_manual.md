@@ -27,11 +27,11 @@ instruments.
 Target identification responses:
 
 ```text
-Mock Instruments,MockPSU320,PSU320001,1.0
-Mock Instruments,MockSwitch48,SW480001,1.0
-Mock Instruments,MockAWG900,AWG900001,1.0
-Mock Instruments,MockScope1200,SCOPE1200001,1.0
-Mock Instruments,MockDMM7510,DMM7510001,1.0
+<vendor>,MockPSU320,<serial>,<firmware>
+<vendor>,MockSwitch48,<serial>,<firmware>
+<vendor>,MockAWG900,<serial>,<firmware>
+<vendor>,MockScope1200,<serial>,<firmware>
+<vendor>,MockDMM7510,<serial>,<firmware>
 ```
 
 ## Communication Parameters

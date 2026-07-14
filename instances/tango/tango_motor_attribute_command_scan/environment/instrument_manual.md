@@ -4,10 +4,10 @@ This device is documented with Tango command/attribute/state concepts. Treat it
 as an instrument exposed through a raw command protocol.
 
 Discover the concrete simulator resource, then use `COMMAND info` to identify
-the device. A typical resource is:
+the device. Resource names follow this form:
 
 ```text
-TANGO://motor/axis/1
+TANGO://<authority>/motor/<axis>
 ```
 
 Identity:

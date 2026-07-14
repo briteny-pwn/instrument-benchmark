@@ -22,9 +22,9 @@ operation, open candidate resources, and query `*IDN?` to identify the targets.
 Target identification responses:
 
 ```text
-Mock Instruments,MockAWG700,AWG700001,1.0
-Mock Instruments,MockScope900,SCOPE900001,1.0
-Mock Instruments,MockDMM650,DMM650001,1.0
+<vendor>,MockAWG700,<serial>,<firmware>
+<vendor>,MockScope900,<serial>,<firmware>
+<vendor>,MockDMM650,<serial>,<firmware>
 ```
 
 ## Communication Parameters

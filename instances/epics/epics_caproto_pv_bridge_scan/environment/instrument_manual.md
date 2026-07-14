@@ -4,17 +4,17 @@ This simulator uses caproto-like PV semantics but exposes them as raw ASCII
 commands. Think of `PVPUT` as writing a process variable and `PVGET` as reading
 the latest value.
 
-Discover the concrete simulator resource and identify it with `*IDN?`. A
-typical resource is:
+Discover the concrete resource and identify it with `*IDN?`. Resource names
+follow this form:
 
 ```text
-CA::PVBRIDGE::SIM
+CA::<bridge>::<endpoint>
 ```
 
 Identification:
 
 ```text
-*IDN? -> EPICSIM,CaprotoPvBridge,PV-BRIDGE-01,1.0
+*IDN? -> <vendor>,CaprotoPvBridge,<serial>,<firmware>
 ```
 
 PV prefix:
