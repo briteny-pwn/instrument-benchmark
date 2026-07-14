@@ -1,48 +1,181 @@
 {
   "instance_id": "qcodes_station_sweep_basic",
-  "simulator": "pyvisa_sim/station_sweep_bench.yaml",
-  "expected_result": {
-    "framework": "raw_protocol",
-    "instruments": {
-      "source": "MockGateSource",
-      "dmm": "MockDMM7510"
-    },
-    "resources": {
-      "source": "TCPIP0::203.0.113.210::inst0::INSTR",
-      "dmm": "TCPIP0::203.0.113.211::inst0::INSTR"
-    },
-    "sweep_setpoints_v": [-0.1, 0.0, 0.1, 0.2, 0.3],
-    "measured_voltage_v": [-0.19, 0.01, 0.21, 0.41, 0.61],
-    "slope": {"close": 2.0, "abs_tol": 1e-9},
-    "intercept": {"close": 0.01, "abs_tol": 1e-9},
-    "validation_passed": true
+  "spec_version": 2,
+  "gateway": "linear_sweep",
+  "pass_threshold": 0.85,
+  "rubric": {
+    "sim_execution": 0.05,
+    "forbidden_api": 0.10,
+    "task_success": 0.40,
+    "instrument_access": 0.15,
+    "protocol_correctness": 0.10,
+    "state_process": 0.10,
+    "safety_and_cleanup": 0.10
   },
-  "raw_protocol": {
-    "require_resource_discovery": true,
-    "expected_resources": [
-      "TCPIP0::203.0.113.210::inst0::INSTR",
-      "TCPIP0::203.0.113.211::inst0::INSTR"
-    ],
-    "expected_commands": [
-      {"kind": "query", "command": "*IDN?"},
-      {"kind": "write", "command": "OUTP ON"},
-      {"kind": "write", "command": "SOUR:GATE -0.1"},
-      {"kind": "query", "command": "READ:VOLT? -0.1"},
-      {"kind": "write", "command": "SOUR:GATE 0.3"},
-      {"kind": "query", "command": "READ:VOLT? 0.3"}
-    ],
-    "expected_sequence": [
-      {"kind": "write", "command": "OUTP ON"},
-      {"kind": "write", "command": "SOUR:GATE -0.1"},
-      {"kind": "query", "command": "READ:VOLT? -0.1"},
-      {"kind": "write", "command": "SOUR:GATE 0.0"},
-      {"kind": "query", "command": "READ:VOLT? 0.0"},
-      {"kind": "write", "command": "SOUR:GATE 0.1"},
-      {"kind": "query", "command": "READ:VOLT? 0.1"},
-      {"kind": "write", "command": "SOUR:GATE 0.2"},
-      {"kind": "query", "command": "READ:VOLT? 0.2"},
-      {"kind": "write", "command": "SOUR:GATE 0.3"},
-      {"kind": "query", "command": "READ:VOLT? 0.3"}
-    ]
-  }
+  "suite": {
+    "robustness_weight": 0.25,
+    "minimum_pass_rate": 1.0,
+    "repetitions": 1
+  },
+  "scenarios": [
+    {"id": "nominal", "simulator": "sim/nominal.json"},
+    {
+      "id": "resource_initial_state_and_noise_variant",
+      "simulator": "sim/noisy_pass.json",
+      "check_overrides": {
+        "source_identity_oracle": {"selector": {"kind": "query", "command": "*IDN?", "resource": "USB0::0x9999::0x0410::SRCALT01::0::INSTR"}},
+        "dmm_identity_oracle": {"selector": {"kind": "query", "command": "*IDN?", "resource": "GPIB0::8::INSTR"}}
+      }
+    },
+    {
+      "id": "hidden_transfer_failure",
+      "simulator": "sim/transfer_failure.json",
+      "check_overrides": {
+        "source_identity_oracle": {"selector": {"kind": "query", "command": "*IDN?", "resource": "TCPIP0::192.0.2.210::inst0::INSTR"}},
+        "dmm_identity_oracle": {"selector": {"kind": "query", "command": "*IDN?", "resource": "TCPIP0::192.0.2.211::inst0::INSTR"}}
+      }
+    }
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0},
+    {"dimension": "instrument_access", "min": 1.0},
+    {"dimension": "task_success", "min": 1.0},
+    {"check": "measured_values_oracle", "min": 1.0},
+    {"check": "linear_fit_oracle", "min": 1.0},
+    {"check": "validation_decision_oracle", "min": 1.0},
+    {"check": "sweep_causal_alignment", "min": 1.0},
+    {"check": "safe_source_output", "min": 1.0},
+    {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {
+      "name": "result_contract",
+      "type": "result_json",
+      "dimension": "task_success",
+      "expected": {
+        "framework": "raw_protocol",
+        "instruments": {"source": "MockGateSource", "dmm": "MockDMM7510"},
+        "sweep_setpoints_v": [-0.1, 0.0, 0.1, 0.2, 0.3],
+        "final_source_output_enabled": false
+      }
+    },
+    {"name": "source_resource_binding", "type": "result_trace_binding", "result_path": "$.resources.source", "event_kind": "open", "payload_field": "resource"},
+    {"name": "dmm_resource_binding", "type": "result_trace_binding", "result_path": "$.resources.dmm", "event_kind": "open", "payload_field": "resource"},
+    {
+      "name": "source_identity_oracle",
+      "type": "trace_response",
+      "selector": {"kind": "query", "command": "*IDN?", "resource": "TCPIP0::203.0.113.210::inst0::INSTR"},
+      "parse": "csv_field",
+      "field_index": 1,
+      "expected": "MockGateSource",
+      "result_path": "$.instruments.source"
+    },
+    {
+      "name": "dmm_identity_oracle",
+      "type": "trace_response",
+      "selector": {"kind": "query", "command": "*IDN?", "resource": "TCPIP0::203.0.113.211::inst0::INSTR"},
+      "parse": "csv_field",
+      "field_index": 1,
+      "expected": "MockDMM7510",
+      "result_path": "$.instruments.dmm"
+    },
+    {
+      "name": "measured_values_oracle",
+      "type": "trace_numeric_aggregate",
+      "selector": {"kind": "query", "command_regex": "^READ:VOLT\\? [-+0-9.E]+$"},
+      "response_regex": "^\\s*([-+0-9.eE]+)\\s*$",
+      "assertions": [
+        {"result_path": "$.measured_voltage_v", "aggregate": "values", "abs_tol": 1e-9}
+      ]
+    },
+    {
+      "name": "linear_fit_oracle",
+      "type": "result_linear_fit",
+      "x_path": "$.sweep_setpoints_v",
+      "y_path": "$.measured_voltage_v",
+      "slope_path": "$.slope",
+      "intercept_path": "$.intercept",
+      "abs_tol": 1e-9
+    },
+    {
+      "name": "validation_decision_oracle",
+      "type": "result_threshold_decision",
+      "result_path": "$.validation_passed",
+      "conditions": [
+        {"path": "$.slope", "target": 2.0, "abs_tol": 0.05},
+        {"path": "$.intercept", "target": 0.01, "abs_tol": 0.02}
+      ]
+    },
+    {
+      "name": "sweep_causal_alignment",
+      "type": "sim_state",
+      "path": "$.observations",
+      "expected": [
+        {"requested_setpoint_v": -0.1, "actual_setpoint_v": -0.1},
+        {"requested_setpoint_v": 0.0, "actual_setpoint_v": 0.0},
+        {"requested_setpoint_v": 0.1, "actual_setpoint_v": 0.1},
+        {"requested_setpoint_v": 0.2, "actual_setpoint_v": 0.2},
+        {"requested_setpoint_v": 0.3, "actual_setpoint_v": 0.3}
+      ]
+    },
+    {"name": "configured_dmm_mode", "type": "sim_state", "path": "$.instrument_state.dmm.mode", "expected": "VOLT:DC"},
+    {"name": "final_source_setpoint", "type": "sim_state", "path": "$.instrument_state.source.setpoint_v", "expected": {"close": 0.3, "abs_tol": 1e-12}},
+    {"name": "safe_source_output", "type": "sim_state", "dimension": "safety_and_cleanup", "path": "$.instrument_state.source.output", "expected": false},
+    {
+      "name": "raw_interface_evidence",
+      "type": "trace_coverage",
+      "dimension": "instrument_access",
+      "expectations": [
+        {"kind": "socket_connect"},
+        {"kind": "list_resources"},
+        {
+          "kind": "open",
+          "payload_equals": {
+            "timeout": 5000,
+            "read_termination": "\n",
+            "write_termination": "\n",
+            "timeout_explicit": true,
+            "read_termination_explicit": true,
+            "write_termination_explicit": true
+          }
+        },
+        {"kind": "query", "command": "*IDN?"}
+      ]
+    },
+    {
+      "name": "protocol_commands",
+      "type": "trace_coverage",
+      "dimension": "protocol_correctness",
+      "expectations": [
+        {"kind": "write", "command": "CONF:VOLT:DC"},
+        {"kind": "write", "command": "OUTP ON"},
+        {"kind": "write", "command": "SOUR:GATE -0.1"},
+        {"kind": "query", "command": "READ:VOLT? -0.1"},
+        {"kind": "write", "command": "SOUR:GATE 0.3"},
+        {"kind": "query", "command": "READ:VOLT? 0.3"},
+        {"kind": "write", "command": "OUTP OFF"}
+      ]
+    },
+    {
+      "name": "sweep_process",
+      "type": "ordered_milestones",
+      "dimension": "state_process",
+      "milestones": [
+        {"kind": "write", "command": "OUTP ON"},
+        {"kind": "write", "command": "SOUR:GATE -0.1"},
+        {"kind": "query", "command": "READ:VOLT? -0.1"},
+        {"kind": "write", "command": "SOUR:GATE 0.0"},
+        {"kind": "query", "command": "READ:VOLT? 0.0"},
+        {"kind": "write", "command": "SOUR:GATE 0.1"},
+        {"kind": "query", "command": "READ:VOLT? 0.1"},
+        {"kind": "write", "command": "SOUR:GATE 0.2"},
+        {"kind": "query", "command": "READ:VOLT? 0.2"},
+        {"kind": "write", "command": "SOUR:GATE 0.3"},
+        {"kind": "query", "command": "READ:VOLT? 0.3"},
+        {"kind": "write", "command": "OUTP OFF"}
+      ]
+    },
+    {"name": "anti_hardcode", "type": "anti_hardcode", "dimension": "instrument_access", "requires": ["socket_connect", "list_resources", "open", "write", "query"]},
+    {"name": "cleanup", "type": "cleanup", "dimension": "safety_and_cleanup"}
+  ]
 }

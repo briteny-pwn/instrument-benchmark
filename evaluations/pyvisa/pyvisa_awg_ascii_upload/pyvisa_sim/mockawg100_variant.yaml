@@ -1,0 +1,63 @@
+spec: "1.1"
+
+devices:
+  MockAWG100:
+    eom:
+      USB INSTR:
+        q: "\n"
+        r: "\n"
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockAWG100,AWG100ALT,1.1"
+      - q: "*RST"
+    properties:
+      active_waveform:
+        default: "OLD"
+        getter:
+          q: "FUNC:ARB?"
+          r: "{:s}"
+        setter:
+          q: "FUNC:ARB {:s}"
+        specs:
+          valid: ["OLD", "RAMP"]
+          type: str
+      amplitude:
+        default: 7.5
+        getter:
+          q: "VOLT?"
+          r: "{:g}"
+        setter:
+          q: "VOLT {:g}"
+        specs:
+          min: 0.01
+          max: 10
+          type: float
+      frequency:
+        default: 20.0
+        getter:
+          q: "FREQ?"
+          r: "{:g}"
+        setter:
+          q: "FREQ {:g}"
+        specs:
+          min: 1
+          max: 1000000
+          type: float
+      output:
+        default: "ON"
+        getter:
+          q: "OUTP?"
+          r: "{:s}"
+        setter:
+          q: "OUTP {:s}"
+        specs:
+          valid: ["OFF", "ON"]
+          type: str
+
+resources:
+  USB::0x9999::0x0100::AWG100ALT::INSTR:
+    device: MockAWG100

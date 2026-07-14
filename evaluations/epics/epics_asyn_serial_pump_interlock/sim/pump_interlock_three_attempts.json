@@ -1,0 +1,26 @@
+{
+  "initial_state": {
+    "pump": {"interlock": "OK", "interlock_checked": false, "pressure_checked": false, "running": 0, "start_attempts": 0, "rpm": 48000},
+    "gauge": {"pressure_torr": 0.00095}
+  },
+  "resources": [
+    {
+      "name": "ASYN::SERIAL4::PUMPCTL::INSTR",
+      "commands": [
+        {"kind": "query", "command": "*IDN?", "response": "EPICSIM,AsynPumpBus,ASYN-PUMP-SLOW,1.2"},
+        {"kind": "query", "command": "@G1 PRES?", "state_updates": {"pump.pressure_checked": true}, "steps": [
+          {"response": "PRES 9.5E-4 TORR", "state_updates": {"gauge.pressure_torr": 0.00095}},
+          {"response": "PRES 5.5E-5 TORR", "state_updates": {"gauge.pressure_torr": 0.000055}}
+        ]},
+        {"kind": "query", "command": "@P1 ILK?", "response_template": "ILK {pump.interlock}", "state_updates": {"pump.interlock_checked": true}},
+        {"kind": "query", "command": "@P1 START", "requires_state": {"pump.interlock_checked": true, "pump.pressure_checked": true}, "steps": [
+          {"response": "NAK BUSY", "state_increments": {"pump.start_attempts": 1}},
+          {"response": "NAK BUSY", "state_increments": {"pump.start_attempts": 1}},
+          {"response": "ACK", "state_increments": {"pump.start_attempts": 1}, "state_updates": {"pump.running": 1}}
+        ]},
+        {"kind": "query", "command": "@P1 START?", "requires_state": {"pump.running": 1}, "response_template": "RUN {pump.running}"},
+        {"kind": "query", "command": "@P1 RPM?", "requires_state": {"pump.running": 1}, "response_template": "RPM {pump.rpm}"}
+      ]
+    }
+  ]
+}

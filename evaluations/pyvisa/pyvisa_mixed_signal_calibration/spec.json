@@ -1,43 +1,247 @@
 {
   "instance_id": "pyvisa_mixed_signal_calibration",
-  "simulator": "pyvisa_sim/mixed_signal_bench.yaml",
-  "expected_result": {
-    "instruments": {
-      "awg": "MockAWG700",
-      "scope": "MockScope900",
-      "dmm": "MockDMM650"
-    },
-    "resources": {
-      "awg": "USB0::0x9999::0x0700::AWG700001::0::INSTR",
-      "scope": "TCPIP0::203.0.113.90::inst0::INSTR",
-      "dmm": "GPIB0::22::INSTR"
-    },
-    "awg_waveform": "CAL_RAMP",
-    "awg_points": [-0.5, -0.25, 0.0, 0.25, 0.5],
-    "dmm_samples_v": [1.198, 1.201, 1.2, 1.199],
-    "dmm_average_v": {"close": 1.1995, "abs_tol": 1e-9},
-    "scope_raw_codes": [80, 95, 110, 95, 80, 65, 50, 65],
-    "scope_voltages_v": [0.0, 0.3, 0.6, 0.3, 0.0, -0.3, -0.6, -0.3],
-    "scope_peak_to_peak_v": {"close": 1.2, "abs_tol": 1e-9},
-    "calibration_passed": true
+  "spec_version": 2,
+  "gateway": "pyvisa_sim",
+  "pass_threshold": 0.85,
+  "intercepted_write_patterns": ["^DATA:ARB\\s+.+$"],
+  "write_rewrites": [
+    {"pattern": "^VOLT:RANG\\s+10(?:\\.0*)?$", "replacement": "VOLT:RANG 10.0"},
+    {"pattern": "^WFMOUTPRE:YOFF\\s+80(?:\\.0*)?$", "replacement": "WFMOUTPRE:YOFF 80.0"}
+  ],
+  "query_guards": [
+    {
+      "command_regex": "^(?:READ:VOLT\\?|CURVE\\?)$",
+      "requires_write_patterns": [
+        "^DATA:ARB CAL_RAMP,.+$",
+        "^FUNC:ARB CAL_RAMP$",
+        "^VOLT 1\\.2(?:0*)?$",
+        "^VOLT:OFFS 0(?:\\.0*)?$"
+      ],
+      "requires_latest_write": [
+        {"family_pattern": "^OUTP (?:ON|OFF)$", "required_pattern": "^OUTP ON$"}
+      ],
+      "error": "calibration measurement requires the configured AWG with output enabled"
+    }
+  ],
+  "rubric": {
+    "sim_execution": 0.05,
+    "forbidden_api": 0.10,
+    "task_success": 0.40,
+    "instrument_access": 0.15,
+    "protocol_correctness": 0.10,
+    "state_process": 0.10,
+    "safety_and_cleanup": 0.10
   },
-  "raw_protocol": {
-    "require_resource_discovery": true,
-    "expected_resources": [
-      "USB0::0x9999::0x0700::AWG700001::0::INSTR",
-      "TCPIP0::203.0.113.90::inst0::INSTR",
-      "GPIB0::22::INSTR"
-    ],
-    "expected_commands": [
-      {"kind": "write", "command": "DATA:ARB CAL_RAMP,-0.500000,-0.250000,0.000000,0.250000,0.500000"},
-      {"kind": "query", "command": "READ:VOLT?"},
-      {"kind": "query", "command": "CURVE?"}
-    ],
-    "expected_sequence": [
-      {"kind": "write", "command": "DATA:ARB CAL_RAMP,-0.500000,-0.250000,0.000000,0.250000,0.500000"},
-      {"kind": "write", "command": "OUTP ON"},
-      {"kind": "query", "command": "READ:VOLT?"},
-      {"kind": "query", "command": "CURVE?"}
-    ]
-  }
+  "suite": {
+    "robustness_weight": 0.20,
+    "minimum_pass_rate": 1.0,
+    "repetitions": 1
+  },
+  "snapshot_queries": [
+    {"name": "awg_waveform", "resource": "USB0::0x9999::0x0700::AWG700001::0::INSTR", "command": "FUNC:ARB?"},
+    {"name": "awg_amplitude", "resource": "USB0::0x9999::0x0700::AWG700001::0::INSTR", "command": "VOLT?", "parse": "float"},
+    {"name": "awg_offset", "resource": "USB0::0x9999::0x0700::AWG700001::0::INSTR", "command": "VOLT:OFFS?", "parse": "float"},
+    {"name": "awg_output", "resource": "USB0::0x9999::0x0700::AWG700001::0::INSTR", "command": "OUTP?", "parse": "bool_on_off"},
+    {"name": "scope_source", "resource": "TCPIP0::203.0.113.90::inst0::INSTR", "command": "DATA:SOURCE?"},
+    {"name": "scope_encoding", "resource": "TCPIP0::203.0.113.90::inst0::INSTR", "command": "DATA:ENCODING?"},
+    {"name": "scope_width", "resource": "TCPIP0::203.0.113.90::inst0::INSTR", "command": "DATA:WIDTH?", "parse": "int"},
+    {"name": "scope_ymult", "resource": "TCPIP0::203.0.113.90::inst0::INSTR", "command": "WFMOUTPRE:YMULT?", "parse": "float"},
+    {"name": "scope_yoff", "resource": "TCPIP0::203.0.113.90::inst0::INSTR", "command": "WFMOUTPRE:YOFF?", "parse": "float"},
+    {"name": "scope_yzero", "resource": "TCPIP0::203.0.113.90::inst0::INSTR", "command": "WFMOUTPRE:YZERO?", "parse": "float"},
+    {"name": "dmm_range", "resource": "GPIB0::22::INSTR", "command": "VOLT:RANG?", "parse": "float"},
+    {"name": "dmm_sample_count", "resource": "GPIB0::22::INSTR", "command": "SAMP:COUN?", "parse": "int"}
+  ],
+  "scenarios": [
+    {"id": "nominal_pass", "simulator": "pyvisa_sim/mixed_signal_bench.yaml"},
+    {
+      "id": "identity_data_and_initial_state_variant",
+      "simulator": "pyvisa_sim/mixed_signal_pass_variant.yaml",
+      "spec_overrides": {
+        "snapshot_queries": [
+          {"name": "awg_waveform", "resource": "USB0::0x9999::0x0700::AWG700ALT::0::INSTR", "command": "FUNC:ARB?"},
+          {"name": "awg_amplitude", "resource": "USB0::0x9999::0x0700::AWG700ALT::0::INSTR", "command": "VOLT?", "parse": "float"},
+          {"name": "awg_offset", "resource": "USB0::0x9999::0x0700::AWG700ALT::0::INSTR", "command": "VOLT:OFFS?", "parse": "float"},
+          {"name": "awg_output", "resource": "USB0::0x9999::0x0700::AWG700ALT::0::INSTR", "command": "OUTP?", "parse": "bool_on_off"},
+          {"name": "scope_source", "resource": "TCPIP0::198.51.100.90::inst0::INSTR", "command": "DATA:SOURCE?"},
+          {"name": "scope_encoding", "resource": "TCPIP0::198.51.100.90::inst0::INSTR", "command": "DATA:ENCODING?"},
+          {"name": "scope_width", "resource": "TCPIP0::198.51.100.90::inst0::INSTR", "command": "DATA:WIDTH?", "parse": "int"},
+          {"name": "scope_ymult", "resource": "TCPIP0::198.51.100.90::inst0::INSTR", "command": "WFMOUTPRE:YMULT?", "parse": "float"},
+          {"name": "scope_yoff", "resource": "TCPIP0::198.51.100.90::inst0::INSTR", "command": "WFMOUTPRE:YOFF?", "parse": "float"},
+          {"name": "scope_yzero", "resource": "TCPIP0::198.51.100.90::inst0::INSTR", "command": "WFMOUTPRE:YZERO?", "parse": "float"},
+          {"name": "dmm_range", "resource": "GPIB0::9::INSTR", "command": "VOLT:RANG?", "parse": "float"},
+          {"name": "dmm_sample_count", "resource": "GPIB0::9::INSTR", "command": "SAMP:COUN?", "parse": "int"}
+        ]
+      }
+    },
+    {
+      "id": "out_of_tolerance_measurement",
+      "simulator": "pyvisa_sim/mixed_signal_fail_variant.yaml",
+      "spec_overrides": {
+        "snapshot_queries": [
+          {"name": "awg_waveform", "resource": "USB0::0x9999::0x0700::AWG700FAIL::0::INSTR", "command": "FUNC:ARB?"},
+          {"name": "awg_amplitude", "resource": "USB0::0x9999::0x0700::AWG700FAIL::0::INSTR", "command": "VOLT?", "parse": "float"},
+          {"name": "awg_offset", "resource": "USB0::0x9999::0x0700::AWG700FAIL::0::INSTR", "command": "VOLT:OFFS?", "parse": "float"},
+          {"name": "awg_output", "resource": "USB0::0x9999::0x0700::AWG700FAIL::0::INSTR", "command": "OUTP?", "parse": "bool_on_off"},
+          {"name": "scope_source", "resource": "TCPIP0::192.0.2.90::inst0::INSTR", "command": "DATA:SOURCE?"},
+          {"name": "scope_encoding", "resource": "TCPIP0::192.0.2.90::inst0::INSTR", "command": "DATA:ENCODING?"},
+          {"name": "scope_width", "resource": "TCPIP0::192.0.2.90::inst0::INSTR", "command": "DATA:WIDTH?", "parse": "int"},
+          {"name": "scope_ymult", "resource": "TCPIP0::192.0.2.90::inst0::INSTR", "command": "WFMOUTPRE:YMULT?", "parse": "float"},
+          {"name": "scope_yoff", "resource": "TCPIP0::192.0.2.90::inst0::INSTR", "command": "WFMOUTPRE:YOFF?", "parse": "float"},
+          {"name": "scope_yzero", "resource": "TCPIP0::192.0.2.90::inst0::INSTR", "command": "WFMOUTPRE:YZERO?", "parse": "float"},
+          {"name": "dmm_range", "resource": "GPIB0::31::INSTR", "command": "VOLT:RANG?", "parse": "float"},
+          {"name": "dmm_sample_count", "resource": "GPIB0::31::INSTR", "command": "SAMP:COUN?", "parse": "int"}
+        ]
+      }
+    }
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0},
+    {"dimension": "instrument_access", "min": 1.0},
+    {"dimension": "task_success", "min": 1.0},
+    {"check": "uploaded_waveform_oracle", "min": 1.0},
+    {"check": "dmm_observation_oracle", "min": 1.0},
+    {"check": "scope_observation_oracle", "min": 1.0},
+    {"check": "calibration_decision_oracle", "min": 1.0},
+    {"check": "safe_awg_output", "min": 1.0},
+    {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {
+      "name": "result_contract",
+      "type": "result_json",
+      "dimension": "task_success",
+      "expected": {
+        "instruments": {"awg": "MockAWG700", "scope": "MockScope900", "dmm": "MockDMM650"},
+        "awg_waveform": "CAL_RAMP",
+        "awg_points": [-0.5, -0.25, 0.0, 0.25, 0.5],
+        "final_awg_output_enabled": false
+      }
+    },
+    {"name": "awg_resource_binding", "type": "result_trace_binding", "result_path": "$.resources.awg", "event_kind": "open", "payload_field": "resource"},
+    {"name": "scope_resource_binding", "type": "result_trace_binding", "result_path": "$.resources.scope", "event_kind": "open", "payload_field": "resource"},
+    {"name": "dmm_resource_binding", "type": "result_trace_binding", "result_path": "$.resources.dmm", "event_kind": "open", "payload_field": "resource"},
+    {
+      "name": "uploaded_waveform_oracle",
+      "type": "trace_command_numeric_array",
+      "command_prefix": "DATA:ARB ",
+      "expected_name": "CAL_RAMP",
+      "expected_values": [-0.5, -0.25, 0.0, 0.25, 0.5],
+      "result_name_path": "$.awg_waveform",
+      "result_values_path": "$.awg_points",
+      "abs_tol": 1e-12
+    },
+    {
+      "name": "output_enabled_observation",
+      "type": "trace_response",
+      "selector": {"kind": "query", "command": "OUTP?"},
+      "parse": "bool_on_off",
+      "expected": true
+    },
+    {
+      "name": "dmm_observation_oracle",
+      "type": "trace_numeric_array",
+      "selector": {"kind": "query", "command": "READ:VOLT?"},
+      "delimiter": ";",
+      "assertions": [
+        {"result_path": "$.dmm_samples_v", "aggregate": "values", "abs_tol": 1e-12},
+        {"result_path": "$.dmm_average_v", "aggregate": "mean", "abs_tol": 1e-12}
+      ]
+    },
+    {
+      "name": "scope_observation_oracle",
+      "type": "trace_ieee_block",
+      "selector": {"kind": "query", "command": "CURVE?"},
+      "scale": 0.02,
+      "offset": 80,
+      "zero": 0.0,
+      "assertions": [
+        {"result_path": "$.scope_raw_codes", "derived": "raw_values"},
+        {"result_path": "$.scope_voltages_v", "derived": "scaled_values", "abs_tol": 1e-12},
+        {"result_path": "$.scope_peak_to_peak_v", "derived": "scaled_peak_to_peak", "abs_tol": 1e-12}
+      ]
+    },
+    {
+      "name": "calibration_decision_oracle",
+      "type": "result_threshold_decision",
+      "result_path": "$.calibration_passed",
+      "conditions": [
+        {"path": "$.dmm_average_v", "target": 1.1995, "abs_tol": 0.002},
+        {"path": "$.scope_peak_to_peak_v", "target": 1.2, "abs_tol": 0.02}
+      ]
+    },
+    {"name": "awg_waveform_state", "type": "sim_state", "path": "$.instrument_state.awg_waveform", "expected": "CAL_RAMP"},
+    {"name": "awg_amplitude_state", "type": "sim_state", "path": "$.instrument_state.awg_amplitude", "expected": {"close": 1.2, "abs_tol": 1e-12}},
+    {"name": "awg_offset_state", "type": "sim_state", "path": "$.instrument_state.awg_offset", "expected": {"close": 0.0, "abs_tol": 1e-12}},
+    {"name": "scope_source_state", "type": "sim_state", "path": "$.instrument_state.scope_source", "expected": "CH1"},
+    {"name": "scope_encoding_state", "type": "sim_state", "path": "$.instrument_state.scope_encoding", "expected": "RIBINARY"},
+    {"name": "scope_width_state", "type": "sim_state", "path": "$.instrument_state.scope_width", "expected": 1},
+    {"name": "scope_ymult_state", "type": "sim_state", "path": "$.instrument_state.scope_ymult", "expected": {"close": 0.02, "abs_tol": 1e-12}},
+    {"name": "scope_yoff_state", "type": "sim_state", "path": "$.instrument_state.scope_yoff", "expected": {"close": 80.0, "abs_tol": 1e-12}},
+    {"name": "scope_yzero_state", "type": "sim_state", "path": "$.instrument_state.scope_yzero", "expected": {"close": 0.0, "abs_tol": 1e-12}},
+    {"name": "dmm_range_state", "type": "sim_state", "path": "$.instrument_state.dmm_range", "expected": {"close": 10.0, "abs_tol": 1e-12}},
+    {"name": "dmm_count_state", "type": "sim_state", "path": "$.instrument_state.dmm_sample_count", "expected": 4},
+    {"name": "safe_awg_output", "type": "sim_state", "dimension": "safety_and_cleanup", "path": "$.instrument_state.awg_output", "expected": false},
+    {
+      "name": "raw_interface_evidence",
+      "type": "trace_coverage",
+      "dimension": "instrument_access",
+      "expectations": [
+        {"kind": "socket_connect"},
+        {"kind": "list_resources"},
+        {"kind": "open"},
+        {"kind": "query", "command": "*IDN?"}
+      ]
+    },
+    {
+      "name": "protocol_commands",
+      "type": "trace_coverage",
+      "dimension": "protocol_correctness",
+      "expectations": [
+        {"kind": "write", "command_prefix": "DATA:ARB "},
+        {"kind": "write", "command": "FUNC:ARB CAL_RAMP"},
+        {"kind": "write", "command_regex": "^VOLT 1\\.2(?:0*)?$"},
+        {"kind": "write", "command_regex": "^VOLT:OFFS 0(?:\\.0*)?$"},
+        {"kind": "write", "command": "OUTP ON"},
+        {"kind": "query", "command": "READ:VOLT?"},
+        {"kind": "query", "command": "CURVE?"},
+        {"kind": "write", "command": "OUTP OFF"}
+      ]
+    },
+    {
+      "name": "awg_process",
+      "type": "ordered_milestones",
+      "dimension": "state_process",
+      "milestones": [
+        {"kind": "write", "command_prefix": "DATA:ARB "},
+        {"kind": "write", "command": "FUNC:ARB CAL_RAMP"},
+        {"kind": "write", "command": "OUTP ON"},
+        {"kind": "write", "command": "OUTP OFF"}
+      ]
+    },
+    {
+      "name": "dmm_process",
+      "type": "ordered_milestones",
+      "dimension": "state_process",
+      "milestones": [
+        {"kind": "write", "command": "CONF:VOLT:DC"},
+        {"kind": "write", "command_regex": "^VOLT:RANG 10(?:\\.0*)?$"},
+        {"kind": "write", "command": "SAMP:COUN 4"},
+        {"kind": "write", "command": "INIT"},
+        {"kind": "query", "command": "READ:VOLT?"}
+      ]
+    },
+    {
+      "name": "scope_process",
+      "type": "ordered_milestones",
+      "dimension": "state_process",
+      "milestones": [
+        {"kind": "write", "command": "DATA:SOURCE CH1"},
+        {"kind": "write", "command": "DATA:ENCODING RIBINARY"},
+        {"kind": "write", "command": "DATA:WIDTH 1"},
+        {"kind": "query", "command": "CURVE?"}
+      ]
+    },
+    {"name": "anti_hardcode", "type": "anti_hardcode", "dimension": "instrument_access", "requires": ["socket_connect", "list_resources", "open", "write", "query"]},
+    {"name": "cleanup", "type": "cleanup", "dimension": "safety_and_cleanup"}
+  ]
 }

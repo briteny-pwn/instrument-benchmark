@@ -22,6 +22,9 @@ devices:
     properties:
       data_source:
         default: "CH1"
+        getter:
+          q: "DATA:SOURCE?"
+          r: "{:s}"
         setter:
           q: "DATA:SOURCE {:s}"
         specs:
@@ -30,6 +33,9 @@ devices:
 
       data_encoding:
         default: "ASCII"
+        getter:
+          q: "DATA:ENCODING?"
+          r: "{:s}"
         setter:
           q: "DATA:ENCODING {:s}"
         specs:
@@ -38,6 +44,9 @@ devices:
 
       data_width:
         default: 1
+        getter:
+          q: "DATA:WIDTH?"
+          r: "{:d}"
         setter:
           q: "DATA:WIDTH {:d}"
         specs:
@@ -47,6 +56,9 @@ devices:
 
       y_mult:
         default: 0.02
+        getter:
+          q: "WFMOUTPRE:YMULT?"
+          r: "{:g}"
         setter:
           q: "WFMOUTPRE:YMULT {:g}"
         specs:
@@ -56,6 +68,9 @@ devices:
 
       y_off:
         default: 128
+        getter:
+          q: "WFMOUTPRE:YOFF?"
+          r: "{:g}"
         setter:
           q: "WFMOUTPRE:YOFF {:g}"
         specs:
@@ -66,4 +81,3 @@ devices:
 resources:
   TCPIP::192.0.2.50::inst0::INSTR:
     device: MockScope500
-

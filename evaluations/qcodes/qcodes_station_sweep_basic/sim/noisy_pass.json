@@ -1,0 +1,16 @@
+{
+  "resources": [
+    {"name": "GPIB0::8::INSTR", "role": "dmm", "idn": "Mock Instruments,MockDMM7510,DMM7510ALT,1.2"},
+    {"name": "USB0::0x9999::0x0400::LOAD40ALT::0::INSTR", "role": "load", "idn": "Other Vendor,MockLoad40,LOAD40ALT,2.0"},
+    {"name": "USB0::0x9999::0x0410::SRCALT01::0::INSTR", "role": "source", "idn": "Mock Instruments,MockGateSource,SRCALT01,1.2"}
+  ],
+  "initial_state": {
+    "source": {"setpoint_v": 0.75, "output": true},
+    "dmm": {"mode": "RESISTANCE"}
+  },
+  "physics": {
+    "slope": 2.0,
+    "intercept_v": 0.01,
+    "noise_v": [0.001, -0.001, 0.0, 0.001, -0.001]
+  }
+}

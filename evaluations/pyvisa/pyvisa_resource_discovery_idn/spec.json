@@ -1,25 +1,171 @@
 {
   "instance_id": "pyvisa_resource_discovery_idn",
-  "simulator": "pyvisa_sim/mocklogger300.yaml",
-  "expected_result": {
-    "instrument": "MockLogger300",
-    "selected_resource": "TCPIP0::198.51.100.30::inst0::INSTR",
-    "channel": "A",
-    "temperature_c": {"close": 23.45, "abs_tol": 1e-9},
-    "relative_humidity_percent": {"close": 45.6, "abs_tol": 1e-9}
+  "spec_version": 2,
+  "gateway": "pyvisa_sim",
+  "pass_threshold": 0.85,
+  "rubric": {
+    "sim_execution": 0.05,
+    "forbidden_api": 0.10,
+    "task_success": 0.40,
+    "instrument_access": 0.20,
+    "protocol_correctness": 0.10,
+    "state_process": 0.05,
+    "safety_and_cleanup": 0.10
   },
-  "raw_protocol": {
-    "require_resource_discovery": true,
-    "expected_resources": ["TCPIP0::198.51.100.30::inst0::INSTR"],
-    "expected_commands": [
-      {"kind": "query", "command": "*IDN?"},
-      {"kind": "query", "command": "MEAS:TEMP? A"},
-      {"kind": "query", "command": "MEAS:HUM? A"}
-    ],
-    "expected_sequence": [
-      {"kind": "query", "command": "*IDN?"},
-      {"kind": "query", "command": "MEAS:TEMP? A"},
-      {"kind": "query", "command": "MEAS:HUM? A"}
-    ]
-  }
+  "suite": {
+    "robustness_weight": 0.25,
+    "minimum_pass_rate": 1.0,
+    "repetitions": 1
+  },
+  "snapshot_queries": [
+    {
+      "name": "selected_channel",
+      "resource": "TCPIP0::198.51.100.30::inst0::INSTR",
+      "command": "SENS:CHAN?"
+    }
+  ],
+  "scenarios": [
+    {"id": "nominal_tcpip", "simulator": "pyvisa_sim/mocklogger300.yaml"},
+    {
+      "id": "cold_gpib_with_two_distractors",
+      "simulator": "pyvisa_sim/mocklogger300_cold.yaml",
+      "spec_overrides": {
+        "snapshot_queries": [
+          {"name": "selected_channel", "resource": "GPIB0::17::INSTR", "command": "SENS:CHAN?"}
+        ]
+      },
+      "check_overrides": {
+        "identity_oracle": {"selector": {"kind": "query", "command": "*IDN?", "resource": "GPIB0::17::INSTR"}}
+      }
+    },
+    {
+      "id": "humid_usb_target_first",
+      "simulator": "pyvisa_sim/mocklogger300_humid.yaml",
+      "spec_overrides": {
+        "snapshot_queries": [
+          {"name": "selected_channel", "resource": "USB0::0x9999::0x0300::LOGGER300HUMID::0::INSTR", "command": "SENS:CHAN?"}
+        ]
+      },
+      "check_overrides": {
+        "identity_oracle": {"selector": {"kind": "query", "command": "*IDN?", "resource": "USB0::0x9999::0x0300::LOGGER300HUMID::0::INSTR"}}
+      }
+    }
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0},
+    {"dimension": "instrument_access", "min": 1.0},
+    {"dimension": "task_success", "min": 1.0},
+    {"check": "identity_oracle", "min": 1.0},
+    {"check": "temperature_oracle", "min": 1.0},
+    {"check": "humidity_oracle", "min": 1.0},
+    {"check": "selected_channel_state", "min": 1.0},
+    {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {
+      "name": "result_contract",
+      "type": "result_json",
+      "dimension": "task_success",
+      "expected": {"instrument": "MockLogger300", "channel": "A"}
+    },
+    {
+      "name": "resource_binding",
+      "type": "result_trace_binding",
+      "dimension": "task_success",
+      "result_path": "$.selected_resource",
+      "event_kind": "open",
+      "payload_field": "resource"
+    },
+    {
+      "name": "identity_oracle",
+      "type": "trace_response",
+      "dimension": "task_success",
+      "selector": {
+        "kind": "query",
+        "command": "*IDN?",
+        "resource": "TCPIP0::198.51.100.30::inst0::INSTR"
+      },
+      "parse": "csv_field",
+      "field_index": 1,
+      "expected": "MockLogger300",
+      "result_path": "$.instrument"
+    },
+    {
+      "name": "temperature_oracle",
+      "type": "trace_numeric_aggregate",
+      "dimension": "task_success",
+      "selector": {"kind": "query", "command": "MEAS:TEMP? A"},
+      "response_regex": "^\\s*([-+0-9.eE]+)\\s*$",
+      "assertions": [
+        {"result_path": "$.temperature_c", "aggregate": "mean", "abs_tol": 1e-9}
+      ]
+    },
+    {
+      "name": "humidity_oracle",
+      "type": "trace_numeric_aggregate",
+      "dimension": "task_success",
+      "selector": {"kind": "query", "command": "MEAS:HUM? A"},
+      "response_regex": "^\\s*([-+0-9.eE]+)\\s*$",
+      "assertions": [
+        {"result_path": "$.relative_humidity_percent", "aggregate": "mean", "abs_tol": 1e-9}
+      ]
+    },
+    {
+      "name": "selected_channel_state",
+      "type": "sim_state",
+      "dimension": "task_success",
+      "path": "$.instrument_state.selected_channel",
+      "expected": "A"
+    },
+    {
+      "name": "raw_interface_evidence",
+      "type": "trace_coverage",
+      "dimension": "instrument_access",
+      "expectations": [
+        {"kind": "socket_connect"},
+        {"kind": "list_resources"},
+        {
+          "kind": "open",
+          "payload_equals": {
+            "timeout": 4000,
+            "read_termination": "\n",
+            "write_termination": "\n",
+            "timeout_explicit": true,
+            "read_termination_explicit": true,
+            "write_termination_explicit": true
+          }
+        },
+        {"kind": "query", "command": "*IDN?"}
+      ]
+    },
+    {
+      "name": "protocol_commands",
+      "type": "trace_coverage",
+      "dimension": "protocol_correctness",
+      "expectations": [
+        {"kind": "write", "command": "SENS:CHAN A"},
+        {"kind": "query", "command": "MEAS:TEMP? A"},
+        {"kind": "query", "command": "MEAS:HUM? A"}
+      ]
+    },
+    {
+      "name": "discovery_and_measurement_process",
+      "type": "ordered_milestones",
+      "dimension": "state_process",
+      "milestones": [
+        {"kind": "list_resources"},
+        {"kind": "query", "command": "*IDN?"},
+        {"kind": "write", "command": "SENS:CHAN A"},
+        {"kind": "query", "command": "MEAS:TEMP? A"},
+        {"kind": "query", "command": "MEAS:HUM? A"}
+      ]
+    },
+    {
+      "name": "anti_hardcode",
+      "type": "anti_hardcode",
+      "dimension": "instrument_access",
+      "requires": ["socket_connect", "list_resources", "open", "query"]
+    },
+    {"name": "cleanup", "type": "cleanup", "dimension": "safety_and_cleanup"}
+  ]
 }

@@ -86,7 +86,7 @@ def run_experiment(output_path: str = "result.json") -> dict:
         client.write(awg, "VOLT 1.2")
         client.write(awg, "VOLT:OFFS 0.0")
         client.write(awg, "OUTP ON")
-        output_enabled = client.query(awg, "OUTP?")["response"].strip() == "1"
+        output_enabled = client.query(awg, "OUTP?")["response"].strip().upper() in {"1", "ON", "TRUE"}
 
         dmm = handles["dmm"]
         client.write(dmm, "*RST")
@@ -121,9 +121,16 @@ def run_experiment(output_path: str = "result.json") -> dict:
             "scope_peak_to_peak_v": p2p,
             "calibration_passed": output_enabled and abs(dmm_average - 1.1995) <= 0.002 and abs(p2p - 1.2) <= 0.02,
         }
+        client.write(awg, "OUTP OFF")
+        result["final_awg_output_enabled"] = False
         if output_path:
             Path(output_path).write_text(json.dumps(result, indent=2), encoding="utf-8")
         return result
     finally:
+        awg_handle = locals().get("handles", {}).get("awg")
+        if awg_handle in client.handles:
+            try:
+                client.write(awg_handle, "OUTP OFF")
+            except Exception:
+                pass
         client.close()
-

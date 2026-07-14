@@ -1,36 +1,104 @@
 {
   "instance_id": "epics_asyn_serial_pump_interlock",
+  "spec_version": 2,
   "gateway": "state_machine",
-  "simulator": "sim/pump_interlock.json",
-  "expected_result": {
-    "instrument": "AsynPumpBus",
-    "pump": "P1",
-    "interlock": "OK",
-    "start_attempts": 2,
-    "running": true,
-    "initial_pressure_torr": {"close": 0.00082, "abs_tol": 1e-12},
-    "final_pressure_torr": {"close": 0.000046, "abs_tol": 1e-12},
-    "speed_rpm": 45000
+  "pass_threshold": 0.85,
+  "rubric": {
+    "sim_execution": 0.05,
+    "forbidden_api": 0.10,
+    "task_success": 0.40,
+    "instrument_access": 0.15,
+    "protocol_correctness": 0.10,
+    "state_process": 0.10,
+    "safety_and_cleanup": 0.10
   },
-  "raw_protocol": {
-    "require_resource_discovery": true,
-    "expected_resources": ["ASYN::SERIAL0::PUMPCTL::INSTR"],
-    "expected_commands": [
-      {"kind": "query", "command": "*IDN?"},
-      {"kind": "query", "command": "@G1 PRES?"},
-      {"kind": "query", "command": "@P1 ILK?"},
-      {"kind": "query", "command": "@P1 START"},
-      {"kind": "query", "command": "@P1 START?"},
-      {"kind": "query", "command": "@P1 RPM?"}
-    ],
-    "expected_sequence": [
-      {"kind": "query", "command": "@G1 PRES?"},
-      {"kind": "query", "command": "@P1 ILK?"},
-      {"kind": "query", "command": "@P1 START"},
-      {"kind": "query", "command": "@P1 START"},
-      {"kind": "query", "command": "@P1 START?"},
-      {"kind": "query", "command": "@G1 PRES?"},
-      {"kind": "query", "command": "@P1 RPM?"}
-    ]
-  }
+  "suite": {"robustness_weight": 0.20, "minimum_pass_rate": 1.0, "repetitions": 1},
+  "scenarios": [
+    {"id": "one_busy_retry", "simulator": "sim/pump_interlock.json"},
+    {"id": "immediate_start", "simulator": "sim/pump_interlock_immediate.json"},
+    {"id": "two_busy_retries", "simulator": "sim/pump_interlock_three_attempts.json"}
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0},
+    {"dimension": "instrument_access", "min": 1.0},
+    {"check": "pressure_trace_oracle", "min": 1.0},
+    {"check": "start_attempt_state_binding", "min": 1.0},
+    {"check": "pump_running_state", "min": 1.0},
+    {"check": "pump_safety_process", "min": 1.0},
+    {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {
+      "name": "result_contract", "type": "result_json", "dimension": "task_success",
+      "expected": {
+        "instrument": "AsynPumpBus", "pump": "P1", "interlock": "OK", "running": true,
+        "initial_pressure_torr": {"range": [0.0, 0.001]},
+        "final_pressure_torr": {"range": [0.0, 0.001]},
+        "speed_rpm": {"range": [1, 100000]}
+      }
+    },
+    {
+      "name": "identity_oracle", "type": "trace_response", "dimension": "task_success",
+      "selector": {"kind": "query", "command": "*IDN?"}, "parse": "csv_field", "field_index": 1,
+      "expected": "AsynPumpBus", "result_path": "$.instrument"
+    },
+    {
+      "name": "pressure_trace_oracle", "type": "trace_numeric_aggregate", "dimension": "task_success",
+      "selector": {"kind": "query", "command": "@G1 PRES?"},
+      "response_regex": "^PRES\\s+([-+0-9.eE]+)\\s+TORR$",
+      "assertions": [
+        {"result_path": "$.initial_pressure_torr", "aggregate": "first", "abs_tol": 1e-12},
+        {"result_path": "$.final_pressure_torr", "aggregate": "last", "abs_tol": 1e-12}
+      ]
+    },
+    {
+      "name": "interlock_oracle", "type": "trace_response", "dimension": "task_success",
+      "selector": {"kind": "query", "command": "@P1 ILK?"}, "parse": "regex_group",
+      "response_regex": "^ILK\\s+(OK|TRIP)$", "result_path": "$.interlock"
+    },
+    {
+      "name": "running_oracle", "type": "trace_response", "dimension": "task_success",
+      "selector": {"kind": "query", "command": "@P1 START?"}, "parse": "regex_group",
+      "response_regex": "^RUN\\s+([01])$", "cast": "bool_int", "result_path": "$.running"
+    },
+    {
+      "name": "rpm_oracle", "type": "trace_numeric_aggregate", "dimension": "task_success",
+      "selector": {"kind": "query", "command": "@P1 RPM?"}, "response_regex": "^RPM\\s+(\\d+)$",
+      "assertions": [{"result_path": "$.speed_rpm", "aggregate": "last"}]
+    },
+    {
+      "name": "start_attempt_state_binding", "type": "result_sim_state_binding", "dimension": "task_success",
+      "result_path": "$.start_attempts", "sim_path": "$.state.pump.start_attempts"
+    },
+    {
+      "name": "pump_running_state", "type": "sim_state", "dimension": "task_success",
+      "path": "$.state.pump.running", "expected": 1
+    },
+    {
+      "name": "raw_interface_evidence", "type": "trace_coverage", "dimension": "instrument_access",
+      "expectations": [{"kind": "socket_connect"}, {"kind": "list_resources"}, {"kind": "open"}, {"kind": "query", "command": "*IDN?"}]
+    },
+    {
+      "name": "serial_configuration", "type": "trace_coverage", "dimension": "protocol_correctness",
+      "expectations": [{"kind": "open", "payload_equals": {"read_termination": "\n", "write_termination": "\n", "read_termination_explicit": true, "write_termination_explicit": true}}]
+    },
+    {
+      "name": "protocol_commands", "type": "trace_coverage", "dimension": "protocol_correctness",
+      "expectations": [
+        {"kind": "query", "command": "@G1 PRES?"}, {"kind": "query", "command": "@P1 ILK?"},
+        {"kind": "query", "command": "@P1 START"}, {"kind": "query", "command": "@P1 START?"},
+        {"kind": "query", "command": "@P1 RPM?"}
+      ]
+    },
+    {
+      "name": "pump_safety_process", "type": "ordered_milestones", "dimension": "state_process",
+      "milestones": [
+        {"kind": "query", "command": "@G1 PRES?"}, {"kind": "query", "command": "@P1 ILK?"},
+        {"kind": "query", "command": "@P1 START"}, {"kind": "query", "command": "@P1 START?"},
+        {"kind": "query", "command": "@G1 PRES?"}, {"kind": "query", "command": "@P1 RPM?"}
+      ]
+    },
+    {"name": "anti_hardcode", "type": "anti_hardcode", "dimension": "instrument_access", "requires": ["socket_connect", "list_resources", "open", "query"]},
+    {"name": "cleanup", "type": "cleanup", "dimension": "safety_and_cleanup"}
+  ]
 }

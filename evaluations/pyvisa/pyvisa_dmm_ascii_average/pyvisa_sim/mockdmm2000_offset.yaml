@@ -1,0 +1,59 @@
+spec: "1.1"
+
+devices:
+  MockDMM2000:
+    eom:
+      GPIB INSTR:
+        q: "\n"
+        r: "\n"
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockDMM2000,DMM2000021,1.1"
+      - q: "*RST"
+      - q: "CONF:VOLT:DC"
+      - q: "INIT"
+      - q: "TRACE:DATA?"
+        r: "2.450,2.550,2.500,2.520,2.480"
+      - q: "TRACE:CLEAR"
+    properties:
+      voltage_range:
+        default: 1.0
+        getter:
+          q: "VOLT:RANG?"
+          r: "{:g}"
+        setter:
+          q: "VOLT:RANG {:g}"
+        specs:
+          min: 0
+          max: 1000
+          type: float
+      voltage_resolution:
+        default: 0.01
+        getter:
+          q: "VOLT:RES?"
+          r: "{:g}"
+        setter:
+          q: "VOLT:RES {:g}"
+        specs:
+          min: 0.000001
+          max: 1
+          type: float
+      sample_count:
+        default: 1
+        getter:
+          q: "SAMP:COUN?"
+          r: "{:d}"
+        setter:
+          q: "SAMP:COUN {:d}"
+        specs:
+          min: 1
+          max: 1000
+          type: int
+
+resources:
+  GPIB::21::INSTR:
+    device: MockDMM2000

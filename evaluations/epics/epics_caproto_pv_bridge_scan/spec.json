@@ -1,43 +1,96 @@
 {
   "instance_id": "epics_caproto_pv_bridge_scan",
+  "spec_version": 2,
   "gateway": "state_machine",
-  "simulator": "sim/pv_bridge_scan.json",
-  "expected_result": {
-    "instrument": "CaprotoPvBridge",
-    "pv_prefix": "MOCK:",
-    "bias_setpoints_v": [-0.2, 0.0, 0.2, 0.4],
-    "bias_readbacks_v": [-0.198, 0.002, 0.201, 0.399],
-    "detector_counts": [102, 150, 197, 241],
-    "count_slope_per_v": {"close": 231.6666666667, "abs_tol": 1e-9},
-    "snapshot": {
-      "MOCK:BIAS:SP": {"close": 0.4, "abs_tol": 1e-12},
-      "MOCK:BIAS:RBV": {"close": 0.399, "abs_tol": 1e-12},
-      "MOCK:DETECTOR:COUNT": 241
-    },
-    "monitor_history": ["BIAS:SP=-0.2", "BIAS:SP=0.0", "BIAS:SP=0.2", "BIAS:SP=0.4"]
+  "pass_threshold": 0.85,
+  "rubric": {
+    "sim_execution": 0.05, "forbidden_api": 0.10, "task_success": 0.40,
+    "instrument_access": 0.15, "protocol_correctness": 0.10,
+    "state_process": 0.10, "safety_and_cleanup": 0.10
   },
-  "raw_protocol": {
-    "require_resource_discovery": true,
-    "expected_resources": ["CA::PVBRIDGE::SIM"],
-    "expected_commands": [
-      {"kind": "query", "command": "*IDN?"},
-      {"kind": "write", "command": "PVPUT MOCK:BIAS:SP -0.2"},
-      {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"},
-      {"kind": "query", "command": "PVGET MOCK:DETECTOR:COUNT"},
-      {"kind": "query", "command": "MONITOR? MOCK:BIAS:SP"},
-      {"kind": "write", "command": "PVPUT MOCK:BIAS:SP 0.4"}
-    ],
-    "expected_sequence": [
-      {"kind": "write", "command": "PVPUT MOCK:BIAS:SP -0.2"},
-      {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"},
-      {"kind": "query", "command": "PVGET MOCK:DETECTOR:COUNT"},
-      {"kind": "query", "command": "MONITOR? MOCK:BIAS:SP"},
-      {"kind": "write", "command": "PVPUT MOCK:BIAS:SP 0.0"},
-      {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"},
-      {"kind": "write", "command": "PVPUT MOCK:BIAS:SP 0.2"},
-      {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"},
-      {"kind": "write", "command": "PVPUT MOCK:BIAS:SP 0.4"},
-      {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"}
-    ]
-  }
+  "suite": {"robustness_weight": 0.20, "minimum_pass_rate": 1.0, "repetitions": 1},
+  "scenarios": [
+    {"id": "nominal_positive_response", "simulator": "sim/pv_bridge_scan.json"},
+    {"id": "alternate_gain_and_resource", "simulator": "sim/pv_bridge_scan_variant.json"},
+    {"id": "negative_detector_response", "simulator": "sim/pv_bridge_scan_negative_slope.json"}
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0},
+    {"dimension": "instrument_access", "min": 1.0},
+    {"check": "readback_trace_oracle", "min": 1.0},
+    {"check": "detector_trace_oracle", "min": 1.0},
+    {"check": "monitor_trace_oracle", "min": 1.0},
+    {"check": "slope_oracle", "min": 1.0},
+    {"check": "final_setpoint_binding", "min": 1.0},
+    {"check": "pv_scan_process", "min": 1.0},
+    {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {
+      "name": "result_contract", "type": "result_json", "dimension": "task_success",
+      "expected": {"instrument": "CaprotoPvBridge", "pv_prefix": "MOCK:", "bias_setpoints_v": [-0.2, 0.0, 0.2, 0.4]}
+    },
+    {
+      "name": "identity_oracle", "type": "trace_response", "dimension": "task_success",
+      "selector": {"kind": "query", "command": "*IDN?"}, "parse": "csv_field", "field_index": 1,
+      "expected": "CaprotoPvBridge", "result_path": "$.instrument"
+    },
+    {
+      "name": "readback_trace_oracle", "type": "trace_numeric_aggregate", "dimension": "task_success",
+      "selector": {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"},
+      "response_regex": "^MOCK:BIAS:RBV\\s+([-+0-9.eE]+)$",
+      "assertions": [{"result_path": "$.bias_readbacks_v", "aggregate": "values", "abs_tol": 1e-9}]
+    },
+    {
+      "name": "detector_trace_oracle", "type": "trace_numeric_aggregate", "dimension": "task_success",
+      "selector": {"kind": "query", "command": "PVGET MOCK:DETECTOR:COUNT"},
+      "response_regex": "^MOCK:DETECTOR:COUNT\\s+([-+0-9.eE]+)$",
+      "assertions": [{"result_path": "$.detector_counts", "aggregate": "values", "abs_tol": 1e-9}]
+    },
+    {
+      "name": "monitor_trace_oracle", "type": "trace_string_array", "dimension": "task_success",
+      "selector": {"kind": "query", "command": "MONITOR? MOCK:BIAS:SP"}, "result_path": "$.monitor_history"
+    },
+    {
+      "name": "slope_oracle", "type": "result_endpoint_slope", "dimension": "task_success",
+      "x_path": "$.bias_setpoints_v", "y_path": "$.detector_counts", "slope_path": "$.count_slope_per_v", "abs_tol": 1e-9
+    },
+    {
+      "name": "final_setpoint_binding", "type": "result_sim_state_binding", "dimension": "task_success",
+      "result_path": "$.snapshot.MOCK:BIAS:SP", "sim_path": "$.state.pv.setpoint_v"
+    },
+    {
+      "name": "final_readback_binding", "type": "result_sim_state_binding", "dimension": "task_success",
+      "result_path": "$.snapshot.MOCK:BIAS:RBV", "sim_path": "$.state.pv.readback_v"
+    },
+    {
+      "name": "final_detector_binding", "type": "result_sim_state_binding", "dimension": "task_success",
+      "result_path": "$.snapshot.MOCK:DETECTOR:COUNT", "sim_path": "$.state.pv.detector_count"
+    },
+    {
+      "name": "raw_interface_evidence", "type": "trace_coverage", "dimension": "instrument_access",
+      "expectations": [{"kind": "socket_connect"}, {"kind": "list_resources"}, {"kind": "open"}, {"kind": "query", "command": "*IDN?"}]
+    },
+    {
+      "name": "protocol_commands", "type": "trace_coverage", "dimension": "protocol_correctness",
+      "expectations": [
+        {"kind": "write", "command_regex": "^PVPUT MOCK:BIAS:SP -0\\.2(?:0*)?$"},
+        {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"},
+        {"kind": "query", "command": "PVGET MOCK:DETECTOR:COUNT"},
+        {"kind": "query", "command": "MONITOR? MOCK:BIAS:SP"},
+        {"kind": "write", "command_regex": "^PVPUT MOCK:BIAS:SP 0\\.4(?:0*)?$"}
+      ]
+    },
+    {
+      "name": "pv_scan_process", "type": "ordered_milestones", "dimension": "state_process",
+      "milestones": [
+        {"kind": "write", "command_regex": "^PVPUT MOCK:BIAS:SP -0\\.2(?:0*)?$"}, {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"}, {"kind": "query", "command": "PVGET MOCK:DETECTOR:COUNT"}, {"kind": "query", "command": "MONITOR? MOCK:BIAS:SP"},
+        {"kind": "write", "command_regex": "^PVPUT MOCK:BIAS:SP 0(?:\\.0*)?$"}, {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"},
+        {"kind": "write", "command_regex": "^PVPUT MOCK:BIAS:SP 0\\.2(?:0*)?$"}, {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"},
+        {"kind": "write", "command_regex": "^PVPUT MOCK:BIAS:SP 0\\.4(?:0*)?$"}, {"kind": "query", "command": "PVGET MOCK:BIAS:RBV"}
+      ]
+    },
+    {"name": "anti_hardcode", "type": "anti_hardcode", "dimension": "instrument_access", "requires": ["socket_connect", "list_resources", "open", "write", "query"]},
+    {"name": "cleanup", "type": "cleanup", "dimension": "safety_and_cleanup"}
+  ]
 }

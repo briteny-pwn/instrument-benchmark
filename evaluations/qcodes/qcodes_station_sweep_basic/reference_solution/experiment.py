@@ -72,14 +72,23 @@ def run_experiment(output_path: str) -> dict:
     dmm_handle = ""
     try:
         resources = client.list_resources()
-        source_resource = next(resource for resource in resources if "203.0.113.210" in resource)
-        dmm_resource = next(resource for resource in resources if "203.0.113.211" in resource)
-
-        source_handle = client.open(source_resource)
-        dmm_handle = client.open(dmm_resource)
-
-        source_idn = client.query(source_handle, "*IDN?")
-        dmm_idn = client.query(dmm_handle, "*IDN?")
+        resources_by_role: dict[str, str] = {}
+        identities: dict[str, str] = {}
+        handles: dict[str, str] = {}
+        models = {"MockGateSource": "source", "MockDMM7510": "dmm"}
+        for resource in resources:
+            handle = client.open(resource)
+            identity = client.query(handle, "*IDN?")
+            model = identity.split(",")[1]
+            role = models.get(model)
+            if role:
+                resources_by_role[role] = resource
+                identities[role] = model
+                handles[role] = handle
+            else:
+                client.close_handle(handle)
+        source_handle = handles["source"]
+        dmm_handle = handles["dmm"]
         client.write(source_handle, "*RST")
         client.write(dmm_handle, "*RST")
         client.write(dmm_handle, "CONF:VOLT:DC")
@@ -95,22 +104,26 @@ def run_experiment(output_path: str) -> dict:
         result = {
             "framework": "raw_protocol",
             "instruments": {
-                "source": source_idn.split(",")[1],
-                "dmm": dmm_idn.split(",")[1],
+                "source": identities["source"],
+                "dmm": identities["dmm"],
             },
-            "resources": {
-                "source": source_resource,
-                "dmm": dmm_resource,
-            },
+            "resources": resources_by_role,
             "sweep_setpoints_v": setpoints,
             "measured_voltage_v": measured,
             "slope": slope,
             "intercept": intercept,
-            "validation_passed": abs(slope - 2.0) < 1e-9 and abs(intercept - 0.01) < 1e-9,
+            "validation_passed": abs(slope - 2.0) <= 0.05 and abs(intercept - 0.01) <= 0.02,
         }
+        client.write(source_handle, "OUTP OFF")
+        result["final_source_output_enabled"] = False
         Path(output_path).write_text(json.dumps(result, indent=2), encoding="utf-8")
         return result
     finally:
+        if source_handle:
+            try:
+                client.write(source_handle, "OUTP OFF")
+            except Exception:
+                pass
         if source_handle:
             client.close_handle(source_handle)
         if dmm_handle:

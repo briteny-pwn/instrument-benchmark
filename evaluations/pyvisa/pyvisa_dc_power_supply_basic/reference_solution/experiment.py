@@ -8,9 +8,6 @@ import socket
 from pathlib import Path
 
 
-RESOURCE = "USB0::0x9999::0x0001::DP100001::INSTR"
-
-
 class RawInstrumentClient:
     def __init__(self) -> None:
         host = os.environ["INSTRUMENT_SIM_HOST"]
@@ -47,24 +44,44 @@ class RawInstrumentClient:
 
 def run_experiment(output_path: str = "result.json") -> dict:
     client = RawInstrumentClient()
+    handle = None
+    output_enabled = False
     try:
-        handle = client.open(RESOURCE)
-        identity = client.query(handle, "*IDN?")
+        resource = None
+        identity = None
+        for candidate in client.request({"op": "list_resources"})["resources"]:
+            candidate_handle = client.open(candidate)
+            candidate_identity = client.query(candidate_handle, "*IDN?")
+            if candidate_identity.split(",")[1] == "MockDP100":
+                resource = candidate
+                handle = candidate_handle
+                identity = candidate_identity
+                break
+            client.request({"op": "close", "handle": candidate_handle})
+            client.handles.remove(candidate_handle)
+        if resource is None or handle is None or identity is None:
+            raise RuntimeError("MockDP100 resource not found")
         client.write(handle, ":SOURce1:VOLTage 3.3")
         client.write(handle, ":SOURce1:CURRent 0.5")
         client.write(handle, ":OUTPut CH1,ON")
+        output_enabled = True
         measured_voltage = float(client.query(handle, ":MEASure:VOLTage? CH1"))
+        client.write(handle, ":OUTPut CH1,OFF")
+        output_enabled = False
         result = {
             "instrument": identity.split(",")[1],
+            "resource": resource,
             "channel": 1,
             "target_voltage_v": 3.3,
             "current_limit_a": 0.5,
             "measured_voltage_v": measured_voltage,
-            "output_enabled": True,
+            "output_enabled_during_measurement": True,
+            "final_output_enabled": False,
         }
         if output_path:
             Path(output_path).write_text(json.dumps(result, indent=2), encoding="utf-8")
         return result
     finally:
+        if handle is not None and output_enabled:
+            client.write(handle, ":OUTPut CH1,OFF")
         client.close()
-

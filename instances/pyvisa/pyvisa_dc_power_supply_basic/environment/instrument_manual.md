@@ -9,10 +9,14 @@ simulator protocol.
 
 This task only uses channel 1.
 
-## Resource Name
+## Resource Discovery
+
+The simulator assigns the serial component of the resource name at runtime.
+Discover available resources and identify the power supply with `*IDN?`.
+Resource identifiers follow this form:
 
 ```text
-USB0::0x9999::0x0001::DP100001::INSTR
+USB0::0x9999::0x0001::<serial>::<interface>::INSTR
 ```
 
 ## Communication Parameters
@@ -36,7 +40,7 @@ Query:
 Response:
 
 ```text
-Mock Instruments,MockDP100,DP100001,1.0
+Mock Instruments,MockDP100,<serial>,<firmware>
 ```
 
 ## Set Channel Voltage
@@ -85,6 +89,16 @@ Example:
 :OUTPut CH1,ON
 ```
 
+## Disable Channel Output
+
+Command:
+
+```text
+:OUTPut CH{channel},OFF
+```
+
+Disable the output after the measurement before closing the instrument.
+
 ## Measure Channel Voltage
 
 Query:
@@ -102,3 +116,15 @@ Example:
 If output is enabled, the measured voltage is close to the configured setpoint.
 
 If output is disabled, the measured voltage is `0.0`.
+
+## Readback Queries
+
+The configured state can be read with:
+
+```text
+:SOURce1:VOLTage?
+:SOURce1:CURRent?
+:OUTPut? CH1
+```
+
+The output query returns `ON` or `OFF`.

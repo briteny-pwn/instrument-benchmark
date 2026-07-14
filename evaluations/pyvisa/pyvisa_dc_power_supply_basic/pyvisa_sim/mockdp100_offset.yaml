@@ -1,0 +1,54 @@
+spec: "1.1"
+
+devices:
+  MockDP100:
+    eom:
+      USB INSTR:
+        q: "\n"
+        r: "\n"
+    error:
+      response:
+        command_error: "ERROR"
+        query_error: "ERROR"
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockDP100,DP100ALT,1.1"
+      - q: ":MEASure:VOLTage? CH1"
+        r: "3.304"
+    properties:
+      voltage_ch1:
+        default: 0.0
+        getter:
+          q: ":SOURce1:VOLTage?"
+          r: "{:.3f}"
+        setter:
+          q: ":SOURce1:VOLTage {:g}"
+        specs:
+          min: 0
+          max: 5
+          type: float
+      current_ch1:
+        default: 0.0
+        getter:
+          q: ":SOURce1:CURRent?"
+          r: "{:.3f}"
+        setter:
+          q: ":SOURce1:CURRent {:g}"
+        specs:
+          min: 0
+          max: 1
+          type: float
+      output_ch1:
+        default: "OFF"
+        getter:
+          q: ":OUTPut? CH1"
+          r: "{:s}"
+        setter:
+          q: ":OUTPut CH1,{:s}"
+        specs:
+          valid: ["OFF", "ON"]
+          type: str
+
+resources:
+  USB::0x9999::0x0001::DP100ALT::INSTR:
+    device: MockDP100

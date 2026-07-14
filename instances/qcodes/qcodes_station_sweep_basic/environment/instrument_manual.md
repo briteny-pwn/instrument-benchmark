@@ -1,8 +1,7 @@
 # Source + DMM Station Sweep Instrument Manual
 
-This station contains two raw-protocol instruments. The scenario is inspired by
-QCoDeS station sweep examples, but no QCoDeS APIs or drivers are available to
-the solution.
+This station contains two raw-protocol instruments. Its source-and-measurement
+workflow is based on station sweep experiments.
 
 ## Resource Discovery
 
@@ -23,10 +22,10 @@ Identification query:
 *IDN?
 ```
 
-Response:
+Response format:
 
 ```text
-Mock Instruments,MockGateSource,SRC001,1.0
+Mock Instruments,MockGateSource,<serial>,<firmware>
 ```
 
 Reset:
@@ -40,6 +39,8 @@ Enable output:
 ```text
 OUTP ON
 ```
+
+After the sweep, disable output with `OUTP OFF`.
 
 Set gate voltage:
 
@@ -67,10 +68,10 @@ Identification query:
 *IDN?
 ```
 
-Response:
+Response format:
 
 ```text
-Mock Instruments,MockDMM7510,DMM7510001,1.0
+Mock Instruments,MockDMM7510,<serial>,<firmware>
 ```
 
 Reset:
@@ -91,15 +92,9 @@ Read voltage at a gate setpoint:
 READ:VOLT? <setpoint>
 ```
 
-Responses are decimal voltage strings:
-
-```text
-READ:VOLT? -0.1 -> -0.190
-READ:VOLT? 0.0 -> 0.010
-READ:VOLT? 0.1 -> 0.210
-READ:VOLT? 0.2 -> 0.410
-READ:VOLT? 0.3 -> 0.610
-```
+Responses are decimal voltage strings determined by the source's current
+setpoint and the hidden transfer behavior. The setpoint argument must match the
+source value most recently written.
 
 ## Required Analysis
 
@@ -109,9 +104,9 @@ Fit a line:
 measured_voltage_v = slope * gate_voltage_v + intercept
 ```
 
-For the documented sweep responses above, the fitted values are:
+The transfer validation passes when:
 
 ```text
-slope = 2.0
-intercept = 0.01
+abs(slope - 2.0) <= 0.05
+abs(intercept - 0.01) <= 0.02
 ```

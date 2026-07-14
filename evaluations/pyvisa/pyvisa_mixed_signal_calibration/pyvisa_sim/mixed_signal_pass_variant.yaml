@@ -1,0 +1,113 @@
+spec: "1.1"
+
+devices:
+  Distractor:
+    eom:
+      TCPIP INSTR: {q: "\n", r: "\n"}
+    error:
+      response: {command_error: "ERROR", query_error: "ERROR"}
+    dialogues:
+      - q: "*IDN?"
+        r: "Other Vendor,NetworkLoad,NL001,2.0"
+  MockAWG700:
+    eom:
+      USB INSTR: {q: "\n", r: "\n"}
+    error:
+      response: {command_error: "ERROR", query_error: "ERROR"}
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockAWG700,AWG700ALT,1.1"
+      - q: "*RST"
+    properties:
+      waveform:
+        default: "NONE"
+        getter: {q: "FUNC:ARB?", r: "{:s}"}
+        setter: {q: "FUNC:ARB {:s}"}
+        specs: {type: str, valid: ["CAL_RAMP", "NONE"]}
+      amplitude:
+        default: 8.0
+        getter: {q: "VOLT?", r: "{:g}"}
+        setter: {q: "VOLT {:g}"}
+        specs: {type: float, min: 0, max: 10}
+      offset:
+        default: -2.0
+        getter: {q: "VOLT:OFFS?", r: "{:g}"}
+        setter: {q: "VOLT:OFFS {:g}"}
+        specs: {type: float, min: -10, max: 10}
+      output:
+        default: "ON"
+        getter: {q: "OUTP?", r: "{:s}"}
+        setter: {q: "OUTP {:s}"}
+        specs: {type: str, valid: ["ON", "OFF"]}
+  MockScope900:
+    eom:
+      TCPIP INSTR: {q: "\n", r: ""}
+    error:
+      response: {command_error: "ERROR", query_error: "ERROR"}
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockScope900,SCOPE900ALT,1.1\n"
+      - q: "*RST"
+      - q: "CURVE?"
+        r: "#18RapaRC4C"
+    properties:
+      source:
+        default: "CH2"
+        getter: {q: "DATA:SOURCE?", r: "{:s}"}
+        setter: {q: "DATA:SOURCE {:s}"}
+        specs: {type: str, valid: ["CH1", "CH2"]}
+      encoding:
+        default: "ASCII"
+        getter: {q: "DATA:ENCODING?", r: "{:s}"}
+        setter: {q: "DATA:ENCODING {:s}"}
+        specs: {type: str, valid: ["RIBINARY", "ASCII"]}
+      width:
+        default: 2
+        getter: {q: "DATA:WIDTH?", r: "{:d}"}
+        setter: {q: "DATA:WIDTH {:d}"}
+        specs: {type: int, min: 1, max: 2}
+      ymult:
+        default: 0.5
+        getter: {q: "WFMOUTPRE:YMULT?", r: "{:g}"}
+        setter: {q: "WFMOUTPRE:YMULT {:g}"}
+        specs: {type: float, min: 0, max: 10}
+      yoff:
+        default: 10.0
+        getter: {q: "WFMOUTPRE:YOFF?", r: "{:g}"}
+        setter: {q: "WFMOUTPRE:YOFF {:g}"}
+        specs: {type: float, min: 0, max: 255}
+      yzero:
+        default: -1.0
+        getter: {q: "WFMOUTPRE:YZERO?", r: "{:g}"}
+        setter: {q: "WFMOUTPRE:YZERO {:g}"}
+        specs: {type: float, min: -10, max: 10}
+  MockDMM650:
+    eom:
+      GPIB INSTR: {q: "\n", r: "\n"}
+    error:
+      response: {command_error: "ERROR", query_error: "ERROR"}
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockDMM650,DMM650ALT,1.1"
+      - q: "*RST"
+      - q: "CONF:VOLT:DC"
+      - q: "INIT"
+      - q: "READ:VOLT?"
+        r: "+1.200E+0;+1.201E+0;+1.199E+0;+1.202E+0"
+    properties:
+      range:
+        default: 100.0
+        getter: {q: "VOLT:RANG?", r: "{:g}"}
+        setter: {q: "VOLT:RANG {:g}"}
+        specs: {type: float, min: 0, max: 1000}
+      sample_count:
+        default: 7
+        getter: {q: "SAMP:COUN?", r: "{:d}"}
+        setter: {q: "SAMP:COUN {:d}"}
+        specs: {type: int, min: 1, max: 1000}
+
+resources:
+  TCPIP::198.51.100.33::inst0::INSTR: {device: Distractor}
+  GPIB::9::INSTR: {device: MockDMM650}
+  TCPIP::198.51.100.90::inst0::INSTR: {device: MockScope900}
+  USB::0x9999::0x0700::AWG700ALT::INSTR: {device: MockAWG700}

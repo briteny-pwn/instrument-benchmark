@@ -82,11 +82,7 @@ Confirm output state:
 :OUTP?
 ```
 
-Expected response:
-
-```text
-1
-```
+The response is `1` when enabled and `0` when disabled.
 
 Measure supply voltage:
 
@@ -94,11 +90,9 @@ Measure supply voltage:
 :MEAS:VOLT?
 ```
 
-Expected response:
+The response is the measured supply voltage as a decimal number.
 
-```text
-5.001
-```
+After acquisition, disable the supply with `:OUTP OFF`.
 
 ## MockSwitch48 Commands
 
@@ -120,11 +114,8 @@ Confirm closed paths:
 ROUT:CLOS?
 ```
 
-Expected response:
-
-```text
-(@101,102)
-```
+The response lists the currently closed paths, for example `(@101,102)`.
+After acquisition, use `ROUT:OPEN:ALL` to return the matrix to an open state.
 
 ## MockAWG900 Commands
 
@@ -176,11 +167,8 @@ Confirm output state:
 OUTP?
 ```
 
-Expected response:
-
-```text
-1
-```
+The response is `1` when enabled and `0` when disabled. After acquisition,
+disable the AWG with `OUTP OFF`.
 
 ## MockDMM7510 Commands
 
@@ -220,14 +208,9 @@ Read samples:
 FETCH:VOLT?
 ```
 
-Expected response:
-
-```text
-0.000,0.300,0.600,0.900,1.200,0.900,0.600,0.300
-```
-
-The DMM uses a comma separator for this response. Parse the ASCII response
-yourself by splitting on commas and converting each field to a float.
+The DMM returns eight comma-separated measured values. Parse each field as a
+floating-point number. The values depend on the current supply, route, AWG, and
+DUT behavior.
 
 ## MockScope1200 Commands
 
@@ -263,18 +246,15 @@ Read waveform:
 CURVE?
 ```
 
-Expected response format:
+Response format example:
 
 ```text
-#182AP_n_PA
+#14ABCD
 ```
 
-The response is an IEEE binary block. The header `#18` means the payload has 8
-bytes. The payload byte values are:
-
-```text
-[50, 65, 80, 95, 110, 95, 80, 65]
-```
+The response is an IEEE definite-length binary block. The digit after `#`
+states how many decimal payload-length digits follow. The payload values depend
+on the current source, route, and DUT behavior.
 
 Use this conversion:
 

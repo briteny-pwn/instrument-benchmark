@@ -13,10 +13,13 @@ This manual is a synthetic manual created for the simulated instrument. Its
 command shape is inspired by common SCPI-style DMM workflows and ASCII numeric
 trace responses.
 
-## Resource Name
+## Resource Discovery
+
+The GPIB address is assigned by the simulator. Discover available resources and
+use `*IDN?` to identify `MockDMM2000`. Resource identifiers follow this form:
 
 ```text
-GPIB0::12::INSTR
+GPIB0::<address>::INSTR
 ```
 
 ## Communication Parameters
@@ -40,7 +43,7 @@ Query:
 Response:
 
 ```text
-Mock Instruments,MockDMM2000,DMM2000001,1.0
+Mock Instruments,MockDMM2000,<serial>,<firmware>
 ```
 
 ## Reset and Clear Status
@@ -132,10 +135,11 @@ TRACE:DATA?
 Response format:
 
 ```text
-1.001,1.003,0.999,1.002,1.000
+<value1>,<value2>,<value3>,<value4>,<value5>
 ```
 
 The response is a comma-separated ASCII list of voltage samples in volts.
+Values may use signs, decimal notation, or scientific notation.
 
 Parse this ASCII list yourself by splitting on commas and converting each field
 to a float.

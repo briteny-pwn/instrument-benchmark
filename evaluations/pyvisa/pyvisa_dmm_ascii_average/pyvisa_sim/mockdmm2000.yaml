@@ -25,6 +25,9 @@ devices:
     properties:
       voltage_range:
         default: 1.0
+        getter:
+          q: "VOLT:RANG?"
+          r: "{:g}"
         setter:
           q: "VOLT:RANG {:g}"
         specs:
@@ -34,6 +37,9 @@ devices:
 
       voltage_resolution:
         default: 0.01
+        getter:
+          q: "VOLT:RES?"
+          r: "{:g}"
         setter:
           q: "VOLT:RES {:g}"
         specs:
@@ -43,6 +49,9 @@ devices:
 
       sample_count:
         default: 1
+        getter:
+          q: "SAMP:COUN?"
+          r: "{:d}"
         setter:
           q: "SAMP:COUN {:d}"
         specs:

@@ -1,0 +1,41 @@
+{
+  "initial_state": {
+    "loop": {"setpoint_c": 18.0, "heater_range": "OFF", "temperature_c": 28.0, "heater_percent": 0.0, "status": "IDLE"}
+  },
+  "resources": [
+    {
+      "name": "TCPIP0::10.10.0.22::4101::SOCKET",
+      "commands": [
+        {"kind": "query", "command": "*IDN?", "response": "EPICSIM,TempLoop336,TC336FAST,1.1"},
+        {"kind": "write", "command_regex": "^SETP 1,([-+0-9.]+)$", "state_from_groups": {"loop.setpoint_c": {"group": 1, "type": "float"}}},
+        {"kind": "write", "command_regex": "^RANGE 1,(OFF|LOW|MED|HIGH)$", "state_from_groups": {"loop.heater_range": {"group": 1, "type": "str"}}},
+        {"kind": "query", "command": "SETP? 1", "response_template": "SETP 1,{loop.setpoint_c}"},
+        {"kind": "query", "command": "RANGE? 1", "response_template": "RANGE 1,{loop.heater_range}"},
+        {
+          "kind": "query", "command": "KRDG? A", "requires_state": {"loop.setpoint_c": 37.0, "loop.heater_range": "MED"},
+          "steps": [
+            {"response": "TEMP 28.00 C", "state_updates": {"loop.temperature_c": 28.0}},
+            {"response": "TEMP 36.80 C", "state_updates": {"loop.temperature_c": 36.8}},
+            {"response": "TEMP 37.01 C", "state_updates": {"loop.temperature_c": 37.01}}
+          ]
+        },
+        {
+          "kind": "query", "command": "HTR? 1", "requires_state": {"loop.setpoint_c": 37.0, "loop.heater_range": "MED"},
+          "steps": [
+            {"response": "HTR 1,54.0 %", "state_updates": {"loop.heater_percent": 54.0}},
+            {"response": "HTR 1,17.0 %", "state_updates": {"loop.heater_percent": 17.0}},
+            {"response": "HTR 1,10.8 %", "state_updates": {"loop.heater_percent": 10.8}}
+          ]
+        },
+        {
+          "kind": "query", "command": "STB?", "requires_state": {"loop.setpoint_c": 37.0, "loop.heater_range": "MED"},
+          "steps": [
+            {"response": "LOOP RAMPING", "state_updates": {"loop.status": "RAMPING"}},
+            {"response": "LOOP RAMPING", "state_updates": {"loop.status": "RAMPING"}},
+            {"response": "LOOP STABLE", "state_updates": {"loop.status": "STABLE"}}
+          ]
+        }
+      ]
+    }
+  ]
+}

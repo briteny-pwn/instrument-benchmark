@@ -1,30 +1,176 @@
 {
   "instance_id": "pyvisa_dmm_ascii_average",
-  "simulator": "pyvisa_sim/mockdmm2000.yaml",
-  "expected_result": {
-    "instrument": "MockDMM2000",
-    "measurement": "dc_voltage",
-    "sample_count": 5,
-    "samples_v": [1.001, 1.003, 0.999, 1.002, 1.0],
-    "average_voltage_v": {"close": 1.001, "abs_tol": 1e-9},
-    "unit": "V"
+  "spec_version": 2,
+  "gateway": "pyvisa_sim",
+  "pass_threshold": 0.85,
+  "rubric": {
+    "sim_execution": 0.05,
+    "forbidden_api": 0.10,
+    "task_success": 0.40,
+    "instrument_access": 0.15,
+    "protocol_correctness": 0.10,
+    "state_process": 0.10,
+    "safety_and_cleanup": 0.10
   },
-  "raw_protocol": {
-    "expected_resources": ["GPIB0::12::INSTR"],
-    "expected_commands": [
-      {"kind": "query", "command": "*IDN?"},
-      {"kind": "write", "command": "*RST"},
-      {"kind": "write", "command": "CONF:VOLT:DC"},
-      {"kind": "write", "command": "VOLT:RANG 10"},
-      {"kind": "write", "command": "SAMP:COUN 5"},
-      {"kind": "write", "command": "INIT"},
-      {"kind": "query", "command": "TRACE:DATA?"}
-    ],
-    "expected_sequence": [
-      {"kind": "write", "command": "CONF:VOLT:DC"},
-      {"kind": "write", "command": "SAMP:COUN 5"},
-      {"kind": "write", "command": "INIT"},
-      {"kind": "query", "command": "TRACE:DATA?"}
-    ]
-  }
+  "suite": {
+    "robustness_weight": 0.20,
+    "minimum_pass_rate": 1.0,
+    "repetitions": 1
+  },
+  "snapshot_queries": [
+    {"name": "voltage_range", "resource": "GPIB0::12::INSTR", "command": "VOLT:RANG?", "parse": "float"},
+    {"name": "voltage_resolution", "resource": "GPIB0::12::INSTR", "command": "VOLT:RES?", "parse": "float"},
+    {"name": "sample_count", "resource": "GPIB0::12::INSTR", "command": "SAMP:COUN?", "parse": "int"}
+  ],
+  "scenarios": [
+    {
+      "id": "nominal",
+      "simulator": "pyvisa_sim/mockdmm2000.yaml"
+    },
+    {
+      "id": "offset_dataset",
+      "simulator": "pyvisa_sim/mockdmm2000_offset.yaml",
+      "spec_overrides": {
+        "snapshot_queries": [
+          {"name": "voltage_range", "resource": "GPIB0::21::INSTR", "command": "VOLT:RANG?", "parse": "float"},
+          {"name": "voltage_resolution", "resource": "GPIB0::21::INSTR", "command": "VOLT:RES?", "parse": "float"},
+          {"name": "sample_count", "resource": "GPIB0::21::INSTR", "command": "SAMP:COUN?", "parse": "int"}
+        ]
+      }
+    },
+    {
+      "id": "signed_scientific_dataset",
+      "simulator": "pyvisa_sim/mockdmm2000_scientific.yaml",
+      "spec_overrides": {
+        "snapshot_queries": [
+          {"name": "voltage_range", "resource": "GPIB0::33::INSTR", "command": "VOLT:RANG?", "parse": "float"},
+          {"name": "voltage_resolution", "resource": "GPIB0::33::INSTR", "command": "VOLT:RES?", "parse": "float"},
+          {"name": "sample_count", "resource": "GPIB0::33::INSTR", "command": "SAMP:COUN?", "parse": "int"}
+        ]
+      }
+    }
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0},
+    {"dimension": "instrument_access", "min": 1.0},
+    {"check": "ascii_array_oracle", "min": 1.0},
+    {"check": "configured_range", "min": 1.0},
+    {"check": "configured_resolution", "min": 1.0},
+    {"check": "configured_sample_count", "min": 1.0},
+    {"check": "trace_buffer_cleared", "min": 1.0},
+    {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {
+      "name": "result_contract",
+      "type": "result_json",
+      "dimension": "task_success",
+      "expected": {
+        "instrument": "MockDMM2000",
+        "measurement": "dc_voltage",
+        "sample_count": 5,
+        "unit": "V"
+      }
+    },
+    {
+      "name": "resource_binding",
+      "type": "result_trace_binding",
+      "dimension": "task_success",
+      "result_path": "$.resource",
+      "event_kind": "open",
+      "payload_field": "resource"
+    },
+    {
+      "name": "ascii_array_oracle",
+      "type": "trace_numeric_array",
+      "dimension": "task_success",
+      "selector": {"kind": "query", "command": "TRACE:DATA?"},
+      "delimiter": ",",
+      "assertions": [
+        {"result_path": "$.samples_v", "aggregate": "values", "abs_tol": 1e-12},
+        {"result_path": "$.sample_count", "aggregate": "count"},
+        {"result_path": "$.average_voltage_v", "aggregate": "mean", "abs_tol": 1e-12}
+      ]
+    },
+    {
+      "name": "configured_range",
+      "type": "sim_state",
+      "dimension": "task_success",
+      "path": "$.instrument_state.voltage_range",
+      "expected": {"close": 10.0, "abs_tol": 1e-12}
+    },
+    {
+      "name": "configured_resolution",
+      "type": "sim_state",
+      "dimension": "task_success",
+      "path": "$.instrument_state.voltage_resolution",
+      "expected": {"close": 0.001, "abs_tol": 1e-12}
+    },
+    {
+      "name": "configured_sample_count",
+      "type": "sim_state",
+      "dimension": "task_success",
+      "path": "$.instrument_state.sample_count",
+      "expected": 5
+    },
+    {
+      "name": "raw_interface_evidence",
+      "type": "trace_coverage",
+      "dimension": "instrument_access",
+      "expectations": [
+        {"kind": "socket_connect"},
+        {"kind": "list_resources"},
+        {"kind": "open"},
+        {"kind": "query", "command": "*IDN?"}
+      ]
+    },
+    {
+      "name": "protocol_commands",
+      "type": "trace_coverage",
+      "dimension": "protocol_correctness",
+      "expectations": [
+        {"kind": "write", "command": "*RST"},
+        {"kind": "write", "command": "CONF:VOLT:DC"},
+        {"kind": "write", "command_regex": "^VOLT:RANG 10(?:\\.0*)?$"},
+        {"kind": "write", "command_regex": "^VOLT:RES 0\\.0010*$"},
+        {"kind": "write", "command": "SAMP:COUN 5"},
+        {"kind": "write", "command": "INIT"},
+        {"kind": "query", "command": "TRACE:DATA?"},
+        {"kind": "write", "command": "TRACE:CLEAR"}
+      ]
+    },
+    {
+      "name": "measurement_process",
+      "type": "ordered_milestones",
+      "dimension": "state_process",
+      "milestones": [
+        {"kind": "write", "command": "CONF:VOLT:DC"},
+        {"kind": "write", "command_regex": "^VOLT:RANG 10(?:\\.0*)?$"},
+        {"kind": "write", "command_regex": "^VOLT:RES 0\\.0010*$"},
+        {"kind": "write", "command": "SAMP:COUN 5"},
+        {"kind": "write", "command": "INIT"},
+        {"kind": "query", "command": "TRACE:DATA?"},
+        {"kind": "write", "command": "TRACE:CLEAR"}
+      ]
+    },
+    {
+      "name": "trace_buffer_cleared",
+      "type": "trace_coverage",
+      "dimension": "safety_and_cleanup",
+      "expectations": [
+        {"kind": "write", "command": "TRACE:CLEAR"}
+      ]
+    },
+    {
+      "name": "anti_hardcode",
+      "type": "anti_hardcode",
+      "dimension": "instrument_access",
+      "requires": ["socket_connect", "list_resources", "open", "write", "query"]
+    },
+    {
+      "name": "cleanup",
+      "type": "cleanup",
+      "dimension": "safety_and_cleanup"
+    }
+  ]
 }

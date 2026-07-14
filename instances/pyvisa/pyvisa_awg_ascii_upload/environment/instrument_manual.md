@@ -10,10 +10,14 @@ simulator protocol.
 This manual is a synthetic manual created for the simulated instrument. Its
 waveform upload command uses a plain comma-separated ASCII numeric payload.
 
-## Resource Name
+## Resource Discovery
+
+The simulator assigns the serial component of the USB resource at runtime.
+Discover resources and use `*IDN?` to identify `MockAWG100`. Resource names
+follow this form:
 
 ```text
-USB0::0x9999::0x0100::AWG100001::INSTR
+USB0::0x9999::0x0100::<serial>::<interface>::INSTR
 ```
 
 ## Communication Parameters
@@ -37,7 +41,7 @@ Query:
 Response:
 
 ```text
-Mock Instruments,MockAWG100,AWG100001,1.0
+Mock Instruments,MockAWG100,<serial>,<firmware>
 ```
 
 ## Reset
@@ -97,6 +101,28 @@ VOLT 2.0
 
 For this task, the amplitude is `2.0 Vpp`.
 
+Query:
+
+```text
+VOLT?
+```
+
+## Configure Frequency
+
+Command:
+
+```text
+FREQ 1000
+```
+
+For this task, the frequency is `1000 Hz`.
+
+Query:
+
+```text
+FREQ?
+```
+
 ## Enable Output
 
 Command:
@@ -115,4 +141,12 @@ Response:
 
 ```text
 ON
+```
+
+## Disable Output
+
+After verification, disable the output before closing the instrument:
+
+```text
+OUTP OFF
 ```

@@ -1,18 +1,19 @@
 {
+  "initial_state": {"source": {"enabled": 0, "setpoint_v": 0.0, "readback_v": 0.0}},
   "resources": [
     {
       "name": "IOC::RAMPCHAIN::SIM",
       "commands": [
         {"kind": "query", "command": "*IDN?", "response": "EPICSIM,SoftIocRampChain,IOC-RAMP-01,1.0"},
-        {"kind": "write", "command": "PSU:ENABLE 1", "response": "OK"},
-        {"kind": "write", "command": "PSU:SET 0.0", "response": "OK"},
-        {"kind": "write", "command": "PSU:SET 1.0", "response": "OK"},
-        {"kind": "write", "command": "PSU:SET 2.0", "response": "OK"},
-        {"kind": "write", "command": "PSU:SET 3.0", "response": "OK"},
-        {"kind": "query", "command": "DMM:READ? 0.0", "response": "READ 0.01 V"},
-        {"kind": "query", "command": "DMM:READ? 1.0", "response": "READ 1.01 V"},
-        {"kind": "query", "command": "DMM:READ? 2.0", "response": "READ 2.00 V"},
-        {"kind": "query", "command": "DMM:READ? 3.0", "response": "READ 3.02 V"}
+        {"kind": "write", "command_regex": "^PSU:ENABLE ([01])$", "state_from_groups": {"source.enabled": {"group": 1, "type": "int"}}},
+        {
+          "kind": "write", "command_regex": "^PSU:SET ([-+0-9.]+)$", "requires_state": {"source.enabled": 1},
+          "state_from_groups": {
+            "source.setpoint_v": {"group": 1, "type": "float"},
+            "source.readback_v": {"group": 1, "type": "float", "scale": 1.0, "offset": 0.01, "round": 6}
+          }
+        },
+        {"kind": "query", "command_regex": "^DMM:READ\\? [-+0-9.]+$", "requires_state": {"source.enabled": 1}, "response_template": "READ {source.readback_v} V"}
       ]
     }
   ]

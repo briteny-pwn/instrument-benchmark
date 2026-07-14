@@ -15,10 +15,11 @@ identification queries to find the logger.
 
 Use the raw simulator protocol to list available instrument resources.
 
-The target instrument can be recognized by the identification response:
+The target instrument can be recognized by the model field in its
+identification response:
 
 ```text
-Mock Instruments,MockLogger300,LOGGER300001,1.0
+Mock Instruments,MockLogger300,<serial>,<firmware>
 ```
 
 ## Communication Parameters
@@ -39,10 +40,10 @@ Query:
 *IDN?
 ```
 
-Target response:
+Target response format:
 
 ```text
-Mock Instruments,MockLogger300,LOGGER300001,1.0
+Mock Instruments,MockLogger300,<serial>,<firmware>
 ```
 
 ## Reset
@@ -71,13 +72,8 @@ Query:
 MEAS:TEMP? A
 ```
 
-Response:
-
-```text
-23.45
-```
-
-Temperature is returned in degrees Celsius.
+Temperature is returned as a decimal number in degrees Celsius. Signed values
+and scientific notation are valid.
 
 ## Read Relative Humidity
 
@@ -87,10 +83,5 @@ Query:
 MEAS:HUM? A
 ```
 
-Response:
-
-```text
-45.6
-```
-
-Relative humidity is returned in percent.
+Relative humidity is returned as a decimal percentage. Scientific notation is
+valid.

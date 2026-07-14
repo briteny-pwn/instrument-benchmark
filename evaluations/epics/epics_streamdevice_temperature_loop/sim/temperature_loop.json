@@ -1,16 +1,66 @@
 {
+  "initial_state": {
+    "loop": {
+      "setpoint_c": 20.0,
+      "heater_range": "OFF",
+      "temperature_c": 22.4,
+      "heater_percent": 0.0,
+      "status": "IDLE"
+    }
+  },
   "resources": [
     {
       "name": "TCPIP0::10.10.0.11::4001::SOCKET",
       "commands": [
         {"kind": "query", "command": "*IDN?", "response": "EPICSIM,TempLoop336,TC336001,1.0"},
-        {"kind": "write", "command": "SETP 1,37.0", "response": "OK"},
-        {"kind": "write", "command": "RANGE 1,MED", "response": "OK"},
-        {"kind": "query", "command": "SETP? 1", "response": "SETP 1,37.00"},
-        {"kind": "query", "command": "RANGE? 1", "response": "RANGE 1,MED"},
-        {"kind": "query", "command": "KRDG? A", "responses": ["TEMP 22.40 C", "TEMP 31.20 C", "TEMP 36.70 C", "TEMP 37.02 C", "TEMP 37.00 C"]},
-        {"kind": "query", "command": "HTR? 1", "responses": ["HTR 1,68.0 %", "HTR 1,38.0 %", "HTR 1,18.0 %", "HTR 1,13.0 %", "HTR 1,12.5 %"]},
-        {"kind": "query", "command": "STB?", "responses": ["LOOP RAMPING", "LOOP RAMPING", "LOOP RAMPING", "LOOP STABLE", "LOOP STABLE"]}
+        {
+          "kind": "write",
+          "command_regex": "^SETP 1,([-+0-9.]+)$",
+          "state_from_groups": {"loop.setpoint_c": {"group": 1, "type": "float"}}
+        },
+        {
+          "kind": "write",
+          "command_regex": "^RANGE 1,(OFF|LOW|MED|HIGH)$",
+          "state_from_groups": {"loop.heater_range": {"group": 1, "type": "str"}}
+        },
+        {"kind": "query", "command": "SETP? 1", "response_template": "SETP 1,{loop.setpoint_c}"},
+        {"kind": "query", "command": "RANGE? 1", "response_template": "RANGE 1,{loop.heater_range}"},
+        {
+          "kind": "query",
+          "command": "KRDG? A",
+          "requires_state": {"loop.setpoint_c": 37.0, "loop.heater_range": "MED"},
+          "steps": [
+            {"response": "TEMP 22.40 C", "state_updates": {"loop.temperature_c": 22.4}},
+            {"response": "TEMP 31.20 C", "state_updates": {"loop.temperature_c": 31.2}},
+            {"response": "TEMP 36.70 C", "state_updates": {"loop.temperature_c": 36.7}},
+            {"response": "TEMP 37.02 C", "state_updates": {"loop.temperature_c": 37.02}},
+            {"response": "TEMP 37.00 C", "state_updates": {"loop.temperature_c": 37.0}}
+          ]
+        },
+        {
+          "kind": "query",
+          "command": "HTR? 1",
+          "requires_state": {"loop.setpoint_c": 37.0, "loop.heater_range": "MED"},
+          "steps": [
+            {"response": "HTR 1,68.0 %", "state_updates": {"loop.heater_percent": 68.0}},
+            {"response": "HTR 1,38.0 %", "state_updates": {"loop.heater_percent": 38.0}},
+            {"response": "HTR 1,18.0 %", "state_updates": {"loop.heater_percent": 18.0}},
+            {"response": "HTR 1,13.0 %", "state_updates": {"loop.heater_percent": 13.0}},
+            {"response": "HTR 1,12.5 %", "state_updates": {"loop.heater_percent": 12.5}}
+          ]
+        },
+        {
+          "kind": "query",
+          "command": "STB?",
+          "requires_state": {"loop.setpoint_c": 37.0, "loop.heater_range": "MED"},
+          "steps": [
+            {"response": "LOOP RAMPING", "state_updates": {"loop.status": "RAMPING"}},
+            {"response": "LOOP RAMPING", "state_updates": {"loop.status": "RAMPING"}},
+            {"response": "LOOP RAMPING", "state_updates": {"loop.status": "RAMPING"}},
+            {"response": "LOOP RAMPING", "state_updates": {"loop.status": "RAMPING"}},
+            {"response": "LOOP STABLE", "state_updates": {"loop.status": "STABLE"}}
+          ]
+        }
       ]
     }
   ]

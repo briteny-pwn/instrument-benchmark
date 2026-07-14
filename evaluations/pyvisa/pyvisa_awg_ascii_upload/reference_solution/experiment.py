@@ -8,7 +8,6 @@ import socket
 from pathlib import Path
 
 
-RESOURCE = "USB0::0x9999::0x0100::AWG100001::INSTR"
 POINTS = [0.0, 0.25, 0.5, 0.75, 1.0]
 
 
@@ -46,26 +45,49 @@ class RawInstrumentClient:
 
 def run_experiment(output_path: str = "result.json") -> dict:
     client = RawInstrumentClient()
+    handle = None
+    output_enabled = False
     try:
-        handle = client.open(RESOURCE)
-        identity = client.query(handle, "*IDN?")
+        resource = None
+        identity = None
+        for candidate in client.request({"op": "list_resources"})["resources"]:
+            candidate_handle = client.open(candidate)
+            candidate_identity = client.query(candidate_handle, "*IDN?")
+            if candidate_identity.split(",")[1] == "MockAWG100":
+                resource = candidate
+                handle = candidate_handle
+                identity = candidate_identity
+                break
+            client.request({"op": "close", "handle": candidate_handle})
+            client.handles.remove(candidate_handle)
+        if resource is None or handle is None or identity is None:
+            raise RuntimeError("MockAWG100 resource not found")
         client.write(handle, "*RST")
         client.write(handle, "DATA:ARB RAMP," + ",".join(f"{point:.6f}" for point in POINTS))
         client.write(handle, "FUNC:ARB RAMP")
         client.write(handle, "VOLT 2")
+        client.write(handle, "FREQ 1000")
         client.write(handle, "OUTP ON")
+        output_enabled = True
         output_response = client.query(handle, "OUTP?").strip().upper()
-        output_enabled = output_response in {"1", "ON"}
+        output_enabled_during_verification = output_response in {"1", "ON"}
+        client.write(handle, "OUTP OFF")
+        output_enabled = False
         result = {
             "instrument": identity.split(",")[1],
+            "resource": resource,
             "waveform": "RAMP",
             "points": POINTS,
             "point_count": len(POINTS),
             "amplitude_vpp": 2.0,
-            "output_enabled": output_enabled,
+            "frequency_hz": 1000.0,
+            "output_enabled_during_verification": output_enabled_during_verification,
+            "final_output_enabled": False,
         }
         if output_path:
             Path(output_path).write_text(json.dumps(result, indent=2), encoding="utf-8")
         return result
     finally:
+        if handle is not None and output_enabled:
+            client.write(handle, "OUTP OFF")
         client.close()

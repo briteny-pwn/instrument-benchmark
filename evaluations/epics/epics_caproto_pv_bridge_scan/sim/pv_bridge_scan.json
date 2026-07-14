@@ -1,17 +1,22 @@
 {
+  "initial_state": {"pv": {"setpoint_v": 0.0, "readback_v": 0.0, "detector_count": 0, "has_write": false}},
   "resources": [
     {
       "name": "CA::PVBRIDGE::SIM",
       "commands": [
         {"kind": "query", "command": "*IDN?", "response": "EPICSIM,CaprotoPvBridge,PV-BRIDGE-01,1.0"},
-        {"kind": "write", "command": "PVPUT MOCK:BIAS:SP -0.2", "response": "OK"},
-        {"kind": "write", "command": "PVPUT MOCK:BIAS:SP 0.0", "response": "OK"},
-        {"kind": "write", "command": "PVPUT MOCK:BIAS:SP 0.2", "response": "OK"},
-        {"kind": "write", "command": "PVPUT MOCK:BIAS:SP 0.4", "response": "OK"},
-        {"kind": "query", "command": "PVGET MOCK:BIAS:SP", "responses": ["MOCK:BIAS:SP -0.2", "MOCK:BIAS:SP 0.0", "MOCK:BIAS:SP 0.2", "MOCK:BIAS:SP 0.4"]},
-        {"kind": "query", "command": "PVGET MOCK:BIAS:RBV", "responses": ["MOCK:BIAS:RBV -0.198", "MOCK:BIAS:RBV 0.002", "MOCK:BIAS:RBV 0.201", "MOCK:BIAS:RBV 0.399", "MOCK:BIAS:RBV 0.399"]},
-        {"kind": "query", "command": "PVGET MOCK:DETECTOR:COUNT", "responses": ["MOCK:DETECTOR:COUNT 102", "MOCK:DETECTOR:COUNT 150", "MOCK:DETECTOR:COUNT 197", "MOCK:DETECTOR:COUNT 241", "MOCK:DETECTOR:COUNT 241"]},
-        {"kind": "query", "command": "MONITOR? MOCK:BIAS:SP", "responses": ["BIAS:SP=-0.2", "BIAS:SP=0.0", "BIAS:SP=0.2", "BIAS:SP=0.4"]}
+        {
+          "kind": "write", "command_regex": "^PVPUT MOCK:BIAS:SP ([-+0-9.]+)$", "state_updates": {"pv.has_write": true},
+          "state_from_groups": {
+            "pv.setpoint_v": {"group": 1, "type": "float"},
+            "pv.readback_v": {"group": 1, "type": "float", "scale": 0.995, "offset": 0.001, "round": 6},
+            "pv.detector_count": {"group": 1, "type": "int", "scale": 232.0, "offset": 149.0}
+          }
+        },
+        {"kind": "query", "command": "PVGET MOCK:BIAS:SP", "requires_state": {"pv.has_write": true}, "response_template": "MOCK:BIAS:SP {pv.setpoint_v}"},
+        {"kind": "query", "command": "PVGET MOCK:BIAS:RBV", "requires_state": {"pv.has_write": true}, "response_template": "MOCK:BIAS:RBV {pv.readback_v}"},
+        {"kind": "query", "command": "PVGET MOCK:DETECTOR:COUNT", "requires_state": {"pv.has_write": true}, "response_template": "MOCK:DETECTOR:COUNT {pv.detector_count}"},
+        {"kind": "query", "command": "MONITOR? MOCK:BIAS:SP", "requires_state": {"pv.has_write": true}, "response_template": "BIAS:SP={pv.setpoint_v}"}
       ]
     }
   ]

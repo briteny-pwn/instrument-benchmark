@@ -1,34 +1,141 @@
 {
   "instance_id": "epics_streamdevice_temperature_loop",
+  "spec_version": 2,
   "gateway": "state_machine",
-  "simulator": "sim/temperature_loop.json",
-  "expected_result": {
-    "instrument": "TempLoop336",
-    "loop": 1,
-    "setpoint_c": {"close": 37.0, "abs_tol": 1e-9},
-    "heater_range": "MED",
-    "temperature_history_c": [22.4, 31.2, 36.7, 37.02, 37.0],
-    "stable_temperature_c": {"close": 37.0, "abs_tol": 1e-9},
-    "heater_percent": {"close": 12.5, "abs_tol": 1e-9},
-    "status": "STABLE"
+  "pass_threshold": 0.85,
+  "rubric": {
+    "sim_execution": 0.05,
+    "forbidden_api": 0.10,
+    "task_success": 0.40,
+    "instrument_access": 0.15,
+    "protocol_correctness": 0.10,
+    "state_process": 0.10,
+    "safety_and_cleanup": 0.10
   },
-  "raw_protocol": {
-    "require_resource_discovery": true,
-    "expected_resources": ["TCPIP0::10.10.0.11::4001::SOCKET"],
-    "expected_commands": [
-      {"kind": "query", "command": "*IDN?"},
-      {"kind": "write", "command": "SETP 1,37.0"},
-      {"kind": "write", "command": "RANGE 1,MED"},
-      {"kind": "query", "command": "KRDG? A"},
-      {"kind": "query", "command": "HTR? 1"},
-      {"kind": "query", "command": "STB?"}
-    ],
-    "expected_sequence": [
-      {"kind": "write", "command": "SETP 1,37.0"},
-      {"kind": "write", "command": "RANGE 1,MED"},
-      {"kind": "query", "command": "KRDG? A"},
-      {"kind": "query", "command": "HTR? 1"},
-      {"kind": "query", "command": "STB?"}
-    ]
-  }
+  "suite": {"robustness_weight": 0.20, "minimum_pass_rate": 1.0, "repetitions": 1},
+  "scenarios": [
+    {"id": "nominal_five_poll_ramp", "simulator": "sim/temperature_loop.json"},
+    {"id": "fast_three_poll_ramp", "simulator": "sim/temperature_loop_fast.json"},
+    {"id": "slow_overshoot_ramp", "simulator": "sim/temperature_loop_slow.json"}
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0},
+    {"dimension": "instrument_access", "min": 1.0},
+    {"check": "temperature_trace_oracle", "min": 1.0},
+    {"check": "configured_setpoint", "min": 1.0},
+    {"check": "configured_heater_range", "min": 1.0},
+    {"check": "stable_loop_state", "min": 1.0},
+    {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {
+      "name": "result_contract",
+      "type": "result_json",
+      "dimension": "task_success",
+      "expected": {
+        "instrument": "TempLoop336",
+        "loop": 1,
+        "setpoint_c": {"close": 37.0, "abs_tol": 1e-9},
+        "heater_range": "MED",
+        "stable_temperature_c": {"range": [36.95, 37.05]},
+        "status": "STABLE"
+      }
+    },
+    {
+      "name": "identity_oracle",
+      "type": "trace_response",
+      "dimension": "task_success",
+      "selector": {"kind": "query", "command": "*IDN?"},
+      "parse": "csv_field",
+      "field_index": 1,
+      "expected": "TempLoop336",
+      "result_path": "$.instrument"
+    },
+    {
+      "name": "temperature_trace_oracle",
+      "type": "trace_numeric_aggregate",
+      "dimension": "task_success",
+      "selector": {"kind": "query", "command": "KRDG? A"},
+      "response_regex": "^TEMP\\s+([-+0-9.eE]+)\\s+C$",
+      "assertions": [
+        {"result_path": "$.temperature_history_c", "aggregate": "values", "abs_tol": 1e-9},
+        {"result_path": "$.stable_temperature_c", "aggregate": "last", "abs_tol": 1e-9}
+      ]
+    },
+    {
+      "name": "heater_trace_oracle",
+      "type": "trace_numeric_aggregate",
+      "dimension": "task_success",
+      "selector": {"kind": "query", "command": "HTR? 1"},
+      "response_regex": "^HTR\\s+1,([-+0-9.eE]+)\\s+%$",
+      "assertions": [{"result_path": "$.heater_percent", "aggregate": "last", "abs_tol": 1e-9}]
+    },
+    {
+      "name": "configured_setpoint",
+      "type": "sim_state",
+      "dimension": "task_success",
+      "path": "$.state.loop.setpoint_c",
+      "expected": {"close": 37.0, "abs_tol": 1e-9}
+    },
+    {
+      "name": "configured_heater_range",
+      "type": "sim_state",
+      "dimension": "task_success",
+      "path": "$.state.loop.heater_range",
+      "expected": "MED"
+    },
+    {
+      "name": "stable_loop_state",
+      "type": "sim_state",
+      "dimension": "task_success",
+      "path": "$.state.loop.status",
+      "expected": "STABLE"
+    },
+    {
+      "name": "raw_interface_evidence",
+      "type": "trace_coverage",
+      "dimension": "instrument_access",
+      "expectations": [
+        {"kind": "socket_connect"},
+        {"kind": "list_resources"},
+        {"kind": "open"},
+        {"kind": "query", "command": "*IDN?"}
+      ]
+    },
+    {
+      "name": "stream_configuration",
+      "type": "trace_coverage",
+      "dimension": "protocol_correctness",
+      "expectations": [
+        {"kind": "open", "payload_equals": {"read_termination": "\r\n", "write_termination": "\r\n", "read_termination_explicit": true, "write_termination_explicit": true}}
+      ]
+    },
+    {
+      "name": "protocol_commands",
+      "type": "trace_coverage",
+      "dimension": "protocol_correctness",
+      "expectations": [
+        {"kind": "write", "command_regex": "^SETP 1,37(?:\\.0*)?$"},
+        {"kind": "write", "command": "RANGE 1,MED"},
+        {"kind": "query", "command": "RANGE? 1"},
+        {"kind": "query", "command": "KRDG? A"},
+        {"kind": "query", "command": "HTR? 1"},
+        {"kind": "query", "command": "STB?"}
+      ]
+    },
+    {
+      "name": "temperature_process",
+      "type": "ordered_milestones",
+      "dimension": "state_process",
+      "milestones": [
+        {"kind": "write", "command_regex": "^SETP 1,37(?:\\.0*)?$"},
+        {"kind": "write", "command": "RANGE 1,MED"},
+        {"kind": "query", "command": "KRDG? A"},
+        {"kind": "query", "command": "HTR? 1"},
+        {"kind": "query", "command": "STB?"}
+      ]
+    },
+    {"name": "anti_hardcode", "type": "anti_hardcode", "dimension": "instrument_access", "requires": ["socket_connect", "list_resources", "open", "write", "query"]},
+    {"name": "cleanup", "type": "cleanup", "dimension": "safety_and_cleanup"}
+  ]
 }

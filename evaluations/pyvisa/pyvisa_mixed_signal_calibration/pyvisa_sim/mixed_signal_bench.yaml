@@ -3,74 +3,49 @@ spec: "1.1"
 devices:
   MockLoad90:
     eom:
-      USB INSTR:
-        q: "\n"
-        r: "\n"
+      USB INSTR: {q: "\n", r: "\n"}
     error:
-      response:
-        command_error: "ERROR"
-        query_error: "ERROR"
+      response: {command_error: "ERROR", query_error: "ERROR"}
     dialogues:
       - q: "*IDN?"
         r: "Mock Instruments,MockLoad90,LOAD900001,1.0"
 
   MockAWG700:
     eom:
-      USB INSTR:
-        q: "\n"
-        r: "\n"
+      USB INSTR: {q: "\n", r: "\n"}
     error:
-      response:
-        command_error: "ERROR"
-        query_error: "ERROR"
+      response: {command_error: "ERROR", query_error: "ERROR"}
     dialogues:
       - q: "*IDN?"
         r: "Mock Instruments,MockAWG700,AWG700001,1.0"
       - q: "*RST"
-      - q: "DATA:ARB CAL_RAMP,-0.500000,-0.250000,0.000000,0.250000,0.500000"
-      - q: "OUTP?"
-        r: "1"
     properties:
       waveform:
         default: "NONE"
-        setter:
-          q: "FUNC:ARB {:s}"
-        specs:
-          type: str
-          valid: ["CAL_RAMP", "NONE"]
+        getter: {q: "FUNC:ARB?", r: "{:s}"}
+        setter: {q: "FUNC:ARB {:s}"}
+        specs: {type: str, valid: ["CAL_RAMP", "NONE"]}
       amplitude:
-        default: 1.0
-        setter:
-          q: "VOLT {:g}"
-        specs:
-          min: 0
-          max: 10
-          type: float
+        default: 4.0
+        getter: {q: "VOLT?", r: "{:g}"}
+        setter: {q: "VOLT {:g}"}
+        specs: {type: float, min: 0, max: 10}
       offset:
-        default: 0.0
-        setter:
-          q: "VOLT:OFFS {:g}"
-        specs:
-          min: -10
-          max: 10
-          type: float
+        default: 0.5
+        getter: {q: "VOLT:OFFS?", r: "{:g}"}
+        setter: {q: "VOLT:OFFS {:g}"}
+        specs: {type: float, min: -10, max: 10}
       output:
         default: "OFF"
-        setter:
-          q: "OUTP {:s}"
-        specs:
-          type: str
-          valid: ["ON", "OFF"]
+        getter: {q: "OUTP?", r: "{:s}"}
+        setter: {q: "OUTP {:s}"}
+        specs: {type: str, valid: ["ON", "OFF"]}
 
   MockScope900:
     eom:
-      TCPIP INSTR:
-        q: "\n"
-        r: ""
+      TCPIP INSTR: {q: "\n", r: ""}
     error:
-      response:
-        command_error: "ERROR"
-        query_error: "ERROR"
+      response: {command_error: "ERROR", query_error: "ERROR"}
     dialogues:
       - q: "*IDN?"
         r: "Mock Instruments,MockScope900,SCOPE900001,1.0\n"
@@ -79,61 +54,41 @@ devices:
         r: "#18P_n_PA2A"
     properties:
       source:
-        default: "CH1"
-        setter:
-          q: "DATA:SOURCE {:s}"
-        specs:
-          type: str
-          valid: ["CH1", "CH2"]
+        default: "CH2"
+        getter: {q: "DATA:SOURCE?", r: "{:s}"}
+        setter: {q: "DATA:SOURCE {:s}"}
+        specs: {type: str, valid: ["CH1", "CH2"]}
       encoding:
         default: "ASCII"
-        setter:
-          q: "DATA:ENCODING {:s}"
-        specs:
-          type: str
-          valid: ["RIBINARY", "ASCII"]
+        getter: {q: "DATA:ENCODING?", r: "{:s}"}
+        setter: {q: "DATA:ENCODING {:s}"}
+        specs: {type: str, valid: ["RIBINARY", "ASCII"]}
       width:
-        default: 1
-        setter:
-          q: "DATA:WIDTH {:d}"
-        specs:
-          min: 1
-          max: 2
-          type: int
+        default: 2
+        getter: {q: "DATA:WIDTH?", r: "{:d}"}
+        setter: {q: "DATA:WIDTH {:d}"}
+        specs: {type: int, min: 1, max: 2}
       ymult:
-        default: 0.02
-        setter:
-          q: "WFMOUTPRE:YMULT {:g}"
-        specs:
-          min: 0
-          max: 10
-          type: float
+        default: 1.0
+        getter: {q: "WFMOUTPRE:YMULT?", r: "{:g}"}
+        setter: {q: "WFMOUTPRE:YMULT {:g}"}
+        specs: {type: float, min: 0, max: 10}
       yoff:
-        default: 80
-        setter:
-          q: "WFMOUTPRE:YOFF {:g}"
-        specs:
-          min: 0
-          max: 255
-          type: float
-      yzero:
         default: 0.0
-        setter:
-          q: "WFMOUTPRE:YZERO {:g}"
-        specs:
-          min: -10
-          max: 10
-          type: float
+        getter: {q: "WFMOUTPRE:YOFF?", r: "{:g}"}
+        setter: {q: "WFMOUTPRE:YOFF {:g}"}
+        specs: {type: float, min: 0, max: 255}
+      yzero:
+        default: 1.0
+        getter: {q: "WFMOUTPRE:YZERO?", r: "{:g}"}
+        setter: {q: "WFMOUTPRE:YZERO {:g}"}
+        specs: {type: float, min: -10, max: 10}
 
   MockDMM650:
     eom:
-      GPIB INSTR:
-        q: "\n"
-        r: "\n"
+      GPIB INSTR: {q: "\n", r: "\n"}
     error:
-      response:
-        command_error: "ERROR"
-        query_error: "ERROR"
+      response: {command_error: "ERROR", query_error: "ERROR"}
     dialogues:
       - q: "*IDN?"
         r: "Mock Instruments,MockDMM650,DMM650001,1.0"
@@ -145,27 +100,17 @@ devices:
     properties:
       range:
         default: 1.0
-        setter:
-          q: "VOLT:RANG {:g}"
-        specs:
-          min: 0
-          max: 1000
-          type: float
+        getter: {q: "VOLT:RANG?", r: "{:g}"}
+        setter: {q: "VOLT:RANG {:g}"}
+        specs: {type: float, min: 0, max: 1000}
       sample_count:
         default: 1
-        setter:
-          q: "SAMP:COUN {:d}"
-        specs:
-          min: 1
-          max: 1000
-          type: int
+        getter: {q: "SAMP:COUN?", r: "{:d}"}
+        setter: {q: "SAMP:COUN {:d}"}
+        specs: {type: int, min: 1, max: 1000}
 
 resources:
-  USB::0x9999::0x0900::LOAD900001::INSTR:
-    device: MockLoad90
-  USB::0x9999::0x0700::AWG700001::INSTR:
-    device: MockAWG700
-  TCPIP::203.0.113.90::inst0::INSTR:
-    device: MockScope900
-  GPIB::22::INSTR:
-    device: MockDMM650
+  USB::0x9999::0x0900::LOAD900001::INSTR: {device: MockLoad90}
+  USB::0x9999::0x0700::AWG700001::INSTR: {device: MockAWG700}
+  TCPIP::203.0.113.90::inst0::INSTR: {device: MockScope900}
+  GPIB::22::INSTR: {device: MockDMM650}

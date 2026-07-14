@@ -1,31 +1,155 @@
 {
   "instance_id": "pyvisa_scope_binary_waveform",
-  "simulator": "pyvisa_sim/mockscope500.yaml",
-  "expected_result": {
-    "instrument": "MockScope500",
-    "source": "CH1",
-    "sample_count": 8,
-    "raw_codes": [65, 66, 67, 68, 69, 70, 49, 50],
-    "voltage_scale_v": {"close": 0.02, "abs_tol": 1e-12},
-    "voltage_offset_code": 128,
-    "voltages_v": [-1.26, -1.24, -1.22, -1.2, -1.18, -1.16, -1.58, -1.56],
-    "unit": "V"
+  "spec_version": 2,
+  "gateway": "pyvisa_sim",
+  "pass_threshold": 0.85,
+  "rubric": {
+    "sim_execution": 0.05,
+    "forbidden_api": 0.10,
+    "task_success": 0.45,
+    "instrument_access": 0.15,
+    "protocol_correctness": 0.10,
+    "state_process": 0.10,
+    "safety_and_cleanup": 0.05
   },
-  "raw_protocol": {
-    "expected_resources": ["TCPIP0::192.0.2.50::inst0::INSTR"],
-    "expected_commands": [
-      {"kind": "query", "command": "*IDN?"},
-      {"kind": "write", "command": "*RST"},
-      {"kind": "write", "command": "DATA:SOURCE CH1"},
-      {"kind": "write", "command": "DATA:ENCODING RIBINARY"},
-      {"kind": "write", "command": "DATA:WIDTH 1"},
-      {"kind": "query", "command": "CURVE?"}
-    ],
-    "expected_sequence": [
-      {"kind": "write", "command": "DATA:SOURCE CH1"},
-      {"kind": "write", "command": "DATA:ENCODING RIBINARY"},
-      {"kind": "write", "command": "DATA:WIDTH 1"},
-      {"kind": "query", "command": "CURVE?"}
-    ]
-  }
+  "suite": {
+    "robustness_weight": 0.20,
+    "minimum_pass_rate": 1.0,
+    "repetitions": 1
+  },
+  "snapshot_queries": [
+    {"name": "source", "resource": "TCPIP0::192.0.2.50::inst0::INSTR", "command": "DATA:SOURCE?"},
+    {"name": "encoding", "resource": "TCPIP0::192.0.2.50::inst0::INSTR", "command": "DATA:ENCODING?"},
+    {"name": "width", "resource": "TCPIP0::192.0.2.50::inst0::INSTR", "command": "DATA:WIDTH?", "parse": "int"},
+    {"name": "ymult", "resource": "TCPIP0::192.0.2.50::inst0::INSTR", "command": "WFMOUTPRE:YMULT?", "parse": "float"},
+    {"name": "yoff", "resource": "TCPIP0::192.0.2.50::inst0::INSTR", "command": "WFMOUTPRE:YOFF?", "parse": "float"}
+  ],
+  "scenarios": [
+    {"id": "nominal_eight_bytes", "simulator": "pyvisa_sim/mockscope500.yaml"},
+    {
+      "id": "short_variant",
+      "simulator": "pyvisa_sim/mockscope500_short.yaml",
+      "spec_overrides": {
+        "snapshot_queries": [
+          {"name": "source", "resource": "TCPIP0::192.0.2.61::inst0::INSTR", "command": "DATA:SOURCE?"},
+          {"name": "encoding", "resource": "TCPIP0::192.0.2.61::inst0::INSTR", "command": "DATA:ENCODING?"},
+          {"name": "width", "resource": "TCPIP0::192.0.2.61::inst0::INSTR", "command": "DATA:WIDTH?", "parse": "int"},
+          {"name": "ymult", "resource": "TCPIP0::192.0.2.61::inst0::INSTR", "command": "WFMOUTPRE:YMULT?", "parse": "float"},
+          {"name": "yoff", "resource": "TCPIP0::192.0.2.61::inst0::INSTR", "command": "WFMOUTPRE:YOFF?", "parse": "float"}
+        ]
+      }
+    },
+    {
+      "id": "two_digit_length_header",
+      "simulator": "pyvisa_sim/mockscope500_long.yaml",
+      "spec_overrides": {
+        "snapshot_queries": [
+          {"name": "source", "resource": "TCPIP0::192.0.2.72::inst0::INSTR", "command": "DATA:SOURCE?"},
+          {"name": "encoding", "resource": "TCPIP0::192.0.2.72::inst0::INSTR", "command": "DATA:ENCODING?"},
+          {"name": "width", "resource": "TCPIP0::192.0.2.72::inst0::INSTR", "command": "DATA:WIDTH?", "parse": "int"},
+          {"name": "ymult", "resource": "TCPIP0::192.0.2.72::inst0::INSTR", "command": "WFMOUTPRE:YMULT?", "parse": "float"},
+          {"name": "yoff", "resource": "TCPIP0::192.0.2.72::inst0::INSTR", "command": "WFMOUTPRE:YOFF?", "parse": "float"}
+        ]
+      }
+    }
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0},
+    {"dimension": "instrument_access", "min": 1.0},
+    {"check": "ieee_waveform_oracle", "min": 1.0},
+    {"check": "configured_source", "min": 1.0},
+    {"check": "configured_encoding", "min": 1.0},
+    {"check": "configured_width", "min": 1.0},
+    {"check": "configured_ymult", "min": 1.0},
+    {"check": "configured_yoff", "min": 1.0},
+    {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {
+      "name": "result_contract",
+      "type": "result_json",
+      "dimension": "task_success",
+      "expected": {
+        "instrument": "MockScope500",
+        "source": "CH1",
+        "voltage_scale_v": {"close": 0.02, "abs_tol": 1e-12},
+        "voltage_offset_code": 128,
+        "unit": "V"
+      }
+    },
+    {
+      "name": "resource_binding",
+      "type": "result_trace_binding",
+      "dimension": "task_success",
+      "result_path": "$.resource",
+      "event_kind": "open",
+      "payload_field": "resource"
+    },
+    {
+      "name": "ieee_waveform_oracle",
+      "type": "trace_ieee_block",
+      "dimension": "task_success",
+      "selector": {"kind": "query", "command": "CURVE?"},
+      "signed": false,
+      "scale": 0.02,
+      "offset": 128,
+      "assertions": [
+        {"result_path": "$.raw_codes", "derived": "raw_values"},
+        {"result_path": "$.sample_count", "derived": "count"},
+        {"result_path": "$.voltages_v", "derived": "scaled_values", "abs_tol": 1e-12},
+        {"result_path": "$.mean_voltage_v", "derived": "scaled_mean", "abs_tol": 1e-12},
+        {"result_path": "$.peak_to_peak_v", "derived": "scaled_peak_to_peak", "abs_tol": 1e-12}
+      ]
+    },
+    {"name": "configured_source", "type": "sim_state", "dimension": "task_success", "path": "$.instrument_state.source", "expected": "CH1"},
+    {"name": "configured_encoding", "type": "sim_state", "dimension": "task_success", "path": "$.instrument_state.encoding", "expected": "RIBINARY"},
+    {"name": "configured_width", "type": "sim_state", "dimension": "task_success", "path": "$.instrument_state.width", "expected": 1},
+    {"name": "configured_ymult", "type": "sim_state", "dimension": "task_success", "path": "$.instrument_state.ymult", "expected": {"close": 0.02, "abs_tol": 1e-12}},
+    {"name": "configured_yoff", "type": "sim_state", "dimension": "task_success", "path": "$.instrument_state.yoff", "expected": {"close": 128.0, "abs_tol": 1e-12}},
+    {
+      "name": "raw_interface_evidence",
+      "type": "trace_coverage",
+      "dimension": "instrument_access",
+      "expectations": [
+        {"kind": "socket_connect"},
+        {"kind": "list_resources"},
+        {"kind": "open"},
+        {"kind": "query", "command": "*IDN?"}
+      ]
+    },
+    {
+      "name": "protocol_commands",
+      "type": "trace_coverage",
+      "dimension": "protocol_correctness",
+      "expectations": [
+        {"kind": "write", "command": "*RST"},
+        {"kind": "write", "command": "DATA:SOURCE CH1"},
+        {"kind": "write", "command": "DATA:ENCODING RIBINARY"},
+        {"kind": "write", "command": "DATA:WIDTH 1"},
+        {"kind": "write", "command_regex": "^WFMOUTPRE:YMULT 0\\.020*$"},
+        {"kind": "write", "command_regex": "^WFMOUTPRE:YOFF 128(?:\\.0*)?$"},
+        {"kind": "query", "command": "CURVE?"}
+      ]
+    },
+    {
+      "name": "waveform_process",
+      "type": "ordered_milestones",
+      "dimension": "state_process",
+      "milestones": [
+        {"kind": "write", "command": "DATA:SOURCE CH1"},
+        {"kind": "write", "command": "DATA:ENCODING RIBINARY"},
+        {"kind": "write", "command": "DATA:WIDTH 1"},
+        {"kind": "write", "command_regex": "^WFMOUTPRE:YMULT 0\\.020*$"},
+        {"kind": "write", "command_regex": "^WFMOUTPRE:YOFF 128(?:\\.0*)?$"},
+        {"kind": "query", "command": "CURVE?"}
+      ]
+    },
+    {
+      "name": "anti_hardcode",
+      "type": "anti_hardcode",
+      "dimension": "instrument_access",
+      "requires": ["socket_connect", "list_resources", "open", "write", "query"]
+    },
+    {"name": "cleanup", "type": "cleanup", "dimension": "safety_and_cleanup"}
+  ]
 }

@@ -30,7 +30,7 @@ class Client:
         return self.request({"op": "list_resources"})["resources"]
 
     def open(self, resource: str) -> str:
-        handle = self.request({"op": "open", "resource": resource, "timeout": 5000})["handle"]
+        handle = self.request({"op": "open", "resource": resource, "timeout": 5000, "read_termination": "\n", "write_termination": "\n"})["handle"]
         self.handles.append(handle)
         return handle
 
@@ -53,17 +53,22 @@ def _readback(reply: str) -> float:
 
 def run_experiment(output_path: str = "result.json") -> dict:
     client = Client()
+    handle: str | None = None
+    source_enabled = False
     try:
         resources = client.list_resources()
         handle = client.open(RESOURCE if RESOURCE in resources else resources[0])
         identity = client.query(handle, "*IDN?")
         client.write(handle, "PSU:ENABLE 1")
+        source_enabled = True
         readbacks: list[float] = []
         for value in SETPOINTS:
             client.write(handle, f"PSU:SET {value:.1f}")
             readbacks.append(_readback(client.query(handle, f"DMM:READ? {value:.1f}")))
         errors = [round(readback - setpoint, 12) for setpoint, readback in zip(SETPOINTS, readbacks)]
         max_abs_error = max(abs(error) for error in errors)
+        client.write(handle, "PSU:ENABLE 0")
+        source_enabled = False
         result = {
             "instrument": identity.split(",")[1],
             "setpoints_v": SETPOINTS,
@@ -76,4 +81,9 @@ def run_experiment(output_path: str = "result.json") -> dict:
         Path(output_path).write_text(json.dumps(result, indent=2), encoding="utf-8")
         return result
     finally:
+        if handle is not None and source_enabled:
+            try:
+                client.write(handle, "PSU:ENABLE 0")
+            except Exception:
+                pass
         client.close()

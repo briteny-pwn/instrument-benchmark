@@ -4,7 +4,8 @@ This device is documented in the style of an EPICS asyn/asynOctet serial bus.
 One connection controls multiple addressed devices. Messages are ASCII and use
 LF termination.
 
-Resource:
+Discover the concrete simulator resource and identify it with `*IDN?`. A
+typical resource is:
 
 ```text
 ASYN::SERIAL0::PUMPCTL::INSTR

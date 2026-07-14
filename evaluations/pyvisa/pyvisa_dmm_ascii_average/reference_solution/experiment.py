@@ -8,9 +8,6 @@ import socket
 from pathlib import Path
 
 
-RESOURCE = "GPIB0::12::INSTR"
-
-
 class RawInstrumentClient:
     def __init__(self) -> None:
         self.sock = socket.create_connection((os.environ["INSTRUMENT_SIM_HOST"], int(os.environ["INSTRUMENT_SIM_PORT"])), timeout=5)
@@ -45,17 +42,35 @@ class RawInstrumentClient:
 
 def run_experiment(output_path: str = "result.json") -> dict:
     client = RawInstrumentClient()
+    handle = None
+    trace_cleared = False
     try:
-        handle = client.open(RESOURCE)
-        identity = client.query(handle, "*IDN?")
+        resource = None
+        identity = None
+        for candidate in client.request({"op": "list_resources"})["resources"]:
+            candidate_handle = client.open(candidate)
+            candidate_identity = client.query(candidate_handle, "*IDN?")
+            if candidate_identity.split(",")[1] == "MockDMM2000":
+                resource = candidate
+                handle = candidate_handle
+                identity = candidate_identity
+                break
+            client.request({"op": "close", "handle": candidate_handle})
+            client.handles.remove(candidate_handle)
+        if resource is None or handle is None or identity is None:
+            raise RuntimeError("MockDMM2000 resource not found")
         client.write(handle, "*RST")
         client.write(handle, "CONF:VOLT:DC")
         client.write(handle, "VOLT:RANG 10")
+        client.write(handle, "VOLT:RES 0.001")
         client.write(handle, "SAMP:COUN 5")
         client.write(handle, "INIT")
         samples = [float(item) for item in client.query(handle, "TRACE:DATA?").split(",")]
+        client.write(handle, "TRACE:CLEAR")
+        trace_cleared = True
         result = {
             "instrument": identity.split(",")[1],
+            "resource": resource,
             "measurement": "dc_voltage",
             "sample_count": len(samples),
             "samples_v": samples,
@@ -66,5 +81,6 @@ def run_experiment(output_path: str = "result.json") -> dict:
             Path(output_path).write_text(json.dumps(result, indent=2), encoding="utf-8")
         return result
     finally:
+        if handle is not None and not trace_cleared:
+            client.write(handle, "TRACE:CLEAR")
         client.close()
-

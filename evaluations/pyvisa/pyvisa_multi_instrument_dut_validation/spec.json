@@ -1,58 +1,225 @@
 {
   "instance_id": "pyvisa_multi_instrument_dut_validation",
-  "simulator": "pyvisa_sim/dut_validation_bench.yaml",
-  "expected_result": {
-    "instruments": {
-      "psu": "MockPSU320",
-      "switch": "MockSwitch48",
-      "awg": "MockAWG900",
-      "scope": "MockScope1200",
-      "dmm": "MockDMM7510"
-    },
-    "resources": {
-      "psu": "USB0::0x9999::0x0320::PSU320001::0::INSTR",
-      "switch": "GPIB0::7::INSTR",
-      "awg": "USB0::0x9999::0x0900::AWG900001::0::INSTR",
-      "scope": "TCPIP0::203.0.113.120::inst0::INSTR",
-      "dmm": "GPIB0::24::INSTR"
-    },
-    "supply_voltage_v": {"range": [4.95, 5.05]},
-    "supply_output_enabled": true,
-    "switch_closed_paths": "(@101,102)",
-    "awg_waveform": "DUT_STAIR",
-    "awg_points": [0.0, 0.3, 0.6, 0.9, 1.2, 0.9, 0.6, 0.3],
-    "awg_output_enabled": true,
-    "dmm_samples_v": [0.0, 0.3, 0.6, 0.9, 1.2, 0.9, 0.6, 0.3],
-    "dmm_average_v": {"close": 0.6, "abs_tol": 1e-9},
-    "scope_raw_codes": [50, 65, 80, 95, 110, 95, 80, 65],
-    "scope_voltages_v": [0.0, 0.3, 0.6, 0.9, 1.2, 0.9, 0.6, 0.3],
-    "scope_peak_to_peak_v": {"close": 1.2, "abs_tol": 1e-9},
-    "max_scope_dmm_error_v": {"range": [0.0, 0.005]},
-    "validation_passed": true
+  "spec_version": 2,
+  "gateway": "coupled_signal",
+  "pass_threshold": 0.85,
+  "rubric": {
+    "sim_execution": 0.05,
+    "forbidden_api": 0.10,
+    "task_success": 0.40,
+    "instrument_access": 0.15,
+    "protocol_correctness": 0.10,
+    "state_process": 0.10,
+    "safety_and_cleanup": 0.10
   },
-  "raw_protocol": {
-    "require_resource_discovery": true,
-    "expected_resources": [
-      "USB0::0x9999::0x0320::PSU320001::0::INSTR",
-      "GPIB0::7::INSTR",
-      "USB0::0x9999::0x0900::AWG900001::0::INSTR",
-      "TCPIP0::203.0.113.120::inst0::INSTR",
-      "GPIB0::24::INSTR"
-    ],
-    "expected_commands": [
-      {"kind": "write", "command": ":SOUR:VOLT 5"},
-      {"kind": "write", "command": "ROUT:CLOS (@101,102)"},
-      {"kind": "write", "command": "DATA:ARB DUT_STAIR,0.000000,0.300000,0.600000,0.900000,1.200000,0.900000,0.600000,0.300000"},
-      {"kind": "query", "command": "FETCH:VOLT?"},
-      {"kind": "query", "command": "CURVE?"}
-    ],
-    "expected_sequence": [
-      {"kind": "write", "command": ":SOUR:VOLT 5"},
-      {"kind": "write", "command": ":OUTP ON"},
-      {"kind": "write", "command": "ROUT:CLOS (@101,102)"},
-      {"kind": "write", "command": "DATA:ARB DUT_STAIR,0.000000,0.300000,0.600000,0.900000,1.200000,0.900000,0.600000,0.300000"},
-      {"kind": "query", "command": "FETCH:VOLT?"},
-      {"kind": "query", "command": "CURVE?"}
-    ]
-  }
+  "suite": {
+    "robustness_weight": 0.20,
+    "minimum_pass_rate": 1.0,
+    "repetitions": 1
+  },
+  "scenarios": [
+    {"id": "nominal", "simulator": "sim/nominal.json"},
+    {"id": "resource_noise_and_initial_state_variant", "simulator": "sim/noisy_pass.json"},
+    {"id": "hidden_dut_gain_failure", "simulator": "sim/dut_gain_failure.json"}
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0},
+    {"dimension": "instrument_access", "min": 1.0},
+    {"dimension": "task_success", "min": 1.0},
+    {"check": "uploaded_waveform_oracle", "min": 1.0},
+    {"check": "supply_observation_oracle", "min": 1.0},
+    {"check": "dmm_observation_oracle", "min": 1.0},
+    {"check": "scope_observation_oracle", "min": 1.0},
+    {"check": "cross_instrument_error_oracle", "min": 1.0},
+    {"check": "validation_decision_oracle", "min": 1.0},
+    {"check": "safe_psu_output", "min": 1.0},
+    {"check": "safe_awg_output", "min": 1.0},
+    {"check": "safe_switch_routes", "min": 1.0},
+    {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {
+      "name": "result_contract",
+      "type": "result_json",
+      "dimension": "task_success",
+      "expected": {
+        "instruments": {
+          "psu": "MockPSU320",
+          "switch": "MockSwitch48",
+          "awg": "MockAWG900",
+          "scope": "MockScope1200",
+          "dmm": "MockDMM7510"
+        },
+        "awg_waveform": "DUT_STAIR",
+        "awg_points": [0.0, 0.3, 0.6, 0.9, 1.2, 0.9, 0.6, 0.3],
+        "final_psu_output_enabled": false,
+        "final_awg_output_enabled": false,
+        "final_switch_closed_paths": "(@)"
+      }
+    },
+    {"name": "psu_resource_binding", "type": "result_trace_binding", "result_path": "$.resources.psu", "event_kind": "open", "payload_field": "resource"},
+    {"name": "switch_resource_binding", "type": "result_trace_binding", "result_path": "$.resources.switch", "event_kind": "open", "payload_field": "resource"},
+    {"name": "awg_resource_binding", "type": "result_trace_binding", "result_path": "$.resources.awg", "event_kind": "open", "payload_field": "resource"},
+    {"name": "scope_resource_binding", "type": "result_trace_binding", "result_path": "$.resources.scope", "event_kind": "open", "payload_field": "resource"},
+    {"name": "dmm_resource_binding", "type": "result_trace_binding", "result_path": "$.resources.dmm", "event_kind": "open", "payload_field": "resource"},
+    {
+      "name": "uploaded_waveform_oracle",
+      "type": "trace_command_numeric_array",
+      "command_prefix": "DATA:ARB ",
+      "expected_name": "DUT_STAIR",
+      "expected_values": [0.0, 0.3, 0.6, 0.9, 1.2, 0.9, 0.6, 0.3],
+      "result_name_path": "$.awg_waveform",
+      "result_values_path": "$.awg_points",
+      "abs_tol": 1e-12
+    },
+    {
+      "name": "supply_observation_oracle",
+      "type": "trace_numeric_aggregate",
+      "selector": {"kind": "query", "command": ":MEAS:VOLT?"},
+      "response_regex": "^\\s*([-+0-9.eE]+)\\s*$",
+      "assertions": [
+        {"result_path": "$.supply_voltage_v", "aggregate": "mean", "abs_tol": 1e-9}
+      ]
+    },
+    {
+      "name": "supply_enabled_observation",
+      "type": "trace_response",
+      "selector": {"kind": "query", "command": ":OUTP?"},
+      "parse": "bool_on_off",
+      "expected": true,
+      "result_path": "$.supply_output_enabled"
+    },
+    {
+      "name": "switch_route_observation",
+      "type": "trace_response",
+      "selector": {"kind": "query", "command": "ROUT:CLOS?"},
+      "parse": "str",
+      "expected": "(@101,102)",
+      "result_path": "$.switch_closed_paths"
+    },
+    {
+      "name": "awg_enabled_observation",
+      "type": "trace_response",
+      "selector": {"kind": "query", "command": "OUTP?"},
+      "parse": "bool_on_off",
+      "expected": true,
+      "result_path": "$.awg_output_enabled"
+    },
+    {
+      "name": "dmm_observation_oracle",
+      "type": "trace_numeric_array",
+      "selector": {"kind": "query", "command": "FETCH:VOLT?"},
+      "delimiter": ",",
+      "assertions": [
+        {"result_path": "$.dmm_samples_v", "aggregate": "values", "abs_tol": 1e-9},
+        {"result_path": "$.dmm_average_v", "aggregate": "mean", "abs_tol": 1e-9}
+      ]
+    },
+    {
+      "name": "scope_observation_oracle",
+      "type": "trace_ieee_block",
+      "selector": {"kind": "query", "command": "CURVE?"},
+      "scale": 0.02,
+      "offset": 50,
+      "zero": 0.0,
+      "assertions": [
+        {"result_path": "$.scope_raw_codes", "derived": "raw_values"},
+        {"result_path": "$.scope_voltages_v", "derived": "scaled_values", "abs_tol": 1e-12},
+        {"result_path": "$.scope_peak_to_peak_v", "derived": "scaled_peak_to_peak", "abs_tol": 1e-12}
+      ]
+    },
+    {
+      "name": "cross_instrument_error_oracle",
+      "type": "result_pairwise_max_abs_error",
+      "left_path": "$.scope_voltages_v",
+      "right_path": "$.dmm_samples_v",
+      "result_path": "$.max_scope_dmm_error_v",
+      "abs_tol": 1e-9
+    },
+    {
+      "name": "validation_decision_oracle",
+      "type": "result_threshold_decision",
+      "result_path": "$.validation_passed",
+      "conditions": [
+        {"path": "$.supply_voltage_v", "range": [4.95, 5.05]},
+        {"path": "$.supply_output_enabled", "equals": true},
+        {"path": "$.switch_closed_paths", "equals": "(@101,102)"},
+        {"path": "$.awg_output_enabled", "equals": true},
+        {"path": "$.scope_peak_to_peak_v", "target": 1.2, "abs_tol": 0.02},
+        {"path": "$.max_scope_dmm_error_v", "max": 0.005}
+      ]
+    },
+    {"name": "configured_psu_voltage", "type": "sim_state", "path": "$.instrument_state.psu.voltage", "expected": {"close": 5.0, "abs_tol": 1e-12}},
+    {"name": "configured_psu_current", "type": "sim_state", "path": "$.instrument_state.psu.current_limit", "expected": {"close": 0.2, "abs_tol": 1e-12}},
+    {"name": "configured_awg_waveform", "type": "sim_state", "path": "$.instrument_state.awg.selected_waveform", "expected": "DUT_STAIR"},
+    {"name": "configured_awg_amplitude", "type": "sim_state", "path": "$.instrument_state.awg.amplitude", "expected": {"close": 1.2, "abs_tol": 1e-12}},
+    {"name": "configured_awg_offset", "type": "sim_state", "path": "$.instrument_state.awg.offset", "expected": {"close": 0.0, "abs_tol": 1e-12}},
+    {"name": "configured_awg_frequency", "type": "sim_state", "path": "$.instrument_state.awg.frequency", "expected": {"close": 1000.0, "abs_tol": 1e-12}},
+    {"name": "configured_scope_source", "type": "sim_state", "path": "$.instrument_state.scope.source", "expected": "CH1"},
+    {"name": "configured_scope_encoding", "type": "sim_state", "path": "$.instrument_state.scope.encoding", "expected": "RIBINARY"},
+    {"name": "configured_scope_width", "type": "sim_state", "path": "$.instrument_state.scope.width", "expected": 1},
+    {"name": "configured_scope_ymult", "type": "sim_state", "path": "$.instrument_state.scope.ymult", "expected": {"close": 0.02, "abs_tol": 1e-12}},
+    {"name": "configured_scope_yoff", "type": "sim_state", "path": "$.instrument_state.scope.yoff", "expected": {"close": 50.0, "abs_tol": 1e-12}},
+    {"name": "configured_scope_yzero", "type": "sim_state", "path": "$.instrument_state.scope.yzero", "expected": {"close": 0.0, "abs_tol": 1e-12}},
+    {"name": "configured_dmm_mode", "type": "sim_state", "path": "$.instrument_state.dmm.mode", "expected": "VOLT:DC"},
+    {"name": "configured_dmm_range", "type": "sim_state", "path": "$.instrument_state.dmm.range", "expected": {"close": 10.0, "abs_tol": 1e-12}},
+    {"name": "configured_dmm_count", "type": "sim_state", "path": "$.instrument_state.dmm.sample_count", "expected": 8},
+    {"name": "configured_dmm_trigger", "type": "sim_state", "path": "$.instrument_state.dmm.trigger_source", "expected": "IMM"},
+    {"name": "safe_psu_output", "type": "sim_state", "dimension": "safety_and_cleanup", "path": "$.instrument_state.psu.output", "expected": false},
+    {"name": "safe_awg_output", "type": "sim_state", "dimension": "safety_and_cleanup", "path": "$.instrument_state.awg.output", "expected": false},
+    {"name": "safe_switch_routes", "type": "sim_state", "dimension": "safety_and_cleanup", "path": "$.instrument_state.switch.closed_paths", "expected": []},
+    {
+      "name": "raw_interface_evidence",
+      "type": "trace_coverage",
+      "dimension": "instrument_access",
+      "expectations": [
+        {"kind": "socket_connect"},
+        {"kind": "list_resources"},
+        {"kind": "open"},
+        {"kind": "query", "command": "*IDN?"}
+      ]
+    },
+    {
+      "name": "protocol_commands",
+      "type": "trace_coverage",
+      "dimension": "protocol_correctness",
+      "expectations": [
+        {"kind": "write", "command_regex": "^:SOUR:VOLT 5(?:\\.0*)?$"},
+        {"kind": "write", "command": "ROUT:CLOS (@101,102)"},
+        {"kind": "write", "command_prefix": "DATA:ARB "},
+        {"kind": "query", "command": "FETCH:VOLT?"},
+        {"kind": "query", "command": "CURVE?"},
+        {"kind": "write", "command": "OUTP OFF"},
+        {"kind": "write", "command": ":OUTP OFF"},
+        {"kind": "write", "command": "ROUT:OPEN:ALL"}
+      ]
+    },
+    {
+      "name": "source_and_safety_process",
+      "type": "ordered_milestones",
+      "dimension": "state_process",
+      "milestones": [
+        {"kind": "write", "command_regex": "^:SOUR:VOLT 5(?:\\.0*)?$"},
+        {"kind": "write", "command": ":OUTP ON"},
+        {"kind": "write", "command": "ROUT:CLOS (@101,102)"},
+        {"kind": "write", "command_prefix": "DATA:ARB "},
+        {"kind": "write", "command": "OUTP ON"},
+        {"kind": "write", "command": "OUTP OFF"},
+        {"kind": "write", "command": ":OUTP OFF"},
+        {"kind": "write", "command": "ROUT:OPEN:ALL"}
+      ]
+    },
+    {
+      "name": "measurement_process",
+      "type": "ordered_milestones",
+      "dimension": "state_process",
+      "milestones": [
+        {"kind": "write", "command": "INIT"},
+        {"kind": "query", "command": "FETCH:VOLT?"},
+        {"kind": "query", "command": "CURVE?"}
+      ]
+    },
+    {"name": "anti_hardcode", "type": "anti_hardcode", "dimension": "instrument_access", "requires": ["socket_connect", "list_resources", "open", "write", "query"]},
+    {"name": "cleanup", "type": "cleanup", "dimension": "safety_and_cleanup"}
+  ]
 }

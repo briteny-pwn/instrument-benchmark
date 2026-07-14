@@ -89,7 +89,7 @@ def run_experiment(output_path: str = "result.json") -> dict:
         client.write(psu, ":SOUR:CURR 0.2")
         client.write(psu, ":OUTP ON")
         supply_voltage = float(client.query(psu, ":MEAS:VOLT?")["response"])
-        supply_enabled = client.query(psu, ":OUTP?")["response"].strip() == "1"
+        supply_enabled = client.query(psu, ":OUTP?")["response"].strip().upper() in {"1", "ON", "TRUE"}
 
         switch = handles["switch"]
         client.write(switch, "*RST")
@@ -105,7 +105,7 @@ def run_experiment(output_path: str = "result.json") -> dict:
         client.write(awg, "VOLT:OFFS 0.0")
         client.write(awg, "FREQ 1000")
         client.write(awg, "OUTP ON")
-        awg_enabled = client.query(awg, "OUTP?")["response"].strip() == "1"
+        awg_enabled = client.query(awg, "OUTP?")["response"].strip().upper() in {"1", "ON", "TRUE"}
 
         dmm = handles["dmm"]
         client.write(dmm, "*RST")
@@ -146,9 +146,30 @@ def run_experiment(output_path: str = "result.json") -> dict:
             "max_scope_dmm_error_v": max_error,
             "validation_passed": 4.95 <= supply_voltage <= 5.05 and supply_enabled and closed_paths == "(@101,102)" and awg_enabled and abs(p2p - 1.2) <= 0.02 and max_error <= 0.005,
         }
+        client.write(awg, "OUTP OFF")
+        client.write(psu, ":OUTP OFF")
+        client.write(switch, "ROUT:OPEN:ALL")
+        result.update(
+            {
+                "final_psu_output_enabled": False,
+                "final_awg_output_enabled": False,
+                "final_switch_closed_paths": "(@)",
+            }
+        )
         if output_path:
             Path(output_path).write_text(json.dumps(result, indent=2), encoding="utf-8")
         return result
     finally:
+        local_handles = locals().get("handles", {})
+        for role, command in (
+            ("awg", "OUTP OFF"),
+            ("psu", ":OUTP OFF"),
+            ("switch", "ROUT:OPEN:ALL"),
+        ):
+            handle = local_handles.get(role)
+            if handle in client.handles:
+                try:
+                    client.write(handle, command)
+                except Exception:
+                    pass
         client.close()
-

@@ -32,8 +32,3 @@ Binary block queries return base64 encoded bytes:
 ```json
 {"ok": true, "encoding": "base64", "data": "base64 bytes"}
 ```
-
-Implement the client yourself with Python standard library modules such as
-`socket`, `json`, `base64`, `struct`, `time`, `pathlib`, and `statistics`.
-Do not import PyVISA, QCoDeS, qcodes_contrib_drivers, lab drivers, or any
-instrument framework.

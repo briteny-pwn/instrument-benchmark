@@ -1,0 +1,25 @@
+{
+  "resources": [
+    {"name": "TCPIP0::198.51.100.44::inst0::INSTR", "role": "scope", "idn": "Mock Instruments,MockScope1200,SCOPE1200ALT,1.1"},
+    {"name": "USB0::0x9999::0x0010::CNTALT01::0::INSTR", "role": "counter", "idn": "Mock Instruments,MockCounter10,CNTALT01,1.1"},
+    {"name": "GPIB0::11::INSTR", "role": "dmm", "idn": "Mock Instruments,MockDMM7510,DMM7510ALT,1.1"},
+    {"name": "USB0::0x9999::0x0900::AWG900ALT::0::INSTR", "role": "awg", "idn": "Mock Instruments,MockAWG900,AWG900ALT,1.1"},
+    {"name": "GPIB0::19::INSTR", "role": "switch", "idn": "Mock Instruments,MockSwitch48,SW48ALT,1.1"},
+    {"name": "USB0::0x9999::0x0320::PSU320ALT::0::INSTR", "role": "psu", "idn": "Mock Instruments,MockPSU320,PSU320ALT,1.1"}
+  ],
+  "initial_state": {
+    "psu": {"voltage": 9.0, "output": true},
+    "switch": {"closed_paths": [103]},
+    "awg": {"selected_waveform": "STALE", "amplitude": 7.0, "offset": 2.0, "output": true}
+  },
+  "physics": {
+    "required_paths": [101, 102],
+    "nominal_supply_v": 5.0,
+    "nominal_awg_amplitude_v": 1.2,
+    "supply_offset_v": -0.002,
+    "dut_gain": 1.0,
+    "dut_offset_v": 0.0,
+    "dmm_noise_v": [0.001, -0.001, 0.0005, -0.0005, 0.001, -0.001, 0.0005, -0.0005],
+    "scope_noise_v": [0.001, -0.001, 0.002, -0.002, 0.001, -0.001, 0.002, -0.002]
+  }
+}

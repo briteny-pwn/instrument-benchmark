@@ -1,28 +1,164 @@
 {
   "instance_id": "pyvisa_dc_power_supply_basic",
-  "simulator": "pyvisa_sim/mockdp100.yaml",
-  "expected_result": {
-    "instrument": "MockDP100",
-    "channel": 1,
-    "target_voltage_v": {"close": 3.3, "abs_tol": 1e-6},
-    "current_limit_a": {"close": 0.5, "abs_tol": 1e-6},
-    "measured_voltage_v": {"range": [3.25, 3.35]},
-    "output_enabled": true
+  "spec_version": 2,
+  "gateway": "pyvisa_sim",
+  "pass_threshold": 0.85,
+  "rubric": {
+    "sim_execution": 0.05,
+    "forbidden_api": 0.10,
+    "task_success": 0.35,
+    "instrument_access": 0.15,
+    "protocol_correctness": 0.10,
+    "state_process": 0.10,
+    "safety_and_cleanup": 0.15
   },
-  "raw_protocol": {
-    "expected_resources": ["USB0::0x9999::0x0001::DP100001::INSTR"],
-    "expected_commands": [
-      {"kind": "query", "command": "*IDN?"},
-      {"kind": "write", "command": ":SOURce1:VOLTage 3.3"},
-      {"kind": "write", "command": ":SOURce1:CURRent 0.5"},
-      {"kind": "write", "command": ":OUTPut CH1,ON"},
-      {"kind": "query", "command": ":MEASure:VOLTage? CH1"}
-    ],
-    "expected_sequence": [
-      {"kind": "write", "command": ":SOURce1:VOLTage 3.3"},
-      {"kind": "write", "command": ":SOURce1:CURRent 0.5"},
-      {"kind": "write", "command": ":OUTPut CH1,ON"},
-      {"kind": "query", "command": ":MEASure:VOLTage? CH1"}
-    ]
-  }
+  "suite": {
+    "robustness_weight": 0.20,
+    "minimum_pass_rate": 1.0,
+    "repetitions": 1
+  },
+  "snapshot_queries": [
+    {"name": "voltage_ch1", "resource": "USB0::0x9999::0x0001::DP100001::INSTR", "command": ":SOURce1:VOLTage?", "parse": "float"},
+    {"name": "current_ch1", "resource": "USB0::0x9999::0x0001::DP100001::INSTR", "command": ":SOURce1:CURRent?", "parse": "float"},
+    {"name": "output_ch1", "resource": "USB0::0x9999::0x0001::DP100001::INSTR", "command": ":OUTPut? CH1", "parse": "bool_on_off"}
+  ],
+  "scenarios": [
+    {
+      "id": "nominal",
+      "simulator": "pyvisa_sim/mockdp100.yaml"
+    },
+    {
+      "id": "resource_and_identity_variant",
+      "simulator": "pyvisa_sim/mockdp100_offset.yaml",
+      "spec_overrides": {
+        "snapshot_queries": [
+          {"name": "voltage_ch1", "resource": "USB0::0x9999::0x0001::DP100ALT::INSTR", "command": ":SOURce1:VOLTage?", "parse": "float"},
+          {"name": "current_ch1", "resource": "USB0::0x9999::0x0001::DP100ALT::INSTR", "command": ":SOURce1:CURRent?", "parse": "float"},
+          {"name": "output_ch1", "resource": "USB0::0x9999::0x0001::DP100ALT::INSTR", "command": ":OUTPut? CH1", "parse": "bool_on_off"}
+        ]
+      }
+    },
+    {
+      "id": "measurement_tolerance_edge",
+      "simulator": "pyvisa_sim/mockdp100_tolerance_edge.yaml",
+      "spec_overrides": {
+        "snapshot_queries": [
+          {"name": "voltage_ch1", "resource": "USB0::0x9999::0x0001::DP100EDGE::INSTR", "command": ":SOURce1:VOLTage?", "parse": "float"},
+          {"name": "current_ch1", "resource": "USB0::0x9999::0x0001::DP100EDGE::INSTR", "command": ":SOURce1:CURRent?", "parse": "float"},
+          {"name": "output_ch1", "resource": "USB0::0x9999::0x0001::DP100EDGE::INSTR", "command": ":OUTPut? CH1", "parse": "bool_on_off"}
+        ]
+      }
+    }
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0},
+    {"dimension": "instrument_access", "min": 1.0},
+    {"check": "measured_voltage_oracle", "min": 1.0},
+    {"check": "configured_voltage_state", "min": 1.0},
+    {"check": "configured_current_state", "min": 1.0},
+    {"check": "safe_output_state", "min": 1.0},
+    {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {
+      "name": "experiment_result",
+      "type": "result_json",
+      "dimension": "task_success",
+      "expected": {
+        "instrument": "MockDP100",
+        "channel": 1,
+        "target_voltage_v": {"close": 3.3, "abs_tol": 1e-6},
+        "current_limit_a": {"close": 0.5, "abs_tol": 1e-6},
+        "measured_voltage_v": {"range": [3.25, 3.35]},
+        "output_enabled_during_measurement": true,
+        "final_output_enabled": false
+      }
+    },
+    {
+      "name": "resource_binding",
+      "type": "result_trace_binding",
+      "dimension": "task_success",
+      "result_path": "$.resource",
+      "event_kind": "open",
+      "payload_field": "resource"
+    },
+    {
+      "name": "measured_voltage_oracle",
+      "type": "trace_numeric_aggregate",
+      "dimension": "task_success",
+      "selector": {"kind": "query", "command": ":MEASure:VOLTage? CH1"},
+      "response_regex": "^\\s*([-+0-9.eE]+)\\s*$",
+      "value_group": 1,
+      "assertions": [
+        {"result_path": "$.measured_voltage_v", "aggregate": "mean", "abs_tol": 1e-9}
+      ]
+    },
+    {
+      "name": "configured_voltage_state",
+      "type": "sim_state",
+      "dimension": "task_success",
+      "path": "$.instrument_state.voltage_ch1",
+      "expected": {"close": 3.3, "abs_tol": 1e-9}
+    },
+    {
+      "name": "configured_current_state",
+      "type": "sim_state",
+      "dimension": "task_success",
+      "path": "$.instrument_state.current_ch1",
+      "expected": {"close": 0.5, "abs_tol": 1e-9}
+    },
+    {
+      "name": "safe_output_state",
+      "type": "sim_state",
+      "dimension": "safety_and_cleanup",
+      "path": "$.instrument_state.output_ch1",
+      "expected": false
+    },
+    {
+      "name": "raw_interface_evidence",
+      "type": "trace_coverage",
+      "dimension": "instrument_access",
+      "expectations": [
+        {"kind": "socket_connect"},
+        {"kind": "list_resources"},
+        {"kind": "open"},
+        {"kind": "query", "command": "*IDN?"}
+      ]
+    },
+    {
+      "name": "protocol_commands",
+      "type": "trace_coverage",
+      "dimension": "protocol_correctness",
+      "expectations": [
+        {"kind": "write", "command_regex": "^:SOURCE1:VOLTAGE 3\\.3(?:0*)?$"},
+        {"kind": "write", "command_regex": "^:SOURCE1:CURRENT 0\\.5(?:0*)?$"},
+        {"kind": "write", "command": ":OUTPut CH1,ON"},
+        {"kind": "query", "command": ":MEASure:VOLTage? CH1"},
+        {"kind": "write", "command": ":OUTPut CH1,OFF"}
+      ]
+    },
+    {
+      "name": "power_supply_process",
+      "type": "ordered_milestones",
+      "dimension": "state_process",
+      "milestones": [
+        {"kind": "write", "command_regex": "^:SOURCE1:VOLTAGE 3\\.3(?:0*)?$"},
+        {"kind": "write", "command_regex": "^:SOURCE1:CURRENT 0\\.5(?:0*)?$"},
+        {"kind": "write", "command": ":OUTPut CH1,ON"},
+        {"kind": "query", "command": ":MEASure:VOLTage? CH1"},
+        {"kind": "write", "command": ":OUTPut CH1,OFF"}
+      ]
+    },
+    {
+      "name": "anti_hardcode",
+      "type": "anti_hardcode",
+      "dimension": "instrument_access",
+      "requires": ["socket_connect", "list_resources", "open", "write", "query"]
+    },
+    {
+      "name": "cleanup",
+      "type": "cleanup",
+      "dimension": "safety_and_cleanup"
+    }
+  ]
 }

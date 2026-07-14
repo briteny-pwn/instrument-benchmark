@@ -89,10 +89,12 @@ Confirm output state:
 OUTP?
 ```
 
-Expected response:
+The response is `1`/`ON` when enabled and `0`/`OFF` when disabled.
+
+After all measurements, disable the output with:
 
 ```text
-1
+OUTP OFF
 ```
 
 ## MockDMM650 Commands
@@ -127,14 +129,8 @@ Read samples:
 READ:VOLT?
 ```
 
-Expected response:
-
-```text
-1.198;1.201;1.200;1.199
-```
-
-The DMM uses a semicolon separator for this response. Parse the ASCII response
-yourself by splitting on `;` and converting each field to a float.
+The DMM returns four measured values separated by semicolons. Parse every field
+as a floating-point value; signs and scientific notation may be used.
 
 ## MockScope900 Commands
 
@@ -170,22 +166,16 @@ Read waveform:
 CURVE?
 ```
 
-Expected response format:
+Response format example:
 
 ```text
-#18P_n_PA2A
+#14ABCD
 ```
 
-The response is an IEEE binary block. The header `#18` means the payload has 8
-bytes. The payload byte values are:
-
-```text
-[80, 95, 110, 95, 80, 65, 50, 65]
-```
-
-The scope does not append an extra termination character after this binary
-block. Decode the IEEE block yourself from the base64 bytes returned by the raw
-simulator protocol.
+The response is an IEEE definite-length binary block. The digit after `#`
+states how many decimal length digits follow. Decode the entire declared
+payload from the base64 bytes returned by the simulator protocol. The payload
+length and byte values depend on the measurement.
 
 Use this conversion:
 

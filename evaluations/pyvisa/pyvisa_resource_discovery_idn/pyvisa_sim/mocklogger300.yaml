@@ -37,6 +37,9 @@ devices:
     properties:
       channel:
         default: "A"
+        getter:
+          q: "SENS:CHAN?"
+          r: "{:s}"
         setter:
           q: "SENS:CHAN {:s}"
         specs:
@@ -48,4 +51,3 @@ resources:
     device: MockLoad10
   TCPIP::198.51.100.30::inst0::INSTR:
     device: MockLogger300
-

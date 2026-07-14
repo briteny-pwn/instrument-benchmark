@@ -1,0 +1,43 @@
+spec: "1.1"
+
+devices:
+  MockSupply20:
+    eom:
+      USB INSTR: {q: "\n", r: "\n"}
+    error:
+      response: {command_error: "ERROR", query_error: "ERROR"}
+    dialogues:
+      - q: "*IDN?"
+        r: "Other Vendor,MockSupply20,SUP20002,1.4"
+  MockCounter30:
+    eom:
+      TCPIP INSTR: {q: "\n", r: "\n"}
+    error:
+      response: {command_error: "ERROR", query_error: "ERROR"}
+    dialogues:
+      - q: "*IDN?"
+        r: "Other Vendor,MockCounter30,CNT30002,2.0"
+  MockLogger300:
+    eom:
+      GPIB INSTR: {q: "\n", r: "\n"}
+    error:
+      response: {command_error: "ERROR", query_error: "ERROR"}
+    dialogues:
+      - q: "*IDN?"
+        r: "Mock Instruments,MockLogger300,LOGGER300COLD,1.2"
+      - q: "*RST"
+      - q: "MEAS:TEMP? A"
+        r: "-5.250E+0"
+      - q: "MEAS:HUM? A"
+        r: "1.230E+1"
+    properties:
+      channel:
+        default: "B"
+        getter: {q: "SENS:CHAN?", r: "{:s}"}
+        setter: {q: "SENS:CHAN {:s}"}
+        specs: {type: str, valid: ["A", "B"]}
+
+resources:
+  USB::0x9999::0x0220::SUP20002::INSTR: {device: MockSupply20}
+  TCPIP::198.51.100.77::inst0::INSTR: {device: MockCounter30}
+  GPIB::17::INSTR: {device: MockLogger300}

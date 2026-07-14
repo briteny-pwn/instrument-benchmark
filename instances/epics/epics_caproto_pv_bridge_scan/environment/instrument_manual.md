@@ -4,7 +4,8 @@ This simulator uses caproto-like PV semantics but exposes them as raw ASCII
 commands. Think of `PVPUT` as writing a process variable and `PVGET` as reading
 the latest value.
 
-Resource:
+Discover the concrete simulator resource and identify it with `*IDN?`. A
+typical resource is:
 
 ```text
 CA::PVBRIDGE::SIM

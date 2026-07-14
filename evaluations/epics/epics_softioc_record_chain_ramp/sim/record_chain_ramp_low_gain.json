@@ -1,0 +1,20 @@
+{
+  "initial_state": {"source": {"enabled": 0, "setpoint_v": 0.0, "readback_v": 0.0}},
+  "resources": [
+    {
+      "name": "IOC::RAMPCHAIN::ALT",
+      "commands": [
+        {"kind": "query", "command": "*IDN?", "response": "EPICSIM,SoftIocRampChain,IOC-RAMP-ALT,1.1"},
+        {"kind": "write", "command_regex": "^PSU:ENABLE ([01])$", "state_from_groups": {"source.enabled": {"group": 1, "type": "int"}}},
+        {
+          "kind": "write", "command_regex": "^PSU:SET ([-+0-9.]+)$", "requires_state": {"source.enabled": 1},
+          "state_from_groups": {
+            "source.setpoint_v": {"group": 1, "type": "float"},
+            "source.readback_v": {"group": 1, "type": "float", "scale": 0.995, "offset": -0.005, "round": 6}
+          }
+        },
+        {"kind": "query", "command_regex": "^DMM:READ\\? [-+0-9.]+$", "requires_state": {"source.enabled": 1}, "response_template": "READ {source.readback_v} V"}
+      ]
+    }
+  ]
+}

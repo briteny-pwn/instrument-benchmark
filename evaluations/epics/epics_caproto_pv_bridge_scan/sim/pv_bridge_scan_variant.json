@@ -1,0 +1,23 @@
+{
+  "initial_state": {"pv": {"setpoint_v": 0.0, "readback_v": 0.0, "detector_count": 0, "has_write": false}},
+  "resources": [
+    {
+      "name": "CA::PVBRIDGE::ALT",
+      "commands": [
+        {"kind": "query", "command": "*IDN?", "response": "EPICSIM,CaprotoPvBridge,PV-BRIDGE-ALT,1.1"},
+        {
+          "kind": "write", "command_regex": "^PVPUT MOCK:BIAS:SP ([-+0-9.]+)$", "state_updates": {"pv.has_write": true},
+          "state_from_groups": {
+            "pv.setpoint_v": {"group": 1, "type": "float"},
+            "pv.readback_v": {"group": 1, "type": "float", "scale": 1.002, "offset": -0.003, "round": 6},
+            "pv.detector_count": {"group": 1, "type": "int", "scale": 180.0, "offset": 120.0}
+          }
+        },
+        {"kind": "query", "command": "PVGET MOCK:BIAS:SP", "requires_state": {"pv.has_write": true}, "response_template": "MOCK:BIAS:SP {pv.setpoint_v}"},
+        {"kind": "query", "command": "PVGET MOCK:BIAS:RBV", "requires_state": {"pv.has_write": true}, "response_template": "MOCK:BIAS:RBV {pv.readback_v}"},
+        {"kind": "query", "command": "PVGET MOCK:DETECTOR:COUNT", "requires_state": {"pv.has_write": true}, "response_template": "MOCK:DETECTOR:COUNT {pv.detector_count}"},
+        {"kind": "query", "command": "MONITOR? MOCK:BIAS:SP", "requires_state": {"pv.has_write": true}, "response_template": "BIAS:SP={pv.setpoint_v}"}
+      ]
+    }
+  ]
+}

@@ -16,12 +16,49 @@ devices:
       - q: "*IDN?"
         r: "Mock Instruments,MockAWG100,AWG100001,1.0"
       - q: "*RST"
-      - q: "DATA:ARB RAMP,0.000000,0.250000,0.500000,0.750000,1.000000"
-      - q: "FUNC:ARB RAMP"
-      - q: "VOLT 2"
-      - q: "OUTP ON"
-      - q: "OUTP?"
-        r: "1"
+    properties:
+      active_waveform:
+        default: "OLD"
+        getter:
+          q: "FUNC:ARB?"
+          r: "{:s}"
+        setter:
+          q: "FUNC:ARB {:s}"
+        specs:
+          valid: ["OLD", "RAMP"]
+          type: str
+      amplitude:
+        default: 1.0
+        getter:
+          q: "VOLT?"
+          r: "{:g}"
+        setter:
+          q: "VOLT {:g}"
+        specs:
+          min: 0.01
+          max: 10
+          type: float
+      frequency:
+        default: 100.0
+        getter:
+          q: "FREQ?"
+          r: "{:g}"
+        setter:
+          q: "FREQ {:g}"
+        specs:
+          min: 1
+          max: 1000000
+          type: float
+      output:
+        default: "OFF"
+        getter:
+          q: "OUTP?"
+          r: "{:s}"
+        setter:
+          q: "OUTP {:s}"
+        specs:
+          valid: ["OFF", "ON"]
+          type: str
 
 resources:
   USB::0x9999::0x0100::AWG100001::INSTR:

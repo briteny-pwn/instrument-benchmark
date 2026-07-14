@@ -1,30 +1,167 @@
 {
   "instance_id": "pyvisa_awg_ascii_upload",
-  "simulator": "pyvisa_sim/mockawg100.yaml",
-  "expected_result": {
-    "instrument": "MockAWG100",
-    "waveform": "RAMP",
-    "points": [0.0, 0.25, 0.5, 0.75, 1.0],
-    "point_count": 5,
-    "amplitude_vpp": {"close": 2.0, "abs_tol": 1e-12},
-    "output_enabled": true
+  "spec_version": 2,
+  "gateway": "pyvisa_sim",
+  "pass_threshold": 0.85,
+  "intercepted_write_patterns": ["^DATA:ARB\\s+.+$"],
+  "write_rewrites": [
+    {"pattern": "^VOLT\\s+2(?:\\.0*)?$", "replacement": "VOLT 2.0"},
+    {"pattern": "^FREQ\\s+1000(?:\\.0*)?$", "replacement": "FREQ 1000.0"}
+  ],
+  "rubric": {
+    "sim_execution": 0.05,
+    "forbidden_api": 0.10,
+    "task_success": 0.40,
+    "instrument_access": 0.15,
+    "protocol_correctness": 0.10,
+    "state_process": 0.10,
+    "safety_and_cleanup": 0.10
   },
-  "raw_protocol": {
-    "expected_resources": ["USB0::0x9999::0x0100::AWG100001::INSTR"],
-    "expected_commands": [
-      {"kind": "query", "command": "*IDN?"},
-      {"kind": "write", "command": "*RST"},
-      {"kind": "write", "command": "DATA:ARB RAMP,0.000000,0.250000,0.500000,0.750000,1.000000"},
-      {"kind": "write", "command": "FUNC:ARB RAMP"},
-      {"kind": "write", "command": "VOLT 2"},
-      {"kind": "write", "command": "OUTP ON"},
-      {"kind": "query", "command": "OUTP?"}
-    ],
-    "expected_sequence": [
-      {"kind": "write", "command": "DATA:ARB RAMP,0.000000,0.250000,0.500000,0.750000,1.000000"},
-      {"kind": "write", "command": "FUNC:ARB RAMP"},
-      {"kind": "write", "command": "OUTP ON"},
-      {"kind": "query", "command": "OUTP?"}
-    ]
-  }
+  "suite": {
+    "robustness_weight": 0.20,
+    "minimum_pass_rate": 1.0,
+    "repetitions": 1
+  },
+  "snapshot_queries": [
+    {"name": "waveform", "resource": "USB0::0x9999::0x0100::AWG100001::0::INSTR", "command": "FUNC:ARB?"},
+    {"name": "amplitude", "resource": "USB0::0x9999::0x0100::AWG100001::0::INSTR", "command": "VOLT?", "parse": "float"},
+    {"name": "frequency", "resource": "USB0::0x9999::0x0100::AWG100001::0::INSTR", "command": "FREQ?", "parse": "float"},
+    {"name": "output", "resource": "USB0::0x9999::0x0100::AWG100001::0::INSTR", "command": "OUTP?", "parse": "bool_on_off"}
+  ],
+  "scenarios": [
+    {"id": "nominal", "simulator": "pyvisa_sim/mockawg100.yaml"},
+    {
+      "id": "resource_and_initial_state_variant",
+      "simulator": "pyvisa_sim/mockawg100_variant.yaml",
+      "spec_overrides": {
+        "snapshot_queries": [
+          {"name": "waveform", "resource": "USB0::0x9999::0x0100::AWG100ALT::0::INSTR", "command": "FUNC:ARB?"},
+          {"name": "amplitude", "resource": "USB0::0x9999::0x0100::AWG100ALT::0::INSTR", "command": "VOLT?", "parse": "float"},
+          {"name": "frequency", "resource": "USB0::0x9999::0x0100::AWG100ALT::0::INSTR", "command": "FREQ?", "parse": "float"},
+          {"name": "output", "resource": "USB0::0x9999::0x0100::AWG100ALT::0::INSTR", "command": "OUTP?", "parse": "bool_on_off"}
+        ]
+      }
+    },
+    {
+      "id": "second_initial_state_variant",
+      "simulator": "pyvisa_sim/mockawg100_variant_b.yaml",
+      "spec_overrides": {
+        "snapshot_queries": [
+          {"name": "waveform", "resource": "USB0::0x9999::0x0100::AWG100B02::0::INSTR", "command": "FUNC:ARB?"},
+          {"name": "amplitude", "resource": "USB0::0x9999::0x0100::AWG100B02::0::INSTR", "command": "VOLT?", "parse": "float"},
+          {"name": "frequency", "resource": "USB0::0x9999::0x0100::AWG100B02::0::INSTR", "command": "FREQ?", "parse": "float"},
+          {"name": "output", "resource": "USB0::0x9999::0x0100::AWG100B02::0::INSTR", "command": "OUTP?", "parse": "bool_on_off"}
+        ]
+      }
+    }
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0},
+    {"dimension": "instrument_access", "min": 1.0},
+    {"check": "uploaded_waveform_oracle", "min": 1.0},
+    {"check": "observed_output_enabled", "min": 1.0},
+    {"check": "configured_waveform", "min": 1.0},
+    {"check": "configured_amplitude", "min": 1.0},
+    {"check": "configured_frequency", "min": 1.0},
+    {"check": "safe_output_state", "min": 1.0},
+    {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {
+      "name": "result_contract",
+      "type": "result_json",
+      "dimension": "task_success",
+      "expected": {
+        "instrument": "MockAWG100",
+        "waveform": "RAMP",
+        "point_count": 5,
+        "amplitude_vpp": {"close": 2.0, "abs_tol": 1e-12},
+        "frequency_hz": {"close": 1000.0, "abs_tol": 1e-12},
+        "output_enabled_during_verification": true,
+        "final_output_enabled": false
+      }
+    },
+    {
+      "name": "resource_binding",
+      "type": "result_trace_binding",
+      "dimension": "task_success",
+      "result_path": "$.resource",
+      "event_kind": "open",
+      "payload_field": "resource"
+    },
+    {
+      "name": "uploaded_waveform_oracle",
+      "type": "trace_command_numeric_array",
+      "dimension": "task_success",
+      "kind": "write",
+      "command_prefix": "DATA:ARB ",
+      "delimiter": ",",
+      "expected_name": "RAMP",
+      "expected_values": [0.0, 0.25, 0.5, 0.75, 1.0],
+      "result_name_path": "$.waveform",
+      "result_values_path": "$.points",
+      "result_count_path": "$.point_count",
+      "abs_tol": 1e-12
+    },
+    {
+      "name": "observed_output_enabled",
+      "type": "trace_response",
+      "dimension": "task_success",
+      "selector": {"kind": "query", "command": "OUTP?"},
+      "parse": "bool_on_off",
+      "expected": true,
+      "result_path": "$.output_enabled_during_verification"
+    },
+    {"name": "configured_waveform", "type": "sim_state", "dimension": "task_success", "path": "$.instrument_state.waveform", "expected": "RAMP"},
+    {"name": "configured_amplitude", "type": "sim_state", "dimension": "task_success", "path": "$.instrument_state.amplitude", "expected": {"close": 2.0, "abs_tol": 1e-12}},
+    {"name": "configured_frequency", "type": "sim_state", "dimension": "task_success", "path": "$.instrument_state.frequency", "expected": {"close": 1000.0, "abs_tol": 1e-12}},
+    {"name": "safe_output_state", "type": "sim_state", "dimension": "safety_and_cleanup", "path": "$.instrument_state.output", "expected": false},
+    {
+      "name": "raw_interface_evidence",
+      "type": "trace_coverage",
+      "dimension": "instrument_access",
+      "expectations": [
+        {"kind": "socket_connect"},
+        {"kind": "list_resources"},
+        {"kind": "open"},
+        {"kind": "query", "command": "*IDN?"}
+      ]
+    },
+    {
+      "name": "protocol_commands",
+      "type": "trace_coverage",
+      "dimension": "protocol_correctness",
+      "expectations": [
+        {"kind": "write", "command": "*RST"},
+        {"kind": "write", "command_prefix": "DATA:ARB "},
+        {"kind": "write", "command": "FUNC:ARB RAMP"},
+        {"kind": "write", "command_regex": "^VOLT 2(?:\\.0*)?$"},
+        {"kind": "write", "command_regex": "^FREQ 1000(?:\\.0*)?$"},
+        {"kind": "write", "command": "OUTP ON"},
+        {"kind": "query", "command": "OUTP?"},
+        {"kind": "write", "command": "OUTP OFF"}
+      ]
+    },
+    {
+      "name": "awg_process",
+      "type": "ordered_milestones",
+      "dimension": "state_process",
+      "milestones": [
+        {"kind": "write", "command_prefix": "DATA:ARB "},
+        {"kind": "write", "command": "FUNC:ARB RAMP"},
+        {"kind": "write", "command_regex": "^VOLT 2(?:\\.0*)?$"},
+        {"kind": "write", "command_regex": "^FREQ 1000(?:\\.0*)?$"},
+        {"kind": "write", "command": "OUTP ON"},
+        {"kind": "query", "command": "OUTP?"},
+        {"kind": "write", "command": "OUTP OFF"}
+      ]
+    },
+    {
+      "name": "anti_hardcode",
+      "type": "anti_hardcode",
+      "dimension": "instrument_access",
+      "requires": ["socket_connect", "list_resources", "open", "write", "query"]
+    },
+    {"name": "cleanup", "type": "cleanup", "dimension": "safety_and_cleanup"}
+  ]
 }

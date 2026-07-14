@@ -30,7 +30,7 @@ class Client:
         return self.request({"op": "list_resources"})["resources"]
 
     def open(self, resource: str) -> str:
-        handle = self.request({"op": "open", "resource": resource, "timeout": 5000})["handle"]
+        handle = self.request({"op": "open", "resource": resource, "timeout": 5000, "read_termination": "\n", "write_termination": "\n"})["handle"]
         self.handles.append(handle)
         return handle
 

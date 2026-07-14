@@ -1,0 +1,8 @@
+{
+  "resources": [
+    {"name": "TCPIP0::203.0.113.209::inst0::INSTR", "role": "monitor", "idn": "Other Vendor,MockMonitor20,MON20A,1.0"},
+    {"name": "TCPIP0::203.0.113.210::inst0::INSTR", "role": "source", "idn": "Mock Instruments,MockGateSource,SRC001,1.0"},
+    {"name": "TCPIP0::203.0.113.211::inst0::INSTR", "role": "dmm", "idn": "Mock Instruments,MockDMM7510,DMM7510001,1.0"}
+  ],
+  "physics": {"slope": 2.0, "intercept_v": 0.01, "noise_v": [0.0]}
+}

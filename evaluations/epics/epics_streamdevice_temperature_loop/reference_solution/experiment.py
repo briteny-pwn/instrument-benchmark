@@ -29,7 +29,7 @@ class Client:
         return self.request({"op": "list_resources"})["resources"]
 
     def open(self, resource: str) -> str:
-        handle = self.request({"op": "open", "resource": resource, "read_termination": "\r\n", "write_termination": "\r\n"})["handle"]
+        handle = self.request({"op": "open", "resource": resource, "timeout": 5000, "read_termination": "\r\n", "write_termination": "\r\n"})["handle"]
         self.handles.append(handle)
         return handle
 
@@ -66,12 +66,14 @@ def run_experiment(output_path: str = "result.json") -> dict:
         temperatures: list[float] = []
         heater_percent = 0.0
         status = "RAMPING"
-        for _ in range(5):
+        for _ in range(10):
             temperatures.append(_float_after("TEMP", client.query(handle, "KRDG? A"), "C"))
             heater_percent = _float_after("HTR 1,", client.query(handle, "HTR? 1"), "%")
             status = client.query(handle, "STB?").split()[-1]
-            if status == "STABLE" and abs(temperatures[-1] - 37.0) <= 0.05 and len(temperatures) >= 5:
+            if status == "STABLE" and abs(temperatures[-1] - 37.0) <= 0.05:
                 break
+        else:
+            raise RuntimeError("Temperature loop did not become stable")
 
         result = {
             "instrument": identity.split(",")[1],

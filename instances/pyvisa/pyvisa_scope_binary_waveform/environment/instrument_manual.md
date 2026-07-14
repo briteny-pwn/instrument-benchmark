@@ -11,10 +11,13 @@ This manual is a synthetic manual created for the simulated instrument. Its
 binary waveform transfer behavior uses the IEEE definite-length binary block
 format.
 
-## Resource Name
+## Resource Discovery
+
+The simulator assigns the TCP/IP address at runtime. Discover resources and use
+`*IDN?` to identify `MockScope500`. Resource identifiers follow this form:
 
 ```text
-TCPIP0::192.0.2.50::inst0::INSTR
+TCPIP0::<address>::inst0::INSTR
 ```
 
 ## Communication Parameters
@@ -38,7 +41,7 @@ Query:
 Response:
 
 ```text
-Mock Instruments,MockScope500,SCOPE500001,1.0
+Mock Instruments,MockScope500,<serial>,<firmware>
 ```
 
 ## Reset Acquisition State
@@ -107,15 +110,13 @@ CURVE?
 Response format:
 
 ```text
-#18ABCDEF12
+#<digit_count><payload_length><payload_bytes>
 ```
 
-The response is an IEEE binary block. The header `#18` means the payload has 8
-bytes. The 8 payload byte values are:
-
-```text
-[65, 66, 67, 68, 69, 70, 49, 50]
-```
+The byte after `#` gives the number of ASCII digits used to encode the payload
+length. For example, `#18` announces an 8-byte payload, while `#212` announces a
+12-byte payload. Read exactly the announced number of bytes; waveform length is
+not fixed.
 
 The instrument does not append an extra termination character after this binary
 block. Decode the IEEE block yourself from the base64 bytes returned by the raw
