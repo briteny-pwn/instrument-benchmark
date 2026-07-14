@@ -21,10 +21,15 @@ Bluesky/Ophyd, or any other prebuilt instrument framework.
 - All current instances use evaluation schema v2, at least three hidden
   scenarios, explicit pass gates, and independent trace/simulator-state
   evidence.
+- Model authoring and candidate execution now run in separate hardened Docker
+  containers. Hidden specs, scenarios, traces, repository files, and public
+  internet are outside the candidate boundary.
+- All 19 model-facing bundles pass the automated leakage scanner, and each has
+  a separately materialized, unscored authoring scenario.
 - The reference suite currently covers 69 hidden-world runs and passes 19/19
   instances with a score of `1.0`.
-- The negative suite currently rejects 12/12 known invalid approaches, and 35
-  evaluator unit tests pass.
+- The negative suite currently rejects 12/12 known invalid approaches, and 43
+  evaluator/harness unit tests pass.
 
 These numbers verify the repository implementation; they are not, by
 themselves, evidence of model-ranking validity or transfer to real hardware.
@@ -61,11 +66,22 @@ evaluations/
       pyvisa_sim/ or sim/
 
 experience/
-  {source}/
-    {instance_id}/
-      prompt.md
-      environment/
-      solution.py
+  README.md
+
+benchmark_harness/
+  cli.py
+  docker_runtime.py
+  simulator_service.py
+  solution_runner.py
+
+docker/
+  agent.Dockerfile
+  simulator.Dockerfile
+  runner.Dockerfile
+  proxy.Dockerfile
+
+runs/
+  {run_id}/
 
 docs/
   benchmark_credibility.md
@@ -83,9 +99,49 @@ Boundaries:
 - `instances/`: model-visible task input only.
 - `evaluations/`: hidden scoring logic, raw gateway, simulator definitions,
   traces, specs, and reference solutions.
-- `experience/`: ignored local workspaces for real model trials.
+- `experience/`: legacy development workspaces; old results are considered
+  contaminated and are not formal benchmark runs.
+- `runs/`: ignored, immutable-by-convention run artifacts produced by the
+  isolated harness.
 - `docs/`: human-facing notes and summaries that are not part of the model
   input.
+
+## Isolated Run Lifecycle
+
+A formal run separates task authoring from hidden evaluation:
+
+```text
+lint visible bundle
+  -> create neutral /workspace
+  -> start unscored authoring simulator
+  -> run candidate agent in Docker
+  -> extract solution.py only
+  -> destroy authoring environment
+  -> run solution.py in fresh hidden scenario containers
+  -> collect result, trace, and simulator state
+  -> write deterministic evaluation report
+```
+
+During authoring, the candidate can see only:
+
+```text
+/workspace/
+  prompt.md
+  environment/
+    instrument_manual.md
+    simulator_protocol.md
+```
+
+The candidate cannot mount the repository, `.git`, `evaluations/`, other task
+workspaces, user configuration directories, the Docker socket, simulator
+control data, or hidden traces. Public network access is disabled. Model API
+traffic is routed through a dedicated proxy so the real host credential is not
+placed in the candidate container.
+
+The authoring scenario is unscored and distinct from every hidden evaluation
+scenario. After generation, only `solution.py` crosses the boundary into
+evaluation. Each hidden scenario uses a fresh simulator and a fresh read-only,
+non-root solution runner.
 
 ## Source Semantics
 
@@ -202,13 +258,13 @@ construction policy.
 
 ### Evaluation Flow
 
-For each hidden scenario, the evaluator:
+For each hidden scenario, the official isolated evaluator:
 
-1. Starts the hidden simulator backend and its raw JSON-line gateway.
-2. Runs the candidate in a guarded process with the endpoint supplied through
-   environment variables.
-3. Collects the returned result, gateway trace, execution status, and hidden
-   final simulator state.
+1. Creates an internal Docker network and starts the hidden simulator backend.
+2. Runs `solution.py` in a new read-only, non-root container that mounts no
+   repository or evaluation files and has no public network route.
+3. Stops the simulator and collects result, trace, execution status, and final
+   state through a simulator-only control volume.
 4. Applies deterministic result, causal-state, protocol-coverage, ordered
    milestone, safety, cleanup, and anti-hardcode checks.
 5. Applies required pass gates, then aggregates scores and reliability across
@@ -313,24 +369,57 @@ python3 -m venv .venv
 
 ## Running Instances
 
-Prepare or use:
-
-```text
-experience/{source}/{instance_id}/
-```
-
-Place the candidate solution at:
-
-```text
-experience/{source}/{instance_id}/solution.py
-```
-
-Run an instance:
+Docker Desktop must be running. Configure a model credential in the host
+environment; it is injected only into the API proxy container.
 
 ```bash
-cd evaluations/{source}/{instance_id}
-../../../.venv/bin/python grader.py ../../../experience/{source}/{instance_id}/solution.py
+export BENCHMARK_MODEL_API_KEY=...
+# Optional for a compatible upstream:
+export BENCHMARK_MODEL_API_BASE_URL=https://api.anthropic.com
 ```
+
+Run the full initialize, author, extract, and evaluate workflow:
+
+```bash
+.venv/bin/python -m benchmark_harness run \
+  --instance pyvisa/pyvisa_dc_power_supply_basic \
+  --agent claude \
+  --model sonnet
+```
+
+The same workflow can be controlled stage by stage:
+
+```bash
+.venv/bin/python -m benchmark_harness init --instance SOURCE/INSTANCE --agent claude --model MODEL
+.venv/bin/python -m benchmark_harness generate --run RUN_ID
+.venv/bin/python -m benchmark_harness evaluate --run RUN_ID
+```
+
+Formal run artifacts are written under the ignored `runs/{run_id}/` directory:
+
+```text
+manifest.json
+candidate/solution.py
+agent/events.jsonl
+agent/summary.json
+evaluation/report.json
+hashes.json
+```
+
+The manifest records the task, model, image and source revisions, timestamps,
+and scenario version. Hashes bind the visible input, extracted solution, and
+report so a run can be audited without exposing hidden evaluation material to
+the candidate.
+
+Before a formal run, validate every visible bundle and the Docker boundary:
+
+```bash
+.venv/bin/python -m benchmark_harness lint-instance
+.venv/bin/python -m benchmark_harness security-check --instance SOURCE/INSTANCE
+```
+
+See [`docs/isolation.md`](docs/isolation.md) for the trust boundaries, network
+topology, artifact format, and credential handling.
 
 Run repository-level evaluator checks:
 
@@ -338,6 +427,7 @@ Run repository-level evaluator checks:
 .venv/bin/python -m evaluations.common.validate_instances
 .venv/bin/python -m evaluations.run_reference_suite
 .venv/bin/python -m evaluations.run_negative_suite
+.venv/bin/python -m unittest discover -s benchmark_harness/tests
 ```
 
 ## Current Instances
@@ -398,6 +488,8 @@ A good instance should define:
 - an output schema with placeholders for measured/discovered values;
 - causal cleanup or safety behavior required by the experiment.
 - at least three hidden scenarios, including changed observations or targets;
+- an `authoring` configuration with a unique seed for an unscored materialized
+  development scenario;
 - independent result oracles derived from trace and simulator state rather
   than candidate-reported fields alone;
 - pass gates for genuine access and any task-critical safety behavior;

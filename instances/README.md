@@ -1,6 +1,9 @@
 # Instances
 
-This directory contains model-visible benchmark inputs.
+This directory contains the canonical task bundles. The isolated runner copies
+only the three files listed below into a neutral `/workspace`; this README,
+source-family path, instance identifier, repository metadata, and sibling
+tasks are not mounted into the candidate container.
 
 The structure is:
 

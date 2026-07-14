@@ -1,6 +1,7 @@
 # Evaluations
 
-This directory contains hidden or external scoring logic.
+This directory contains hidden scoring and simulator logic. Official runs do
+not mount this directory into either the authoring agent or solution runner.
 
 The shared raw-protocol evaluation layer is in `evaluations/common/`:
 
@@ -43,6 +44,27 @@ The candidate never sees these files during the task. Whether evaluation uses
 yaqd-fakes daemons
 internally, it exposes only the raw socket protocol described in the
 model-visible `simulator_protocol.md`.
+
+## Isolated Execution
+
+`benchmark_harness` separates untrusted execution from deterministic scoring:
+
+- the authoring agent sees only `/workspace` and an unscored materialized
+  simulator over an internal network;
+- the solution runner sees only read-only `solution.py`, an empty output
+  directory, and one hidden simulator endpoint;
+- the simulator writes trace and final state to a control volume that is not
+  mounted into either candidate container;
+- the host grader consumes collected evidence after candidate execution and
+  never imports untrusted `solution.py` in the official path.
+
+The per-instance `grader.py` entry points remain available only for trusted
+reference development and compatibility. They are not the blind-test entry
+point.
+
+Every spec also declares `authoring.base_simulator` and a unique seed. The
+simulator container materializes a distinct unscored identity and measurement
+world at startup; the three listed `scenarios` remain hidden scoring worlds.
 
 ## Backend Status
 
@@ -89,6 +111,9 @@ of deterministic `checks`:
 - `trace_coverage`: verify important raw protocol evidence without requiring an
   exact reference trace.
 - `ordered_milestones`: verify experimental phase order with partial credit.
+- `causal_order`: verify pairwise before/after constraints when independent
+  prerequisite checks may occur in either order; `first` and `last` occurrence
+  selection can distinguish initial and final observations.
 - `anti_hardcode`: require evidence of real simulator interaction.
 - `cleanup`: verify handle/socket cleanup.
 
@@ -122,7 +147,9 @@ Additional deterministic checks are available:
 - `trace_command_numeric_array`: parse a numeric array embedded in a write
   command and bind the uploaded values to both task inputs and candidate output.
 - `trace_response`: bind a reported scalar or state to the actual query
-  response, with string, numeric, or ON/OFF parsing.
+  response, with string, numeric, or ON/OFF parsing. A check may explicitly
+  accept either the raw response or its parsed value when an older output
+  contract left that representation ambiguous.
 - `result_pairwise_max_abs_error`: independently recompute the maximum
   pointwise disagreement between two reported arrays after those arrays are
   bound to instrument responses.
