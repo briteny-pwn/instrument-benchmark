@@ -5,6 +5,8 @@
 .claude/
 __pycache__/
 *.py[cod]
-/experience/
+/experience/*
+!/experience/README.md
+/runs/
 /evaluations/*/solution.py
 /evaluations/*/*/solution.py

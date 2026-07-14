@@ -1,0 +1,10 @@
+.git
+.venv
+.claude
+.codex
+runs
+experience
+paper
+__pycache__
+*.pyc
+.DS_Store
