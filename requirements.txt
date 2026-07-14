@@ -1,1 +1,4 @@
 pyvisa-sim==0.7.1
+numpy
+yaqc==2023.6.0
+yaqd-fakes==2023.6.0

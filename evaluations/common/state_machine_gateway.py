@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import socketserver
 import threading
 from copy import deepcopy
@@ -19,6 +20,8 @@ class Gateway:
         self.scenario = json.loads(self.scenario_path.read_text(encoding="utf-8"))
         self.resource_defs = {item["name"]: item for item in self.scenario.get("resources", [])}
         self.resources: dict[str, dict[str, Any]] = {}
+        self.state: dict[str, Any] = deepcopy(self.scenario.get("initial_state", {}))
+        self.command_counters: dict[str, int] = {}
         self.handle_counter = 0
         self.server: socketserver.ThreadingTCPServer | None = None
         self.thread: threading.Thread | None = None
@@ -63,6 +66,14 @@ class Gateway:
         self.resources.clear()
         raw_trace.record("gateway_stop", {})
 
+    def snapshot_state(self) -> dict[str, Any]:
+        return {
+            "resources": list(self.resource_defs),
+            "open_handles": sorted(self.resources),
+            "state": deepcopy(self.state),
+            "command_counters": dict(self.command_counters),
+        }
+
     def dispatch(self, request: dict[str, Any]) -> dict[str, Any]:
         op = request.get("op")
         raw_trace.record("request", request)
@@ -79,7 +90,6 @@ class Gateway:
             self.resources[handle] = {
                 "name": resource_name,
                 "definition": deepcopy(self.resource_defs[resource_name]),
-                "counters": {},
             }
             raw_trace.record(
                 "open",
@@ -89,6 +99,9 @@ class Gateway:
                     "timeout": int(request.get("timeout", 10000)),
                     "read_termination": request.get("read_termination", "\n"),
                     "write_termination": request.get("write_termination", "\n"),
+                    "timeout_explicit": "timeout" in request,
+                    "read_termination_explicit": "read_termination" in request,
+                    "write_termination_explicit": "write_termination" in request,
                 },
             )
             return {"ok": True, "handle": handle}
@@ -123,22 +136,107 @@ class Gateway:
         normalized = _normalize(command)
         commands = entry["definition"].get("commands", [])
         for rule in commands:
-            if rule.get("kind", "query") == kind and _normalize(rule["command"]) == normalized:
-                return self._rule_response(entry, rule)
+            match = _match_rule(rule, normalized)
+            if rule.get("kind", "query") == kind and match is not None:
+                return self._rule_response(entry["name"], rule, match)
         raise RuntimeError(f"Unsupported {kind} command for {entry['name']}: {command}")
 
-    def _rule_response(self, entry: dict[str, Any], rule: dict[str, Any]) -> Any:
-        key = f"{rule.get('kind', 'query')}:{_normalize(rule['command'])}"
-        counters = entry["counters"]
-        index = counters.get(key, 0)
-        counters[key] = index + 1
-        if "responses" in rule:
+    def _rule_response(
+        self, resource_name: str, rule: dict[str, Any], command_match: re.Match[str]
+    ) -> Any:
+        for path, expected in rule.get("requires_state", {}).items():
+            actual = _get_state_path(self.state, path)
+            if actual != expected:
+                raise RuntimeError(
+                    f"State precondition failed for {resource_name} {rule['command']}: "
+                    f"{path} expected {expected!r}, got {actual!r}"
+                )
+
+        rule_identity = rule.get("command_regex", rule.get("command", ""))
+        key = f"{resource_name}:{rule.get('kind', 'query')}:{_normalize(rule_identity)}"
+        index = self.command_counters.get(key, 0)
+        self.command_counters[key] = index + 1
+        response: Any
+        step: dict[str, Any] = {}
+        if "steps" in rule:
+            steps = rule["steps"]
+            step = steps[min(index, len(steps) - 1)]
+            response = step.get("response", "OK")
+        elif "responses" in rule:
             responses = rule["responses"]
-            return responses[min(index, len(responses) - 1)]
-        if "base64_data" in rule:
-            return {"encoding": "base64", "data": rule["base64_data"]}
-        return rule.get("response", "OK")
+            response = responses[min(index, len(responses) - 1)]
+        elif "base64_data" in rule:
+            response = {"encoding": "base64", "data": rule["base64_data"]}
+        else:
+            response = rule.get("response", "OK")
+
+        updates = {**rule.get("state_updates", {}), **step.get("state_updates", {})}
+        for path, value in updates.items():
+            _set_state_path(self.state, path, deepcopy(value))
+        increments = {**rule.get("state_increments", {}), **step.get("state_increments", {})}
+        for path, amount in increments.items():
+            current = _get_state_path(self.state, path, 0)
+            _set_state_path(self.state, path, current + amount)
+        captured_updates = {**rule.get("state_from_groups", {}), **step.get("state_from_groups", {})}
+        for path, transform in captured_updates.items():
+            _set_state_path(self.state, path, _transform_capture(command_match, transform))
+
+        if rule.get("response_state"):
+            response = _get_state_path(self.state, str(rule["response_state"]))
+        if rule.get("response_template"):
+            response = _render_state_template(str(rule["response_template"]), self.state)
+        return response
 
 
 def _normalize(command: str) -> str:
     return " ".join(str(command).strip().upper().split())
+
+
+def _match_rule(rule: dict[str, Any], normalized_command: str) -> re.Match[str] | None:
+    if "command_regex" in rule:
+        return re.fullmatch(str(rule["command_regex"]), normalized_command)
+    expected = _normalize(rule.get("command", ""))
+    return re.fullmatch(re.escape(expected), normalized_command) if expected == normalized_command else None
+
+
+def _transform_capture(match: re.Match[str], transform: Any) -> Any:
+    definition = transform if isinstance(transform, dict) else {"group": transform}
+    raw = match.group(definition.get("group", 1))
+    value_type = definition.get("type", "float")
+    if value_type == "str":
+        return str(raw)
+    value: float | int = float(raw)
+    value = value * float(definition.get("scale", 1.0)) + float(definition.get("offset", 0.0))
+    if "round" in definition:
+        value = round(value, int(definition["round"]))
+    return int(round(value)) if value_type == "int" else value
+
+
+def _get_state_path(state: dict[str, Any], path: str, default: Any = None) -> Any:
+    current: Any = state
+    for part in path.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return default
+        current = current[part]
+    return current
+
+
+def _set_state_path(state: dict[str, Any], path: str, value: Any) -> None:
+    parts = path.split(".")
+    current = state
+    for part in parts[:-1]:
+        current = current.setdefault(part, {})
+        if not isinstance(current, dict):
+            raise RuntimeError(f"Cannot set nested state path {path!r}")
+    current[parts[-1]] = value
+
+
+def _render_state_template(template: str, state: dict[str, Any]) -> str:
+    def replace(match: re.Match[str]) -> str:
+        path = match.group(1)
+        value = _get_state_path(state, path)
+        if value is None:
+            raise KeyError(path)
+        return str(value)
+
+    return re.sub(r"\{([^{}]+)\}", replace, template)
