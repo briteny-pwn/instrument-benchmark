@@ -1,0 +1,14 @@
+{
+  "resources": [
+    {
+      "name": "YAQ::fake-spectrometer::1",
+      "kind": "fake-spectrometer",
+      "daemon_name": "triggered_spectrometer",
+      "config": {
+        "serial": "YSPEC001",
+        "model": "FakeSpectrometer",
+        "loop_at_startup": false
+      }
+    }
+  ]
+}

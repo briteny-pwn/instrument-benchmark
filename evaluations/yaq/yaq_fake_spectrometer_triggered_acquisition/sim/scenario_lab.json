@@ -1,0 +1,10 @@
+{
+  "resources": [
+    {
+      "name": "YAQ::fake-spectrometer::lab-channel",
+      "kind": "fake-spectrometer",
+      "daemon_name": "lab_triggered_spectrometer",
+      "config": {"serial": "YSPEC202", "model": "FakeSpectrometer", "loop_at_startup": false}
+    }
+  ]
+}

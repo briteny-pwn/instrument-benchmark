@@ -1,0 +1,21 @@
+{
+  "resources": [
+    {
+      "name": "YAQ::fake-sensor::alignment-alt",
+      "kind": "fake-sensor",
+      "daemon_name": "alignment_sensor_alt",
+      "config": {
+        "serial": "YSENS102",
+        "model": "FakeSensor",
+        "update_period": 0.02,
+        "channels": {"alignment": {"kind": "random-walk", "min": -5.0, "max": 5.0}}
+      }
+    },
+    {
+      "name": "YAQ::fake-continuous-hardware::stage",
+      "kind": "fake-continuous-hardware",
+      "daemon_name": "alignment_stage",
+      "config": {"serial": "YMOT101", "model": "FakeContinuousHardware", "limits": [-3.0, 3.0], "velocity": 5.0, "units": "mm"}
+    }
+  ]
+}

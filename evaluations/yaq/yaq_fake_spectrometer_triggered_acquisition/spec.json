@@ -1,0 +1,32 @@
+{
+  "instance_id": "yaq_fake_spectrometer_triggered_acquisition",
+  "spec_version": 2,
+  "gateway": "yaq_native",
+  "pass_threshold": 0.85,
+  "rubric": {"sim_execution": 0.05, "forbidden_api": 0.10, "task_success": 0.40, "instrument_access": 0.15, "protocol_correctness": 0.10, "state_process": 0.10, "safety_and_cleanup": 0.10},
+  "suite": {"robustness_weight": 0.25, "minimum_pass_rate": 1.0, "repetitions": 2},
+  "scenarios": [
+    {"id": "native_default", "simulator": "sim/scenario.json", "check_overrides": {"final_center_wavelength": {"path": "$.resources.YAQ::fake-spectrometer::1.central_wavelength"}, "final_spectrometer_idle": {"path": "$.resources.YAQ::fake-spectrometer::1.busy"}}},
+    {"id": "alternate_resource", "simulator": "sim/scenario_alt.json", "check_overrides": {"final_center_wavelength": {"path": "$.resources.YAQ::fake-spectrometer::alt.central_wavelength"}, "final_spectrometer_idle": {"path": "$.resources.YAQ::fake-spectrometer::alt.busy"}}},
+    {"id": "lab_resource", "simulator": "sim/scenario_lab.json", "check_overrides": {"final_center_wavelength": {"path": "$.resources.YAQ::fake-spectrometer::lab-channel.central_wavelength"}, "final_spectrometer_idle": {"path": "$.resources.YAQ::fake-spectrometer::lab-channel.busy"}}}
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0}, {"dimension": "instrument_access", "min": 1.0},
+    {"check": "spectrum_trace_oracle", "min": 1.0}, {"check": "final_center_wavelength", "min": 1.0},
+    {"check": "final_spectrometer_idle", "min": 1.0}, {"check": "acquisition_process", "min": 1.0},
+    {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {"name": "result_contract", "type": "result_json", "dimension": "task_success", "expected": {"instrument": "fake-spectrometer", "central_wavelength_nm": {"close": 550.0, "abs_tol": 1e-12}, "completed": true}},
+    {"name": "resource_binding", "type": "result_trace_binding", "dimension": "task_success", "result_path": "$.resource", "event_kind": "open", "payload_field": "resource"},
+    {"name": "identity_oracle", "type": "trace_response", "dimension": "task_success", "selector": {"kind": "query", "command": "*IDN?"}, "parse": "csv_field", "field_index": 1, "expected": "fake-spectrometer", "result_path": "$.instrument"},
+    {"name": "spectrum_trace_oracle", "type": "trace_xy_spectrum", "dimension": "task_success", "x_selector": {"kind": "query", "command": "WAVELENGTHS?"}, "y_selector": {"kind": "query", "command": "COUNTS?"}, "x_prefix": "WAVELENGTHS", "y_prefix": "COUNTS", "delimiter": ",", "abs_tol": 1e-8, "result_paths": {"point_count": "$.point_count", "peak_x": "$.peak_wavelength_nm", "peak_y": "$.peak_counts", "integral": "$.integrated_counts"}},
+    {"name": "final_center_wavelength", "type": "sim_state", "dimension": "task_success", "path": "$.resources.YAQ::fake-spectrometer::1.central_wavelength", "expected": {"close": 550.0, "abs_tol": 1e-12}},
+    {"name": "final_spectrometer_idle", "type": "sim_state", "dimension": "safety_and_cleanup", "path": "$.resources.YAQ::fake-spectrometer::1.busy", "expected": false},
+    {"name": "raw_interface_evidence", "type": "trace_coverage", "dimension": "instrument_access", "expectations": [{"kind": "socket_connect"}, {"kind": "list_resources"}, {"kind": "open"}, {"kind": "query", "command": "*IDN?"}]},
+    {"name": "protocol_commands", "type": "trace_coverage", "dimension": "protocol_correctness", "expectations": [{"kind": "query", "command": "STATE?"}, {"kind": "write", "command_regex": "^SET_CENTER 550(?:\\.0*)?$"}, {"kind": "query", "command": "CENTER?"}, {"kind": "query", "command": "MEASURE"}, {"kind": "query", "command": "BUSY?"}, {"kind": "query", "command": "WAVELENGTHS?"}, {"kind": "query", "command": "COUNTS?"}]},
+    {"name": "acquisition_process", "type": "ordered_milestones", "dimension": "state_process", "milestones": [{"kind": "query", "command": "*IDN?"}, {"kind": "write", "command_regex": "^SET_CENTER 550(?:\\.0*)?$"}, {"kind": "query", "command": "CENTER?"}, {"kind": "query", "command": "MEASURE"}, {"kind": "query", "command": "BUSY?"}, {"kind": "query", "command": "WAVELENGTHS?"}, {"kind": "query", "command": "COUNTS?"}]},
+    {"name": "anti_hardcode", "type": "anti_hardcode", "dimension": "instrument_access", "requires": ["socket_connect", "list_resources", "open", "write", "query"]},
+    {"name": "cleanup", "type": "cleanup", "dimension": "safety_and_cleanup"}
+  ]
+}

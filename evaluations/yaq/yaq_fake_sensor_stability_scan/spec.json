@@ -1,0 +1,126 @@
+{
+  "instance_id": "yaq_fake_sensor_stability_scan",
+  "spec_version": 2,
+  "gateway": "yaq_native",
+  "pass_threshold": 0.85,
+  "rubric": {
+    "sim_execution": 0.05,
+    "forbidden_api": 0.10,
+    "task_success": 0.40,
+    "instrument_access": 0.15,
+    "protocol_correctness": 0.10,
+    "state_process": 0.10,
+    "safety_and_cleanup": 0.10
+  },
+  "suite": {
+    "robustness_weight": 0.25,
+    "minimum_pass_rate": 1.0,
+    "repetitions": 3
+  },
+  "scenarios": [
+    {
+      "id": "stable_nominal",
+      "simulator": "sim/scenario.json"
+    },
+    {
+      "id": "stable_offset",
+      "simulator": "sim/stable_offset.json"
+    },
+    {
+      "id": "wide_dynamic_range",
+      "simulator": "sim/wide_dynamic_range.json"
+    }
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0},
+    {"dimension": "instrument_access", "min": 1.0},
+    {"check": "trace_derived_statistics", "min": 1.0},
+    {"check": "final_sensor_idle", "min": 1.0},
+    {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {
+      "name": "result_contract",
+      "type": "result_json",
+      "dimension": "task_success",
+      "expected": {
+        "instrument": "fake-sensor",
+        "channel": "signal",
+        "sample_count": 5
+      }
+    },
+    {
+      "name": "resource_binding",
+      "type": "result_trace_binding",
+      "dimension": "task_success",
+      "result_path": "$.resource",
+      "event_kind": "open",
+      "payload_field": "resource"
+    },
+    {
+      "name": "trace_derived_statistics",
+      "type": "trace_numeric_aggregate",
+      "dimension": "task_success",
+      "selector": {"kind": "query", "command": "MEASURE? signal"},
+      "response_regex": "^MEASURED\\s+signal\\s+([-+0-9.eE]+)\\s+ID\\s+\\d+$",
+      "value_group": 1,
+      "assertions": [
+        {"result_path": "$.sample_count", "aggregate": "count"},
+        {"result_path": "$.mean_signal", "aggregate": "mean", "abs_tol": 1e-9},
+        {"result_path": "$.std_signal", "aggregate": "sample_stdev", "abs_tol": 1e-9},
+        {"result_path": "$.stable", "aggregate": "sample_stdev", "compare": "lt", "threshold": 0.01}
+      ]
+    },
+    {
+      "name": "final_sensor_idle",
+      "type": "sim_state_all",
+      "dimension": "safety_and_cleanup",
+      "path": "$.resources",
+      "item_path": "$.busy",
+      "expected": false
+    },
+    {
+      "name": "raw_interface_evidence",
+      "type": "trace_coverage",
+      "dimension": "instrument_access",
+      "expectations": [
+        {"kind": "socket_connect"},
+        {"kind": "list_resources"},
+        {"kind": "open"},
+        {"kind": "query", "command": "*IDN?"}
+      ]
+    },
+    {
+      "name": "protocol_commands",
+      "type": "trace_coverage",
+      "dimension": "protocol_correctness",
+      "expectations": [
+        {"kind": "query", "command": "CHANNELS?"},
+        {"kind": "query", "command": "MEASURE? signal"},
+        {"kind": "query", "command": "BUSY?"}
+      ]
+    },
+    {
+      "name": "measurement_process",
+      "type": "ordered_milestones",
+      "dimension": "state_process",
+      "milestones": [
+        {"kind": "query", "command": "*IDN?"},
+        {"kind": "query", "command": "CHANNELS?"},
+        {"kind": "query", "command": "MEASURE? signal"},
+        {"kind": "query", "command": "BUSY?"}
+      ]
+    },
+    {
+      "name": "anti_hardcode",
+      "type": "anti_hardcode",
+      "dimension": "instrument_access",
+      "requires": ["socket_connect", "list_resources", "open", "query"]
+    },
+    {
+      "name": "cleanup",
+      "type": "cleanup",
+      "dimension": "safety_and_cleanup"
+    }
+  ]
+}

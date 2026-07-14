@@ -1,0 +1,21 @@
+{
+  "resources": [
+    {
+      "name": "YAQ::fake-sensor::1",
+      "kind": "fake-sensor",
+      "daemon_name": "stability_sensor",
+      "config": {
+        "serial": "YSENS001",
+        "model": "FakeSensor",
+        "update_period": 0.05,
+        "channels": {
+          "signal": {
+            "kind": "random-walk",
+            "min": 2.499,
+            "max": 2.501
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "instance_id": "yaq_fake_motor_sensor_alignment",
+  "spec_version": 2,
+  "gateway": "yaq_native",
+  "pass_threshold": 0.85,
+  "rubric": {"sim_execution": 0.05, "forbidden_api": 0.10, "task_success": 0.40, "instrument_access": 0.15, "protocol_correctness": 0.10, "state_process": 0.10, "safety_and_cleanup": 0.10},
+  "suite": {"robustness_weight": 0.25, "minimum_pass_rate": 1.0, "repetitions": 2},
+  "scenarios": [
+    {"id": "nominal_native_daemons", "simulator": "sim/scenario.json", "check_overrides": {"final_motor_position": {"path": "$.resources.YAQ::fake-continuous-hardware::axis.position"}}},
+    {"id": "resource_order_and_signal_range", "simulator": "sim/scenario_variant.json", "check_overrides": {"final_motor_position": {"path": "$.resources.YAQ::fake-continuous-hardware::stage.position"}}},
+    {"id": "slow_motion_wide_signal", "simulator": "sim/scenario_slow.json", "check_overrides": {"final_motor_position": {"path": "$.resources.YAQ::fake-continuous-hardware::slow-axis.position"}}}
+  ],
+  "gates": [
+    {"dimension": "forbidden_api", "min": 1.0}, {"dimension": "instrument_access", "min": 1.0},
+    {"check": "motor_readback_oracle", "min": 1.0}, {"check": "sensor_trace_oracle", "min": 1.0},
+    {"check": "position_error_oracle", "min": 1.0}, {"check": "best_position_oracle", "min": 1.0},
+    {"check": "final_motor_position", "min": 1.0}, {"check": "alignment_process", "min": 1.0},
+    {"check": "cleanup", "min": 1.0}
+  ],
+  "checks": [
+    {"name": "result_contract", "type": "result_json", "dimension": "task_success", "expected": {"motor": "fake-continuous-hardware", "sensor": "fake-sensor", "positions_mm": [-1.0, 0.0, 1.0], "sensor_channel": "alignment", "sample_count": 3, "completed": true}},
+    {"name": "motor_readback_oracle", "type": "trace_numeric_aggregate", "dimension": "task_success", "selector": {"kind": "query", "command": "POSITION?"}, "response_regex": "^POSITION\\s+([-+0-9.eE]+)$", "assertions": [{"result_path": "$.readbacks_mm", "aggregate": "values", "abs_tol": 1e-9}]},
+    {"name": "sensor_trace_oracle", "type": "trace_numeric_aggregate", "dimension": "task_success", "selector": {"kind": "query", "command": "MEASURE? alignment"}, "response_regex": "^MEASURED\\s+alignment\\s+([-+0-9.eE]+)\\s+ID\\s+\\d+$", "assertions": [{"result_path": "$.sensor_values", "aggregate": "values", "abs_tol": 1e-9}, {"result_path": "$.sample_count", "aggregate": "count"}]},
+    {"name": "position_error_oracle", "type": "result_pairwise_max_abs_error", "dimension": "task_success", "left_path": "$.positions_mm", "right_path": "$.readbacks_mm", "result_path": "$.max_abs_error_mm", "abs_tol": 1e-9},
+    {"name": "best_position_oracle", "type": "result_argmax_x", "dimension": "task_success", "x_path": "$.positions_mm", "y_path": "$.sensor_values", "result_path": "$.best_position_mm", "abs_tol": 1e-9},
+    {"name": "final_motor_position", "type": "sim_state", "dimension": "task_success", "path": "$.resources.YAQ::fake-continuous-hardware::axis.position", "expected": {"close": 1.0, "abs_tol": 1e-9}},
+    {"name": "raw_interface_evidence", "type": "trace_coverage", "dimension": "instrument_access", "expectations": [{"kind": "socket_connect"}, {"kind": "list_resources"}, {"kind": "open"}, {"kind": "query", "command": "*IDN?"}]},
+    {"name": "protocol_commands", "type": "trace_coverage", "dimension": "protocol_correctness", "expectations": [{"kind": "query", "command": "LIMITS?"}, {"kind": "query", "command": "UNITS?"}, {"kind": "write", "command_regex": "^SET_POSITION -1(?:\\.0*)?$"}, {"kind": "write", "command_regex": "^SET_POSITION 0(?:\\.0*)?$"}, {"kind": "write", "command_regex": "^SET_POSITION 1(?:\\.0*)?$"}, {"kind": "query", "command": "BUSY?"}, {"kind": "query", "command": "POSITION?"}, {"kind": "query", "command": "MEASURE? alignment"}]},
+    {"name": "alignment_process", "type": "ordered_milestones", "dimension": "state_process", "milestones": [{"kind": "write", "command_regex": "^SET_POSITION -1(?:\\.0*)?$"}, {"kind": "query", "command": "BUSY?"}, {"kind": "query", "command": "POSITION?"}, {"kind": "query", "command": "MEASURE? alignment"}, {"kind": "write", "command_regex": "^SET_POSITION 0(?:\\.0*)?$"}, {"kind": "query", "command": "BUSY?"}, {"kind": "query", "command": "POSITION?"}, {"kind": "query", "command": "MEASURE? alignment"}, {"kind": "write", "command_regex": "^SET_POSITION 1(?:\\.0*)?$"}, {"kind": "query", "command": "BUSY?"}, {"kind": "query", "command": "POSITION?"}, {"kind": "query", "command": "MEASURE? alignment"}]},
+    {"name": "anti_hardcode", "type": "anti_hardcode", "dimension": "instrument_access", "requires": ["socket_connect", "list_resources", "open", "write", "query"]},
+    {"name": "cleanup", "type": "cleanup", "dimension": "safety_and_cleanup"}
+  ]
+}

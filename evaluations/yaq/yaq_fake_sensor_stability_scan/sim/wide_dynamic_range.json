@@ -1,0 +1,21 @@
+{
+  "resources": [
+    {
+      "name": "YAQ::fake-sensor::dynamic-c",
+      "kind": "fake-sensor",
+      "daemon_name": "stability_sensor_dynamic",
+      "config": {
+        "serial": "YSENS-C03",
+        "model": "FakeSensor",
+        "update_period": 0.03,
+        "channels": {
+          "signal": {
+            "kind": "random-walk",
+            "min": -5.0,
+            "max": 5.0
+          }
+        }
+      }
+    }
+  ]
+}

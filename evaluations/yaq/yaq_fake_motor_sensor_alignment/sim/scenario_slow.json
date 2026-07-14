@@ -1,0 +1,21 @@
+{
+  "resources": [
+    {
+      "name": "YAQ::fake-continuous-hardware::slow-axis",
+      "kind": "fake-continuous-hardware",
+      "daemon_name": "slow_alignment_axis",
+      "config": {"serial": "YMOT202", "model": "FakeContinuousHardware", "limits": [-2.5, 2.5], "velocity": 2.0, "units": "mm"}
+    },
+    {
+      "name": "YAQ::fake-sensor::wide-alignment",
+      "kind": "fake-sensor",
+      "daemon_name": "wide_alignment_sensor",
+      "config": {
+        "serial": "YSENS202",
+        "model": "FakeSensor",
+        "update_period": 0.1,
+        "channels": {"alignment": {"kind": "random-walk", "min": 100.0, "max": 200.0}}
+      }
+    }
+  ]
+}
