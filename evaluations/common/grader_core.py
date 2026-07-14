@@ -154,6 +154,14 @@ def _grade_scenario_suite(candidate_path: Path, spec_path: Path, spec: dict[str,
             report["run_id"] = f"{scenario_id}#{repetition}" if repetitions > 1 else scenario_id
             scenario_reports.append(report)
 
+    return aggregate_scenario_reports(spec, scenario_reports)
+
+
+def aggregate_scenario_reports(
+    spec: dict[str, Any], scenario_reports: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Aggregate already-scored isolated scenario runs into the standard suite report."""
+    repetitions = max(1, int(spec.get("suite", {}).get("repetitions", 1)))
     dimension_names = sorted({name for report in scenario_reports for name in report.get("scores", {})})
     scores = {
         name: sum(float(report.get("scores", {}).get(name, 0.0)) for report in scenario_reports) / len(scenario_reports)
@@ -184,7 +192,7 @@ def _grade_scenario_suite(candidate_path: Path, spec_path: Path, spec: dict[str,
     reliability = _build_reliability_report(scenario_reports)
 
     return {
-        "instance_id": spec.get("instance_id", spec_path.parent.name),
+        "instance_id": spec.get("instance_id", "unknown"),
         "spec_version": spec.get("spec_version", 2),
         "evaluation_mode": "scenario_suite",
         "scores": scores,
@@ -197,6 +205,49 @@ def _grade_scenario_suite(candidate_path: Path, spec_path: Path, spec: dict[str,
         "reliability": reliability,
         "feedback": feedback,
         "scenarios": scenario_reports,
+    }
+
+
+def grade_collected_scenario(
+    *,
+    spec: dict[str, Any],
+    result: dict[str, Any],
+    trace: list[dict[str, Any]],
+    sim_state: dict[str, Any],
+    execution_score: float,
+    forbidden_score: float,
+    feedback: list[str] | None = None,
+) -> dict[str, Any]:
+    """Score evidence produced outside the grader process by an isolated runner."""
+    raw_trace.load_serializable_trace(trace)
+    messages = list(feedback or [])
+    if spec.get("spec_version") == 2:
+        return _grade_v2(
+            spec=spec,
+            execution_score=execution_score,
+            forbidden_score=forbidden_score,
+            result=result,
+            feedback=messages,
+            sim_state=sim_state,
+        )
+    observation_score = _grade_observation(result, spec.get("expected_result", {}), messages) if result else 0.0
+    scores = {
+        "sim_execution": execution_score,
+        "forbidden_api": forbidden_score,
+        "observation": observation_score,
+        **_grade_raw_evidence(spec.get("raw_protocol", {}), messages),
+    }
+    weights = spec.get("weights", DEFAULT_WEIGHTS)
+    total = round(sum(scores.get(name, 0.0) * weight for name, weight in weights.items()), 4)
+    return {
+        "instance_id": spec.get("instance_id"),
+        "scores": scores,
+        "total": total,
+        "pass": total >= spec.get("pass_threshold", 0.8),
+        "feedback": messages,
+        "result": result,
+        "trace": raw_trace.serializable_trace(),
+        "sim_state": sim_state,
     }
 
 
@@ -492,6 +543,14 @@ def _run_v2_check(
         if score < 1:
             feedback.append(f"{name}: ordered milestones matched {matched_count}/{len(milestones)}.")
         return score, {"name": name, "type": check_type, "score": score, "matched_count": matched_count, "missing": missing}
+    if check_type == "causal_order":
+        score, detail = _grade_causal_order(check)
+        if score < 1:
+            feedback.append(
+                f"{name}: causal ordering satisfied {detail['matched_count']}/{detail['constraint_count']} constraints."
+            )
+        detail.update({"name": name, "type": check_type, "score": score})
+        return score, detail
     if check_type == "anti_hardcode":
         score, detail = _grade_anti_hardcode(check)
         if score < 1:
@@ -636,6 +695,7 @@ def _default_dimension_for_check(check_type: str | None) -> str:
         "sim_state_all": "task_success",
         "trace_coverage": "protocol_correctness",
         "ordered_milestones": "state_process",
+        "causal_order": "state_process",
         "anti_hardcode": "instrument_access",
         "cleanup": "safety_and_cleanup",
         "result_trace_binding": "task_success",
@@ -712,6 +772,55 @@ def _match_sequence_coverage(
     if index < len(sequence):
         missing = sequence[index:]
     return index, missing
+
+
+def _grade_causal_order(check: dict[str, Any]) -> tuple[float, dict[str, Any]]:
+    details: list[dict[str, Any]] = []
+    for index, constraint in enumerate(check.get("constraints", []), start=1):
+        before_occurrence = constraint.get("before_occurrence", "first")
+        after_occurrence = constraint.get("after_occurrence", "first")
+        before_indices = [
+            event_index
+            for event_index, event in enumerate(raw_trace.TRACE)
+            if _event_matches(constraint.get("before", {}), event)
+        ]
+        after_indices = [
+            event_index
+            for event_index, event in enumerate(raw_trace.TRACE)
+            if _event_matches(constraint.get("after", {}), event)
+        ]
+        before_index = _select_occurrence(before_indices, before_occurrence)
+        after_index = _select_occurrence(after_indices, after_occurrence)
+        matched = before_index is not None and after_index is not None and before_index < after_index
+        details.append(
+            {
+                "label": constraint.get("label", f"constraint-{index}"),
+                "before": constraint.get("before", {}),
+                "after": constraint.get("after", {}),
+                "before_occurrence": before_occurrence,
+                "after_occurrence": after_occurrence,
+                "before_index": before_index,
+                "after_index": after_index,
+                "matched": matched,
+            }
+        )
+    matched_count = sum(int(item["matched"]) for item in details)
+    score = matched_count / len(details) if details else 1.0
+    return score, {
+        "matched_count": matched_count,
+        "constraint_count": len(details),
+        "constraints": details,
+    }
+
+
+def _select_occurrence(indices: list[int], occurrence: str) -> int | None:
+    if not indices:
+        return None
+    if occurrence == "first":
+        return indices[0]
+    if occurrence == "last":
+        return indices[-1]
+    return None
 
 
 def _event_matches(expectation: dict[str, Any], event: raw_trace.TraceEvent) -> bool:
@@ -1069,6 +1178,14 @@ def _grade_trace_response(check: dict[str, Any], result: dict[str, Any]) -> tupl
         elif parser == "csv_field":
             fields = str(observed).strip().split(str(check.get("delimiter", ",")))
             parsed = fields[int(check.get("field_index", 0))].strip()
+        elif parser == "prefixed_csv":
+            text = str(observed).strip()
+            prefix = str(check.get("prefix", ""))
+            if prefix and not text.startswith(prefix):
+                parsed = None
+            else:
+                payload = text[len(prefix):].strip()
+                parsed = [item.strip() for item in payload.split(str(check.get("delimiter", ","))) if item.strip()]
         elif parser == "regex_group":
             match = re.search(str(check["response_regex"]), str(observed))
             if match is None:
@@ -1094,8 +1211,23 @@ def _grade_trace_response(check: dict[str, Any], result: dict[str, Any]) -> tupl
         checks.append({"label": "expected", "actual": parsed, "expected": expected, "matched": matched})
     if check.get("result_path"):
         reported = _get_path(result, check["result_path"])
-        matched = _values_close(reported, parsed)
-        checks.append({"label": "result", "actual": reported, "expected": parsed, "matched": matched})
+        result_match = check.get("result_match", "parsed")
+        if result_match == "raw":
+            accepted = [observed]
+        elif result_match == "raw_or_parsed":
+            accepted = [parsed, observed]
+        else:
+            accepted = [parsed]
+        matched = any(_values_close(reported, value) for value in accepted)
+        checks.append(
+            {
+                "label": "result",
+                "actual": reported,
+                "expected": accepted[0] if len(accepted) == 1 else accepted,
+                "result_match": result_match,
+                "matched": matched,
+            }
+        )
     score = sum(int(item["matched"]) for item in checks) / len(checks) if checks and responses else 0.0
     return score, {"responses": responses, "parsed": parsed, "checks": checks}
 

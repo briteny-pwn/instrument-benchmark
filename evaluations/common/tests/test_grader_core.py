@@ -8,6 +8,59 @@ from unittest import mock
 from evaluations.common import grader_core, raw_trace
 
 
+def _pump_causal_check() -> dict:
+    return {
+        "constraints": [
+            {
+                "label": "pressure before start",
+                "before": {"kind": "query", "command": "@G1 PRES?"},
+                "after": {"kind": "query", "command": "@P1 START"},
+            },
+            {
+                "label": "interlock before start",
+                "before": {"kind": "query", "command": "@P1 ILK?"},
+                "after": {"kind": "query", "command": "@P1 START"},
+            },
+            {
+                "label": "ack before running query",
+                "before": {
+                    "kind": "query",
+                    "command": "@P1 START",
+                    "payload_equals": {"response": "ACK"},
+                },
+                "after": {"kind": "query", "command": "@P1 START?"},
+            },
+            {
+                "label": "running before final pressure",
+                "before": {
+                    "kind": "query",
+                    "command": "@P1 START?",
+                    "payload_equals": {"response": "RUN 1"},
+                },
+                "after": {"kind": "query", "command": "@G1 PRES?"},
+                "after_occurrence": "last",
+            },
+            {
+                "label": "running before speed",
+                "before": {
+                    "kind": "query",
+                    "command": "@P1 START?",
+                    "payload_equals": {"response": "RUN 1"},
+                },
+                "after": {"kind": "query", "command": "@P1 RPM?"},
+            },
+        ]
+    }
+
+
+def _record_successful_pump_start(include_final_observations: bool = True) -> None:
+    raw_trace.record("query", {"command": "@P1 START", "response": "ACK"})
+    raw_trace.record("query", {"command": "@P1 START?", "response": "RUN 1"})
+    if include_final_observations:
+        raw_trace.record("query", {"command": "@G1 PRES?", "response": "PRES 4.6E-5 TORR"})
+        raw_trace.record("query", {"command": "@P1 RPM?", "response": "RPM 45000"})
+
+
 class TraceOracleTests(unittest.TestCase):
     def test_numeric_aggregate_supports_first_and_last(self) -> None:
         raw_trace.TRACE[:] = [
@@ -269,6 +322,79 @@ class TraceOracleTests(unittest.TestCase):
 
         self.assertEqual(score, 1.0)
         self.assertEqual(evidence["parsed"], "Logger300")
+
+    def test_identity_result_accepts_raw_or_parsed_response(self) -> None:
+        raw_response = "EPICSIM,AsynPumpBus,ASYN-PUMP-01,1.0"
+        raw_trace.record("query", {"command": "*IDN?", "response": raw_response})
+        check = {
+            "selector": {"kind": "query", "command": "*IDN?"},
+            "parse": "csv_field",
+            "field_index": 1,
+            "expected": "AsynPumpBus",
+            "result_path": "$.instrument",
+            "result_match": "raw_or_parsed",
+        }
+
+        for reported in (raw_response, "AsynPumpBus"):
+            with self.subTest(reported=reported):
+                score, _ = grader_core._grade_trace_response(check, {"instrument": reported})
+                self.assertEqual(score, 1.0)
+
+        wrong_score, _ = grader_core._grade_trace_response(check, {"instrument": "OtherPump"})
+        self.assertLess(wrong_score, 1.0)
+
+    def test_causal_order_accepts_interchangeable_prerequisites(self) -> None:
+        check = _pump_causal_check()
+        for prerequisite_commands in (
+            ["@G1 PRES?", "@P1 ILK?"],
+            ["@P1 ILK?", "@G1 PRES?"],
+        ):
+            with self.subTest(prerequisite_commands=prerequisite_commands):
+                raw_trace.reset_trace()
+                for command in prerequisite_commands:
+                    raw_trace.record("query", {"command": command, "response": "OK"})
+                _record_successful_pump_start()
+
+                score, evidence = grader_core._grade_causal_order(check)
+
+                self.assertEqual(score, 1.0)
+                self.assertEqual(evidence["matched_count"], 5)
+
+    def test_causal_order_rejects_safety_check_after_first_start(self) -> None:
+        raw_trace.record("query", {"command": "@P1 ILK?", "response": "ILK OK"})
+        raw_trace.record("query", {"command": "@P1 START", "response": "ACK"})
+        raw_trace.record("query", {"command": "@G1 PRES?", "response": "PRES 8.2E-4 TORR"})
+        raw_trace.record("query", {"command": "@P1 START?", "response": "RUN 1"})
+        raw_trace.record("query", {"command": "@G1 PRES?", "response": "PRES 4.6E-5 TORR"})
+        raw_trace.record("query", {"command": "@P1 RPM?", "response": "RPM 45000"})
+
+        score, evidence = grader_core._grade_causal_order(_pump_causal_check())
+
+        self.assertEqual(score, 0.8)
+        failed = [item["label"] for item in evidence["constraints"] if not item["matched"]]
+        self.assertEqual(failed, ["pressure before start"])
+
+    def test_causal_order_allows_busy_retries(self) -> None:
+        raw_trace.record("query", {"command": "@G1 PRES?", "response": "PRES 8.2E-4 TORR"})
+        raw_trace.record("query", {"command": "@P1 ILK?", "response": "ILK OK"})
+        raw_trace.record("query", {"command": "@P1 START", "response": "NAK BUSY"})
+        raw_trace.record("query", {"command": "@P1 START", "response": "NAK BUSY"})
+        _record_successful_pump_start(include_final_observations=True)
+
+        score, _ = grader_core._grade_causal_order(_pump_causal_check())
+
+        self.assertEqual(score, 1.0)
+
+    def test_causal_order_reports_partial_score_for_missing_final_observations(self) -> None:
+        raw_trace.record("query", {"command": "@G1 PRES?", "response": "PRES 8.2E-4 TORR"})
+        raw_trace.record("query", {"command": "@P1 ILK?", "response": "ILK OK"})
+        _record_successful_pump_start(include_final_observations=False)
+
+        score, evidence = grader_core._grade_causal_order(_pump_causal_check())
+
+        self.assertEqual(score, 0.6)
+        self.assertEqual(evidence["matched_count"], 3)
+        self.assertEqual(evidence["constraint_count"], 5)
 
     def test_missing_identity_response_scores_zero_instead_of_crashing(self) -> None:
         check = {

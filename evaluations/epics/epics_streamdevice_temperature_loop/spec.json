@@ -2,6 +2,7 @@
   "instance_id": "epics_streamdevice_temperature_loop",
   "spec_version": 2,
   "gateway": "state_machine",
+  "authoring": {"base_simulator": "sim/temperature_loop.json", "seed": "temperature-authoring-v1"},
   "pass_threshold": 0.85,
   "rubric": {
     "sim_execution": 0.05,

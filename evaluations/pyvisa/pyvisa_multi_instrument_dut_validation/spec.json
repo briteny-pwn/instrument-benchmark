@@ -2,6 +2,7 @@
   "instance_id": "pyvisa_multi_instrument_dut_validation",
   "spec_version": 2,
   "gateway": "coupled_signal",
+  "authoring": {"base_simulator": "sim/nominal.json", "seed": "dut-authoring-v1"},
   "pass_threshold": 0.85,
   "rubric": {
     "sim_execution": 0.05,

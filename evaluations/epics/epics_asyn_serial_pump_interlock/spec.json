@@ -2,6 +2,7 @@
   "instance_id": "epics_asyn_serial_pump_interlock",
   "spec_version": 2,
   "gateway": "state_machine",
+  "authoring": {"base_simulator": "sim/pump_interlock.json", "seed": "pump-authoring-v1"},
   "pass_threshold": 0.85,
   "rubric": {
     "sim_execution": 0.05,
@@ -31,7 +32,7 @@
     {
       "name": "result_contract", "type": "result_json", "dimension": "task_success",
       "expected": {
-        "instrument": "AsynPumpBus", "pump": "P1", "interlock": "OK", "running": true,
+        "pump": "P1", "interlock": "OK", "running": true,
         "initial_pressure_torr": {"range": [0.0, 0.001]},
         "final_pressure_torr": {"range": [0.0, 0.001]},
         "speed_rpm": {"range": [1, 100000]}
@@ -40,7 +41,7 @@
     {
       "name": "identity_oracle", "type": "trace_response", "dimension": "task_success",
       "selector": {"kind": "query", "command": "*IDN?"}, "parse": "csv_field", "field_index": 1,
-      "expected": "AsynPumpBus", "result_path": "$.instrument"
+      "expected": "AsynPumpBus", "result_path": "$.instrument", "result_match": "raw_or_parsed"
     },
     {
       "name": "pressure_trace_oracle", "type": "trace_numeric_aggregate", "dimension": "task_success",
@@ -91,11 +92,34 @@
       ]
     },
     {
-      "name": "pump_safety_process", "type": "ordered_milestones", "dimension": "state_process",
-      "milestones": [
-        {"kind": "query", "command": "@G1 PRES?"}, {"kind": "query", "command": "@P1 ILK?"},
-        {"kind": "query", "command": "@P1 START"}, {"kind": "query", "command": "@P1 START?"},
-        {"kind": "query", "command": "@G1 PRES?"}, {"kind": "query", "command": "@P1 RPM?"}
+      "name": "pump_safety_process", "type": "causal_order", "dimension": "state_process",
+      "constraints": [
+        {
+          "label": "pressure checked before first start attempt",
+          "before": {"kind": "query", "command": "@G1 PRES?"},
+          "after": {"kind": "query", "command": "@P1 START"}
+        },
+        {
+          "label": "interlock checked before first start attempt",
+          "before": {"kind": "query", "command": "@P1 ILK?"},
+          "after": {"kind": "query", "command": "@P1 START"}
+        },
+        {
+          "label": "acknowledged start before running query",
+          "before": {"kind": "query", "command": "@P1 START", "payload_equals": {"response": "ACK"}},
+          "after": {"kind": "query", "command": "@P1 START?"}
+        },
+        {
+          "label": "running confirmed before final pressure",
+          "before": {"kind": "query", "command": "@P1 START?", "payload_equals": {"response": "RUN 1"}},
+          "after": {"kind": "query", "command": "@G1 PRES?"},
+          "after_occurrence": "last"
+        },
+        {
+          "label": "running confirmed before speed query",
+          "before": {"kind": "query", "command": "@P1 START?", "payload_equals": {"response": "RUN 1"}},
+          "after": {"kind": "query", "command": "@P1 RPM?"}
+        }
       ]
     },
     {"name": "anti_hardcode", "type": "anti_hardcode", "dimension": "instrument_access", "requires": ["socket_connect", "list_resources", "open", "query"]},

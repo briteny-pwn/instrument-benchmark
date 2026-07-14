@@ -2,6 +2,7 @@
   "instance_id": "epics_softioc_record_chain_ramp",
   "spec_version": 2,
   "gateway": "state_machine",
+  "authoring": {"base_simulator": "sim/record_chain_ramp.json", "seed": "record-ramp-authoring-v1"},
   "pass_threshold": 0.85,
   "rubric": {
     "sim_execution": 0.05, "forbidden_api": 0.10, "task_success": 0.40,
@@ -21,6 +22,7 @@
     {"check": "error_array_oracle", "min": 1.0},
     {"check": "max_error_oracle", "min": 1.0},
     {"check": "alarm_oracle", "min": 1.0},
+    {"check": "record_history_oracle", "min": 1.0},
     {"check": "ramp_record_process", "min": 1.0},
     {"check": "source_safe_state", "min": 1.0},
     {"check": "cleanup", "min": 1.0}
@@ -30,14 +32,27 @@
       "name": "result_contract", "type": "result_json", "dimension": "task_success",
       "expected": {
         "instrument": "SoftIocRampChain",
-        "setpoints_v": [0.0, 1.0, 2.0, 3.0],
-        "processed_records": ["ao:setpoint", "bo:enable", "ai:readback", "calc:error", "bi:alarm"]
+        "setpoints_v": [0.0, 1.0, 2.0, 3.0]
       }
     },
     {
       "name": "identity_oracle", "type": "trace_response", "dimension": "task_success",
       "selector": {"kind": "query", "command": "*IDN?"}, "parse": "csv_field", "field_index": 1,
       "expected": "SoftIocRampChain", "result_path": "$.instrument"
+    },
+    {
+      "name": "record_history_oracle", "type": "trace_response", "dimension": "task_success",
+      "selector": {"kind": "query", "command": "RECORDS?"},
+      "parse": "prefixed_csv", "prefix": "RECORDS ",
+      "expected": [
+        "bo:enable",
+        "ao:setpoint", "ai:readback", "calc:error",
+        "ao:setpoint", "ai:readback", "calc:error",
+        "ao:setpoint", "ai:readback", "calc:error",
+        "ao:setpoint", "ai:readback", "calc:error",
+        "bi:alarm"
+      ],
+      "result_path": "$.processed_records"
     },
     {
       "name": "readback_trace_oracle", "type": "trace_numeric_aggregate", "dimension": "task_success",
@@ -71,7 +86,8 @@
         {"kind": "write", "command_regex": "^PSU:SET 0(?:\\.0*)?$"},
         {"kind": "write", "command_regex": "^PSU:SET 3(?:\\.0*)?$"},
         {"kind": "query", "command_prefix": "DMM:READ?"},
-        {"kind": "write", "command": "PSU:ENABLE 0"}
+        {"kind": "write", "command": "PSU:ENABLE 0"},
+        {"kind": "query", "command": "RECORDS?"}
       ]
     },
     {
@@ -82,7 +98,8 @@
         {"kind": "write", "command_regex": "^PSU:SET 1(?:\\.0*)?$"}, {"kind": "query", "command_regex": "^DMM:READ\\? 1(?:\\.0*)?$"},
         {"kind": "write", "command_regex": "^PSU:SET 2(?:\\.0*)?$"}, {"kind": "query", "command_regex": "^DMM:READ\\? 2(?:\\.0*)?$"},
         {"kind": "write", "command_regex": "^PSU:SET 3(?:\\.0*)?$"}, {"kind": "query", "command_regex": "^DMM:READ\\? 3(?:\\.0*)?$"},
-        {"kind": "write", "command": "PSU:ENABLE 0"}
+        {"kind": "write", "command": "PSU:ENABLE 0"},
+        {"kind": "query", "command": "RECORDS?"}
       ]
     },
     {"name": "anti_hardcode", "type": "anti_hardcode", "dimension": "instrument_access", "requires": ["socket_connect", "list_resources", "open", "write", "query"]},

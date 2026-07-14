@@ -26,7 +26,7 @@ class Gateway:
         self.server: socketserver.ThreadingTCPServer | None = None
         self.thread: threading.Thread | None = None
 
-    def start(self) -> tuple[str, int]:
+    def start(self, host: str = "127.0.0.1", port: int = 0) -> tuple[str, int]:
         gateway = self
 
         class Handler(socketserver.StreamRequestHandler):
@@ -52,7 +52,7 @@ class Gateway:
             allow_reuse_address = True
             daemon_threads = True
 
-        self.server = Server(("127.0.0.1", 0), Handler)
+        self.server = Server((host, port), Handler)
         host, port = self.server.server_address
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -180,6 +180,15 @@ class Gateway:
         captured_updates = {**rule.get("state_from_groups", {}), **step.get("state_from_groups", {})}
         for path, transform in captured_updates.items():
             _set_state_path(self.state, path, _transform_capture(command_match, transform))
+        appends = {**rule.get("state_appends", {}), **step.get("state_appends", {})}
+        for path, values in appends.items():
+            current = _get_state_path(self.state, path)
+            if current is None:
+                current = []
+                _set_state_path(self.state, path, current)
+            if not isinstance(current, list):
+                raise RuntimeError(f"Cannot append to non-list state path {path!r}")
+            current.extend(deepcopy(values if isinstance(values, list) else [values]))
 
         if rule.get("response_state"):
             response = _get_state_path(self.state, str(rule["response_state"]))
@@ -237,6 +246,8 @@ def _render_state_template(template: str, state: dict[str, Any]) -> str:
         value = _get_state_path(state, path)
         if value is None:
             raise KeyError(path)
+        if isinstance(value, list):
+            return ",".join(str(item) for item in value)
         return str(value)
 
     return re.sub(r"\{([^{}]+)\}", replace, template)

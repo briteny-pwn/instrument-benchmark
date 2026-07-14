@@ -2,6 +2,7 @@
   "instance_id": "pyvisa_scope_binary_waveform",
   "spec_version": 2,
   "gateway": "pyvisa_sim",
+  "authoring": {"base_simulator": "pyvisa_sim/mockscope500.yaml", "seed": "scope-authoring-v1"},
   "pass_threshold": 0.85,
   "rubric": {
     "sim_execution": 0.05,

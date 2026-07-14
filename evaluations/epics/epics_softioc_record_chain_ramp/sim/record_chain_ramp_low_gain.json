@@ -1,19 +1,21 @@
 {
-  "initial_state": {"source": {"enabled": 0, "setpoint_v": 0.0, "readback_v": 0.0}},
+  "initial_state": {"source": {"enabled": 0, "setpoint_v": 0.0, "readback_v": 0.0}, "process": {"history": []}},
   "resources": [
     {
       "name": "IOC::RAMPCHAIN::ALT",
       "commands": [
         {"kind": "query", "command": "*IDN?", "response": "EPICSIM,SoftIocRampChain,IOC-RAMP-ALT,1.1"},
-        {"kind": "write", "command_regex": "^PSU:ENABLE ([01])$", "state_from_groups": {"source.enabled": {"group": 1, "type": "int"}}},
+        {"kind": "write", "command": "PSU:ENABLE 1", "state_updates": {"source.enabled": 1}, "state_appends": {"process.history": "bo:enable"}},
+        {"kind": "write", "command": "PSU:ENABLE 0", "state_updates": {"source.enabled": 0}},
         {
           "kind": "write", "command_regex": "^PSU:SET ([-+0-9.]+)$", "requires_state": {"source.enabled": 1},
-          "state_from_groups": {
+          "state_appends": {"process.history": "ao:setpoint"}, "state_from_groups": {
             "source.setpoint_v": {"group": 1, "type": "float"},
             "source.readback_v": {"group": 1, "type": "float", "scale": 0.995, "offset": -0.005, "round": 6}
           }
         },
-        {"kind": "query", "command_regex": "^DMM:READ\\? [-+0-9.]+$", "requires_state": {"source.enabled": 1}, "response_template": "READ {source.readback_v} V"}
+        {"kind": "query", "command_regex": "^DMM:READ\\? [-+0-9.]+$", "requires_state": {"source.enabled": 1}, "state_appends": {"process.history": ["ai:readback", "calc:error"]}, "response_template": "READ {source.readback_v} V"},
+        {"kind": "query", "command": "RECORDS?", "requires_state": {"source.enabled": 0}, "state_appends": {"process.history": "bi:alarm"}, "response_template": "RECORDS {process.history}"}
       ]
     }
   ]

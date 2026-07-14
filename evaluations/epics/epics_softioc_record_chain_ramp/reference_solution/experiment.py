@@ -69,6 +69,8 @@ def run_experiment(output_path: str = "result.json") -> dict:
         max_abs_error = max(abs(error) for error in errors)
         client.write(handle, "PSU:ENABLE 0")
         source_enabled = False
+        record_reply = client.query(handle, "RECORDS?")
+        processed_records = [item.strip() for item in record_reply.removeprefix("RECORDS ").split(",")]
         result = {
             "instrument": identity.split(",")[1],
             "setpoints_v": SETPOINTS,
@@ -76,7 +78,7 @@ def run_experiment(output_path: str = "result.json") -> dict:
             "errors_v": errors,
             "max_abs_error_v": max_abs_error,
             "alarm": "NO_ALARM" if max_abs_error <= 0.05 else "HIGH",
-            "processed_records": ["ao:setpoint", "bo:enable", "ai:readback", "calc:error", "bi:alarm"],
+            "processed_records": processed_records,
         }
         Path(output_path).write_text(json.dumps(result, indent=2), encoding="utf-8")
         return result

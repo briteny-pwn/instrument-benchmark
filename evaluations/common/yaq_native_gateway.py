@@ -41,7 +41,7 @@ class Gateway:
         self.server: socketserver.ThreadingTCPServer | None = None
         self.thread: threading.Thread | None = None
 
-    def start(self) -> tuple[str, int]:
+    def start(self, host: str = "127.0.0.1", port: int = 0) -> tuple[str, int]:
         self.tempdir = tempfile.TemporaryDirectory(prefix="instrument-benchmark-yaq-")
         self._start_daemons()
         gateway = self
@@ -69,7 +69,7 @@ class Gateway:
             allow_reuse_address = True
             daemon_threads = True
 
-        self.server = Server(("127.0.0.1", 0), Handler)
+        self.server = Server((host, port), Handler)
         host, port = self.server.server_address
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()

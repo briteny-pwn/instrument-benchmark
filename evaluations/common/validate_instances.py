@@ -74,6 +74,10 @@ def validate(root: Path) -> list[str]:
             else:
                 simulator_paths = [spec.get("simulator")]
                 simulator_paths.extend(item.get("simulator") for item in spec.get("scenarios", []))
+                authoring = spec.get("authoring", {})
+                if not authoring.get("base_simulator") or not authoring.get("seed"):
+                    errors.append(f"{source}/{instance_id}: missing dedicated authoring configuration")
+                simulator_paths.append(authoring.get("base_simulator"))
                 for simulator in filter(None, simulator_paths):
                     if not (evaluation_dir / simulator).is_file():
                         errors.append(

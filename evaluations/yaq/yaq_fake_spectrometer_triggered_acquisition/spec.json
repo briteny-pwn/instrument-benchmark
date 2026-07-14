@@ -2,6 +2,7 @@
   "instance_id": "yaq_fake_spectrometer_triggered_acquisition",
   "spec_version": 2,
   "gateway": "yaq_native",
+  "authoring": {"base_simulator": "sim/scenario.json", "seed": "yaq-spectrum-authoring-v1"},
   "pass_threshold": 0.85,
   "rubric": {"sim_execution": 0.05, "forbidden_api": 0.10, "task_success": 0.40, "instrument_access": 0.15, "protocol_correctness": 0.10, "state_process": 0.10, "safety_and_cleanup": 0.10},
   "suite": {"robustness_weight": 0.25, "minimum_pass_rate": 1.0, "repetitions": 2},

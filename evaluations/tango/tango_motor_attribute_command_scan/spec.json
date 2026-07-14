@@ -2,6 +2,7 @@
   "instance_id": "tango_motor_attribute_command_scan",
   "spec_version": 2,
   "gateway": "state_machine",
+  "authoring": {"base_simulator": "sim/motor_scan.json", "seed": "motor-authoring-v1"},
   "pass_threshold": 0.85,
   "rubric": {"sim_execution": 0.05, "forbidden_api": 0.10, "task_success": 0.40, "instrument_access": 0.15, "protocol_correctness": 0.10, "state_process": 0.10, "safety_and_cleanup": 0.10},
   "suite": {"robustness_weight": 0.20, "minimum_pass_rate": 1.0, "repetitions": 1},
