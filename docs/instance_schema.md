@@ -10,7 +10,12 @@ IAB-Sim instances are repairs derived from a real resolved issue and merged pull
 
 Task types are limited to `real_bug_repair`, `version_compatibility`, `framework_semantic_integration`, `multi_device_integration`, and `safety_critical_integration`. `protocol_to_sdk_basic` is intentionally excluded from phase 1.
 
-Failure modes are limited to `state_machine`, `async_timing`, `timeout`, `stale_data`, `firmware_version_skew`, `framework_semantic_mismatch`, `resource_conflict`, `metadata_mismatch`, `device_initialization`, `error_recovery`, `safety_boundary`, and `multi_device_sync`.
+Failure modes additionally include `property_state_desync`, `dynamic_loading`, and `platform_compatibility` for DeviceAdapters integration.
+
+For C++ instances, metadata records `parent_repo`, `adapter_name`, changed
+paths, supported platforms, vendor SDK strategy, and a CMake/C++17 build
+contract. `merged_pr_with_reproduction` permits a merged PR to carry the
+reproduction evidence when no separate issue is linked.
 
 ## Visibility boundary
 

@@ -7,6 +7,8 @@ Simulation-first Instrument Access Benchmark is a repair benchmark derived from 
 - 20 scored candidates from the configured upstream repositories.
 - 5 human-reviewable verified candidates with issue/PR/commit provenance, difficulty analysis, simulation plan, and evaluation oracle.
 - 3 executable repair instances.
+- Micro-Manager phase: 20 scored candidates, 10 verified candidates, and five
+  C++ DeviceAdapters instances (`iab_0006`–`iab_0010`).
 - Every executable instance proves pre-fix failure and gold-patch success locally.
 - Model patches can be supplied to the same evaluator, which emits a JSON report across fail-to-pass, regression, state trace, gold differential, and minefield layers.
 
@@ -121,4 +123,4 @@ python3 scripts/validate_phase1.py
 
 It checks counts, provenance, metadata, required files, pre-fix failure, gold-patch success, model-patch substitution, and JSON report generation for all executable instances.
 
-See [the instance schema](docs/instance_schema.md) and [the phase-1 report](docs/phase1_report.md) for the full contract and limitations.
+See [the instance schema](docs/instance_schema.md), [the phase-1 report](docs/phase1_report.md), and [the Micro-Manager phase report](docs/micro_manager_phase_report.md) for the full contract and limitations.

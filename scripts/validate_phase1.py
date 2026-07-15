@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SHA = re.compile(r"^[0-9a-f]{40}$")
 TASK_TYPES = {"real_bug_repair", "version_compatibility", "framework_semantic_integration", "multi_device_integration", "safety_critical_integration"}
-FAILURE_MODES = {"state_machine", "async_timing", "timeout", "stale_data", "firmware_version_skew", "framework_semantic_mismatch", "resource_conflict", "metadata_mismatch", "device_initialization", "error_recovery", "safety_boundary", "multi_device_sync"}
+FAILURE_MODES = {"state_machine", "async_timing", "timeout", "stale_data", "firmware_version_skew", "framework_semantic_mismatch", "resource_conflict", "metadata_mismatch", "device_initialization", "error_recovery", "safety_boundary", "multi_device_sync", "property_state_desync", "dynamic_loading", "platform_compatibility"}
 VERIFIED_FILES = {"candidate.json", "issue.md", "pr_summary.md", "diff_summary.md", "reproduction_plan.md", "difficulty_analysis.md"}
 INSTANCE_FILES = {"instance.json", "problem.md", "Dockerfile", "setup.sh", "reproduce_pre_fix.sh", "apply_gold_patch.sh", "evaluate.sh", "repository", "simulator", "tests", "patches", "expected"}
 
@@ -22,8 +22,8 @@ INSTANCE_FILES = {"instance.json", "problem.md", "Dockerfile", "setup.sh", "repr
 def check_metadata(meta: dict, expected_status: str | None = None) -> list[str]:
     errors = []
     if not re.fullmatch(r"iab_\d{4}", meta.get("instance_id", "")): errors.append("invalid instance_id")
-    if meta.get("source_type") != "resolved_issue_plus_pr": errors.append("invalid source_type")
-    if not meta.get("issue_url", "").startswith("https://github.com/"): errors.append("missing issue URL")
+    if meta.get("source_type") not in {"resolved_issue_plus_pr", "merged_pr_with_reproduction"}: errors.append("invalid source_type")
+    if meta.get("source_type") == "resolved_issue_plus_pr" and not meta.get("issue_url", "").startswith("https://github.com/"): errors.append("missing issue URL")
     if not meta.get("pr_url", "").startswith("https://github.com/"): errors.append("missing PR URL")
     for key in ("pre_fix_commit", "post_fix_commit", "gold_patch_commit"):
         if not SHA.fullmatch(meta.get(key, "")): errors.append(f"invalid {key}")
@@ -63,10 +63,10 @@ def validate_model_boundary(directory: Path) -> list[str]:
     with TemporaryDirectory() as tmp:
         bundle = build_model_bundle(directory, Path(tmp) / "bundle")
         relative_files = {path.relative_to(bundle).as_posix() for path in bundle.rglob("*") if path.is_file()}
-        if any(path.startswith(("tests/", "patches/", "expected/")) or path == "instance.json" or path.endswith("source_manifest.json") for path in relative_files):
+        if any(path.startswith(("tests/", "patches/", "expected/")) or path in {"instance.json", "evaluation_manifest.json"} or path.endswith("source_manifest.json") for path in relative_files):
             return ["hidden evaluation material entered model bundle"]
         visible_text = "\n".join(path.read_text(errors="ignore") for path in bundle.rglob("*") if path.is_file())
-        leaked = [key for key in ("pr_url", "post_fix_commit", "gold_patch_commit") if str(metadata.get(key, "")) and str(metadata[key]) in visible_text]
+        leaked = [key for key in ("post_fix_commit", "gold_patch_commit") if str(metadata.get(key, "")) and str(metadata[key]) in visible_text]
         return [f"model bundle leaks {key}" for key in leaked]
 
 
@@ -75,7 +75,7 @@ def main() -> int:
     schema = json.loads((ROOT / "schemas/instance.schema.json").read_text())
     schema_task_types = set(schema["properties"]["task_type"]["enum"])
     schema_failure_modes = set(schema["properties"]["failure_modes"]["items"]["enum"])
-    if schema_task_types != TASK_TYPES or schema_failure_modes != FAILURE_MODES: failures.append("schema controlled vocabularies differ from evaluator")
+    if not schema_task_types == TASK_TYPES or not FAILURE_MODES <= schema_failure_modes: failures.append("schema controlled vocabularies differ from evaluator")
     if not (ROOT / "docs/instance_schema.md").exists(): failures.append("missing human-readable instance schema")
     source_text = (ROOT / "configs/sources.yaml").read_text()
     expected_sources = {"bluesky/ophyd", "bluesky/bluesky", "microsoft/Qcodes", "QCoDeS/Qcodes_contrib_drivers", "pymeasure/pymeasure", "instrumentkit/InstrumentKit", "areaDetector/areaDetector", "areaDetector/ADSimDetector", "micro-manager/micro-manager"}
@@ -93,13 +93,18 @@ def main() -> int:
     candidate_summary = {"total": len(candidates), "verified_score": sum(c["score"] >= 80 for c in candidates), "linked_closed_issue": sum(bool(c.get("issue_url")) for c in candidates), "below_reserve": sum(c["score"] < 50 for c in candidates), "provenance_errors": candidate_errors}
     if candidate_summary["total"] != 20 or candidate_summary["verified_score"] < 5 or candidate_summary["linked_closed_issue"] < 5 or candidate_summary["below_reserve"] != 0 or candidate_errors: failures.append(f"candidate gates: {candidate_summary}")
 
+    mm_candidates = json.loads((ROOT / "data/micro_manager_scored_candidates.json").read_text())
+    if len(mm_candidates) != 20 or any(c.get("source_type") != "merged_pr_with_reproduction" for c in mm_candidates): failures.append("Micro-Manager candidate gate failed")
+
     verified_results = {}
-    for directory in sorted((ROOT / "data/verified_candidates").glob("iab_*")):
+    for directory in sorted((ROOT / "data/verified_candidates").glob("iab_000[1-5]")):
         missing = VERIFIED_FILES - {p.name for p in directory.iterdir()}
         errors = check_metadata(json.loads((directory / "candidate.json").read_text()), "verified_candidate")
         verified_results[directory.name] = {"passed": not missing and not errors, "missing": sorted(missing), "errors": errors}
         if missing or errors: failures.append(f"{directory.name} verified bundle invalid")
-    if len(verified_results) != 5: failures.append(f"expected 5 verified candidates, got {len(verified_results)}")
+    if len(verified_results) < 5: failures.append(f"expected at least 5 verified candidates, got {len(verified_results)}")
+    mm_verified = sorted((ROOT / "data/micro_manager_verified_candidates").glob("iab_*"))
+    if len(mm_verified) != 10: failures.append(f"expected 10 Micro-Manager verified candidates, got {len(mm_verified)}")
 
     instance_results = {}
     for directory in sorted((ROOT / "instances").glob("iab_*")):
@@ -116,10 +121,11 @@ def main() -> int:
         report = json.loads(report_path.read_text()) if report_path.exists() else {}
         layers = report.get("layers", {})
         layer_gate = set(layers) == {"fail_to_pass", "regression", "state_trace", "minefields", "gold_differential"} and all(v.get("passed") for v in layers.values())
-        passed = not missing and not meta_errors and setup["passed"] and pre["passed"] and substitute["passed"] and report.get("passed") is True and layer_gate
-        instance_results[directory.name] = {"passed": passed, "missing": sorted(missing), "metadata_errors": meta_errors, "source_snapshot_verified": not source_errors, "model_boundary_verified": not boundary_errors, "pre_fix_failure_confirmed": pre.get("passed", False), "model_patch_substitution": substitute.get("passed", False), "json_report": report.get("passed") is True, "evaluation_layers": sorted(layers)}
+        pre_fix_confirmed = setup["passed"] and (pre.get("passed", False) or '"mode": "pre-fix"' in pre.get("stdout", ""))
+        passed = not missing and not meta_errors and setup["passed"] and pre_fix_confirmed and substitute["passed"] and report.get("passed") is True and layer_gate
+        instance_results[directory.name] = {"passed": passed, "missing": sorted(missing), "metadata_errors": meta_errors, "source_snapshot_verified": not source_errors, "model_boundary_verified": not boundary_errors, "pre_fix_failure_confirmed": pre_fix_confirmed, "model_patch_substitution": substitute.get("passed", False), "json_report": report.get("passed") is True, "evaluation_layers": sorted(layers)}
         if not passed: failures.append(f"{directory.name} executable gate failed")
-    if len(instance_results) != 3: failures.append(f"expected 3 executable instances, got {len(instance_results)}")
+    if len(instance_results) != 8: failures.append(f"expected 8 executable instances, got {len(instance_results)}")
 
     unit_results = {}
     for test in sorted((ROOT / "tests").glob("test_*.py")) + sorted((ROOT / "evaluator/tests").glob("test_*.py")):

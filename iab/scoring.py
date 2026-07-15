@@ -20,7 +20,14 @@ def score_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     breakdown = {name: weight if evidence.get(name) else 0 for name, weight in WEIGHTS.items()}
     score = sum(breakdown.values())
     grade = "verified_candidate" if score >= 80 else "candidate" if score >= 65 else "reserve" if score >= 50 else "drop"
-    return {**candidate, "score": score, "score_breakdown": breakdown, "grade": grade}
+    return {
+        **candidate,
+        "candidate_score": score,
+        "score": score,  # Schema-v1 compatibility for the phase-1 snapshot.
+        "candidate_score_breakdown": breakdown,
+        "score_breakdown": breakdown,
+        "grade": grade,
+    }
 
 
 def hard_filter_reasons(candidate: dict[str, Any]) -> list[str]:

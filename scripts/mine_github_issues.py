@@ -22,6 +22,7 @@ import yaml
 
 KEYWORDS = ("instrument", "driver", "device", "adapter", "camera", "stage", "detector", "acquire", "trigger", "read", "timeout", "firmware", "scpi", "visa", "serial", "gpib", "epics", "pv", "ioc", "asyn", "areadetector", "ophyd", "bluesky plan", "qcodes parameter", "snapshot", "stale data", "metadata", "interlock")
 SEARCH_TERMS = ("driver", "device", "adapter", "timeout", "instrument")
+MICRO_MANAGER_TERMS = ("camera", "stage", "shutter", "property", "timeout")
 EXCLUDED_TITLES = ("bump ", "requirement", "dependabot", "typing", "ci ", "lint")
 LINK_RE = re.compile(r"(?:(?:fix|close|resolve)(?:e[sd])?|refs?)\s+(?:[\w.-]+/[\w.-]+)?#(\d+)", re.I)
 
@@ -50,6 +51,19 @@ def classify_change(paths: list[str]) -> str:
     return "code"
 
 
+def path_allowed(source: dict[str, Any], path: str) -> bool:
+    prefixes = source.get("path_prefixes", [])
+    return not prefixes or any(path.startswith(prefix) for prefix in prefixes)
+
+
+def adapter_name(paths: list[str]) -> str:
+    for path in paths:
+        parts = Path(path).parts
+        if len(parts) > 1 and parts[0] == "DeviceAdapters": return parts[1]
+        if parts and parts[0] in {"MMCore", "MMDevice"}: return parts[0]
+    return "unknown"
+
+
 def evidence_for(item: dict[str, Any], pr: dict[str, Any], linked_issue: bool, paths: list[str]) -> dict[str, bool]:
     text = f"{item.get('title', '')} {item.get('body') or ''} {' '.join(paths)}".lower()
     instrument = any(k in text for k in KEYWORDS)
@@ -58,7 +72,7 @@ def evidence_for(item: dict[str, Any], pr: dict[str, Any], linked_issue: bool, p
         "has_issue": linked_issue, "has_merged_pr": bool(pr.get("merged_at")), "issue_pr_linked": linked_issue,
         "has_discussion_or_log": item.get("comments", 0) > 0 or "traceback" in text or "error" in text,
         "touches_driver_adapter": instrument, "real_instrument": instrument,
-        "framework_semantics": any(k in text for k in ("ophyd", "qcodes", "parameter", "signal", "device", "snapshot")),
+        "framework_semantics": any(k in text for k in ("ophyd", "qcodes", "parameter", "property", "callback", "signal", "device", "adapter", "snapshot")),
         "acquisition_or_state": stateish, "multiple_files": pr.get("changed_files", 0) > 1,
         "state_async_timeout": stateish, "version_compatibility": any(k in text for k in ("version", "firmware", "compat")),
         "metadata_or_stale": any(k in text for k in ("metadata", "stale", "cache", "snapshot")),
@@ -74,14 +88,17 @@ def mine_source(api: GitHub, source: dict[str, Any], limit: int) -> list[dict[st
     repo = source["repo"]
     # GitHub Search rejects queries with more than five boolean operators.
     # Keep the remote query broad and apply the full vocabulary locally.
-    query = f"repo:{repo} is:pr is:merged ({' OR '.join(SEARCH_TERMS)})"
+    terms = MICRO_MANAGER_TERMS if source["name"] == "micro_manager_core" else SEARCH_TERMS
+    query = f"repo:{repo} is:pr is:merged ({' OR '.join(terms)})"
     url = "https://api.github.com/search/issues?" + urllib.parse.urlencode({"q": query, "per_page": min(limit, 100), "sort": "updated"})
     items = [item for item in api.get(url).get("items", []) if not any(term in item["title"].lower() for term in EXCLUDED_TITLES)]
     result = []
-    for item in items[:limit]:
+    for item in items:
         pr = api.get(item["pull_request"]["url"])
         files = api.get(item["pull_request"]["url"] + "/files?per_page=100")
         paths = [entry["filename"] for entry in files]
+        scoped_paths = [path for path in paths if path_allowed(source, path)]
+        if source.get("path_prefixes") and not scoped_paths: continue
         refs = LINK_RE.findall(item.get("body") or "")
         issue_number, issue = None, None
         for ref in refs:
@@ -92,6 +109,8 @@ def mine_source(api: GitHub, source: dict[str, Any], limit: int) -> list[dict[st
         issue_url = f"https://github.com/{repo}/issues/{issue_number}" if issue_number else ""
         result.append({
             "candidate_id": "", "source_project": source["name"], "source_repo": f"https://github.com/{repo}",
+            "parent_repo": f"https://github.com/{source['parent_repo']}" if source.get("parent_repo") else "",
+            "parent_path": source.get("parent_path", ""), "adapter_name": adapter_name(scoped_paths or paths),
             "issue_url": issue_url, "pr_url": item["html_url"], "pr_number": item["number"],
             "title": item["title"], "body_excerpt": (item.get("body") or "")[:1200], "issue_title": issue.get("title", "") if issue else "", "issue_state": issue.get("state", "") if issue else "",
             "pre_fix_commit": pr.get("base", {}).get("sha", ""), "post_fix_commit": pr.get("merge_commit_sha") or "",
@@ -100,6 +119,7 @@ def mine_source(api: GitHub, source: dict[str, Any], limit: int) -> list[dict[st
             "language": source["language"], "domain": source["domain"], "change_kind": classify_change(paths),
             "evidence": evidence_for(item, pr, bool(issue_number), paths), "mined_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         })
+        if len(result) >= limit: break
     return result
 
 
@@ -109,11 +129,14 @@ def main() -> int:
     parser.add_argument("--per-source", type=int, default=5)
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--output", type=Path, default=Path("data/raw_candidates.json"))
+    parser.add_argument("--source", action="append", help="source name to mine; may be repeated")
     args = parser.parse_args()
     config = yaml.safe_load(args.sources.read_text())
     api, rows = GitHub(), []
+    selected = set(args.source or [])
     for source in config["sources"]:
-        if source["language"] == "python": rows.extend(mine_source(api, source, args.per_source))
+        if selected and source["name"] not in selected: continue
+        rows.extend(mine_source(api, source, args.per_source))
         if len(rows) >= args.limit: break
     rows = rows[:args.limit]
     for index, row in enumerate(rows, 1): row["candidate_id"] = f"candidate_{index:04d}"

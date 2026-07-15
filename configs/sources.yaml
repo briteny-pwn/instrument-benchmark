@@ -8,3 +8,11 @@ sources:
   - {name: areaDetector, repo: areaDetector/areaDetector, priority: high, language: c_cpp_epics, domain: detector_control}
   - {name: ADSimDetector, repo: areaDetector/ADSimDetector, priority: high, language: c_cpp_epics, domain: detector_simulation}
   - {name: micro_manager, repo: micro-manager/micro-manager, priority: high, language: cpp, domain: microscopy_device_adapters}
+  - name: micro_manager_core
+    repo: micro-manager/mmCoreAndDevices
+    parent_repo: micro-manager/micro-manager
+    parent_path: mmCoreAndDevices
+    priority: high
+    language: cpp
+    domain: microscopy_device_adapters
+    path_prefixes: [DeviceAdapters/, MMCore/, MMDevice/]

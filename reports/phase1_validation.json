@@ -85,11 +85,98 @@
         "regression",
         "state_trace"
       ]
+    },
+    "iab_0006": {
+      "passed": true,
+      "missing": [],
+      "metadata_errors": [],
+      "source_snapshot_verified": true,
+      "model_boundary_verified": true,
+      "pre_fix_failure_confirmed": true,
+      "model_patch_substitution": true,
+      "json_report": true,
+      "evaluation_layers": [
+        "fail_to_pass",
+        "gold_differential",
+        "minefields",
+        "regression",
+        "state_trace"
+      ]
+    },
+    "iab_0007": {
+      "passed": true,
+      "missing": [],
+      "metadata_errors": [],
+      "source_snapshot_verified": true,
+      "model_boundary_verified": true,
+      "pre_fix_failure_confirmed": true,
+      "model_patch_substitution": true,
+      "json_report": true,
+      "evaluation_layers": [
+        "fail_to_pass",
+        "gold_differential",
+        "minefields",
+        "regression",
+        "state_trace"
+      ]
+    },
+    "iab_0008": {
+      "passed": true,
+      "missing": [],
+      "metadata_errors": [],
+      "source_snapshot_verified": true,
+      "model_boundary_verified": true,
+      "pre_fix_failure_confirmed": true,
+      "model_patch_substitution": true,
+      "json_report": true,
+      "evaluation_layers": [
+        "fail_to_pass",
+        "gold_differential",
+        "minefields",
+        "regression",
+        "state_trace"
+      ]
+    },
+    "iab_0009": {
+      "passed": true,
+      "missing": [],
+      "metadata_errors": [],
+      "source_snapshot_verified": true,
+      "model_boundary_verified": true,
+      "pre_fix_failure_confirmed": true,
+      "model_patch_substitution": true,
+      "json_report": true,
+      "evaluation_layers": [
+        "fail_to_pass",
+        "gold_differential",
+        "minefields",
+        "regression",
+        "state_trace"
+      ]
+    },
+    "iab_0010": {
+      "passed": true,
+      "missing": [],
+      "metadata_errors": [],
+      "source_snapshot_verified": true,
+      "model_boundary_verified": true,
+      "pre_fix_failure_confirmed": true,
+      "model_patch_substitution": true,
+      "json_report": true,
+      "evaluation_layers": [
+        "fail_to_pass",
+        "gold_differential",
+        "minefields",
+        "regression",
+        "state_trace"
+      ]
     }
   },
   "unit_tests": {
+    "tests/test_micro_manager.py": true,
     "tests/test_scoring.py": true,
     "evaluator/tests/test_model_bundle.py": true,
+    "evaluator/tests/test_partial_scoring.py": true,
     "evaluator/tests/test_source_loader.py": true,
     "evaluator/tests/test_trace_compare.py": true,
     "evaluator/tests/test_unified_patch.py": true

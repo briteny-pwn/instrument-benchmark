@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 
-def compare_traces(actual: list[dict[str, Any]], expected: list[dict[str, Any]]) -> tuple[bool, list[str]]:
+def compare_trace_progress(actual: list[dict[str, Any]], expected: list[dict[str, Any]]) -> tuple[int, list[str]]:
     """Compare ordered semantic checkpoints, ignoring timestamps and extra events."""
     errors: list[str] = []
     cursor = 0
@@ -18,4 +18,9 @@ def compare_traces(actual: list[dict[str, Any]], expected: list[dict[str, Any]])
                 found = True
                 break
         if not found: errors.append(f"missing ordered checkpoint: {wanted}")
-    return not errors, errors
+    return len(expected) - len(errors), errors
+
+
+def compare_traces(actual: list[dict[str, Any]], expected: list[dict[str, Any]]) -> tuple[bool, list[str]]:
+    matched, errors = compare_trace_progress(actual, expected)
+    return matched == len(expected), errors

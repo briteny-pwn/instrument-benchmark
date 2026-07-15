@@ -1,0 +1,38 @@
+name: micro-manager-device-adapters
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linux-behavior:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run DeviceAdapters instances
+        run: |
+          for id in iab_0006 iab_0007 iab_0008 iab_0009 iab_0010; do
+            bash instances/$id/setup.sh
+            bash instances/$id/reproduce_pre_fix.sh || true
+            bash instances/$id/setup.sh
+            bash instances/$id/apply_gold_patch.sh
+            bash instances/$id/evaluate.sh
+          done
+
+  platform-smoke:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            compiler: clang++
+          - os: windows-latest
+            compiler: cl
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile contract harnesses
+        shell: bash
+        run: |
+          for id in iab_0006 iab_0007 iab_0008 iab_0009 iab_0010; do
+            CXX=${{ matrix.compiler }} bash instances/$id/run_cpp_tests.sh build_load || exit 1
+          done
