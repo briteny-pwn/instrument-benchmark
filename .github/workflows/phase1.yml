@@ -1,0 +1,21 @@
+name: phase1-validation
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/validate_phase1.py
+      - run: docker build -f instances/iab_0001/Dockerfile -t iab-0001 .
+      - run: docker build -f instances/iab_0003/Dockerfile -t iab-0003 .
+      - run: docker build -f instances/iab_0005/Dockerfile -t iab-0005 .
+      - run: docker run --rm iab-0001
+      - run: docker run --rm iab-0003
+      - run: docker run --rm iab-0005

@@ -1,0 +1,98 @@
+{
+  "passed": true,
+  "candidate_summary": {
+    "total": 20,
+    "verified_score": 7,
+    "linked_closed_issue": 8,
+    "below_reserve": 0,
+    "provenance_errors": []
+  },
+  "verified_candidates": {
+    "iab_0001": {
+      "passed": true,
+      "missing": [],
+      "errors": []
+    },
+    "iab_0002": {
+      "passed": true,
+      "missing": [],
+      "errors": []
+    },
+    "iab_0003": {
+      "passed": true,
+      "missing": [],
+      "errors": []
+    },
+    "iab_0004": {
+      "passed": true,
+      "missing": [],
+      "errors": []
+    },
+    "iab_0005": {
+      "passed": true,
+      "missing": [],
+      "errors": []
+    }
+  },
+  "executable_instances": {
+    "iab_0001": {
+      "passed": true,
+      "missing": [],
+      "metadata_errors": [],
+      "source_snapshot_verified": true,
+      "model_boundary_verified": true,
+      "pre_fix_failure_confirmed": true,
+      "model_patch_substitution": true,
+      "json_report": true,
+      "evaluation_layers": [
+        "fail_to_pass",
+        "gold_differential",
+        "minefields",
+        "regression",
+        "state_trace"
+      ]
+    },
+    "iab_0003": {
+      "passed": true,
+      "missing": [],
+      "metadata_errors": [],
+      "source_snapshot_verified": true,
+      "model_boundary_verified": true,
+      "pre_fix_failure_confirmed": true,
+      "model_patch_substitution": true,
+      "json_report": true,
+      "evaluation_layers": [
+        "fail_to_pass",
+        "gold_differential",
+        "minefields",
+        "regression",
+        "state_trace"
+      ]
+    },
+    "iab_0005": {
+      "passed": true,
+      "missing": [],
+      "metadata_errors": [],
+      "source_snapshot_verified": true,
+      "model_boundary_verified": true,
+      "pre_fix_failure_confirmed": true,
+      "model_patch_substitution": true,
+      "json_report": true,
+      "evaluation_layers": [
+        "fail_to_pass",
+        "gold_differential",
+        "minefields",
+        "regression",
+        "state_trace"
+      ]
+    }
+  },
+  "unit_tests": {
+    "tests/test_scoring.py": true,
+    "evaluator/tests/test_model_bundle.py": true,
+    "evaluator/tests/test_source_loader.py": true,
+    "evaluator/tests/test_trace_compare.py": true,
+    "evaluator/tests/test_unified_patch.py": true
+  },
+  "failures": []
+}
