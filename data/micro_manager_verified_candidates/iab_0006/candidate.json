@@ -1,0 +1,88 @@
+{
+  "instance_id": "iab_0006",
+  "source_project": "micro_manager_core",
+  "source_repo": "https://github.com/micro-manager/mmCoreAndDevices",
+  "source_type": "merged_pr_with_reproduction",
+  "issue_url": "",
+  "pr_url": "https://github.com/micro-manager/mmCoreAndDevices/pull/914",
+  "pre_fix_commit": "9a357388f17ac38c0b881117b7240d3ad0b6c901",
+  "post_fix_commit": "4fb0d769790d26fc695e15901612c47718af741b",
+  "gold_patch_commit": "4fb0d769790d26fc695e15901612c47718af741b",
+  "parent_repo": "https://github.com/micro-manager/micro-manager",
+  "adapter_name": "MMCore",
+  "changed_paths": [
+    "MMCore/Devices/DeviceInstance.h",
+    "MMCore/MMCore.cpp",
+    "MMCore/MMCore.h",
+    "MMCore/unittest/DeviceTimeout-Tests.cpp",
+    "MMCore/unittest/meson.build",
+    "MMCoreJ_wrap/pom.xml"
+  ],
+  "platforms": [
+    "linux",
+    "macos",
+    "windows"
+  ],
+  "vendor_sdk_strategy": "none",
+  "instrument_category": "core_timeout",
+  "task_type": "framework_semantic_integration",
+  "failure_modes": [
+    "timeout",
+    "framework_semantic_mismatch",
+    "error_recovery"
+  ],
+  "framework": "Micro-Manager",
+  "language": "cpp",
+  "simulator_type": "stateful_simulator",
+  "requires_real_hardware": false,
+  "given_to_model": {
+    "issue_text": true,
+    "failure_log": true,
+    "docs_excerpt": true,
+    "pre_fix_code": true,
+    "simulator": true
+  },
+  "hidden_from_model": {
+    "gold_patch": true,
+    "post_fix_commit": true,
+    "hidden_tests": true
+  },
+  "reproduction": {
+    "pre_fix_fails": null,
+    "gold_patch_passes": null,
+    "command": "bash setup.sh && bash reproduce_pre_fix.sh && bash apply_gold_patch.sh && bash evaluate.sh"
+  },
+  "difficulty_evidence": {
+    "files_changed_by_gold": 6,
+    "layers_touched": [
+      "MMCore",
+      "MMCore",
+      "tests"
+    ],
+    "requires_state_reasoning": false,
+    "requires_async_reasoning": false,
+    "requires_framework_semantics": true,
+    "requires_safety_constraints": false
+  },
+  "evaluation_layers": [
+    "build",
+    "fail_to_pass",
+    "regression",
+    "state_trace",
+    "gold_differential",
+    "minefield"
+  ],
+  "status": "verified_candidate",
+  "build": {
+    "system": "cmake",
+    "cxx_standard": 17,
+    "behavior_platform": "linux",
+    "compile_platforms": [
+      "linux",
+      "macos",
+      "windows"
+    ],
+    "artifact": "iab_adapter_tests",
+    "vendor_sdk_strategy": "none"
+  }
+}

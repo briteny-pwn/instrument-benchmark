@@ -1,0 +1,84 @@
+{
+  "instance_id": "iab_0011",
+  "source_project": "micro_manager_core",
+  "source_repo": "https://github.com/micro-manager/mmCoreAndDevices",
+  "source_type": "merged_pr_with_reproduction",
+  "issue_url": "",
+  "pr_url": "https://github.com/micro-manager/mmCoreAndDevices/pull/970",
+  "pre_fix_commit": "f195d9f17cc8ea34b0e40de4b76e2f5fe1c7fc9d",
+  "post_fix_commit": "61567cf33c60426f87663174368d86dee0fd1985",
+  "gold_patch_commit": "61567cf33c60426f87663174368d86dee0fd1985",
+  "parent_repo": "https://github.com/micro-manager/micro-manager",
+  "adapter_name": "PVCAM",
+  "changed_paths": [
+    "DeviceAdapters/PVCAM/PVCAMAdapter.h",
+    "DeviceAdapters/PVCAM/PVCAMUniversal.cpp",
+    "DeviceAdapters/PVCAM/Version.h"
+  ],
+  "platforms": [
+    "linux",
+    "macos",
+    "windows"
+  ],
+  "vendor_sdk_strategy": "public_stub",
+  "instrument_category": "shutter",
+  "task_type": "real_bug_repair",
+  "failure_modes": [
+    "state_machine",
+    "property_state_desync"
+  ],
+  "framework": "Micro-Manager",
+  "language": "cpp",
+  "simulator_type": "stateful_simulator",
+  "requires_real_hardware": false,
+  "given_to_model": {
+    "issue_text": true,
+    "failure_log": true,
+    "docs_excerpt": true,
+    "pre_fix_code": true,
+    "simulator": true
+  },
+  "hidden_from_model": {
+    "gold_patch": true,
+    "post_fix_commit": true,
+    "hidden_tests": true
+  },
+  "reproduction": {
+    "pre_fix_fails": null,
+    "gold_patch_passes": null,
+    "command": "bash setup.sh && bash reproduce_pre_fix.sh && bash apply_gold_patch.sh && bash evaluate.sh"
+  },
+  "difficulty_evidence": {
+    "files_changed_by_gold": 3,
+    "layers_touched": [
+      "PVCAM",
+      "MMCore",
+      "tests"
+    ],
+    "requires_state_reasoning": true,
+    "requires_async_reasoning": false,
+    "requires_framework_semantics": true,
+    "requires_safety_constraints": false
+  },
+  "evaluation_layers": [
+    "build",
+    "fail_to_pass",
+    "regression",
+    "state_trace",
+    "gold_differential",
+    "minefield"
+  ],
+  "status": "verified_candidate",
+  "build": {
+    "system": "cmake",
+    "cxx_standard": 17,
+    "behavior_platform": "linux",
+    "compile_platforms": [
+      "linux",
+      "macos",
+      "windows"
+    ],
+    "artifact": "iab_adapter_tests",
+    "vendor_sdk_strategy": "public_stub"
+  }
+}

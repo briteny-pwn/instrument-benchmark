@@ -1,0 +1,85 @@
+{
+  "instance_id": "iab_0010",
+  "source_project": "micro_manager_core",
+  "source_repo": "https://github.com/micro-manager/mmCoreAndDevices",
+  "source_type": "merged_pr_with_reproduction",
+  "issue_url": "",
+  "pr_url": "https://github.com/micro-manager/mmCoreAndDevices/pull/946",
+  "pre_fix_commit": "c025a36eff22c431edec38ebfdf193ca61746845",
+  "post_fix_commit": "48152efdddb22b44586c14bbb1b133c5e844b3a3",
+  "gold_patch_commit": "48152efdddb22b44586c14bbb1b133c5e844b3a3",
+  "parent_repo": "https://github.com/micro-manager/micro-manager",
+  "adapter_name": "DemoCamera",
+  "changed_paths": [
+    "DeviceAdapters/DemoCamera/DemoCamera.h",
+    "DeviceAdapters/DemoCamera/DemoImageGeneration.cpp",
+    "DeviceAdapters/DemoCamera/DemoStages.cpp"
+  ],
+  "platforms": [
+    "linux",
+    "macos",
+    "windows"
+  ],
+  "vendor_sdk_strategy": "none",
+  "instrument_category": "xy_stage",
+  "task_type": "framework_semantic_integration",
+  "failure_modes": [
+    "state_machine",
+    "async_timing",
+    "property_state_desync"
+  ],
+  "framework": "Micro-Manager",
+  "language": "cpp",
+  "simulator_type": "stateful_simulator",
+  "requires_real_hardware": false,
+  "given_to_model": {
+    "issue_text": true,
+    "failure_log": true,
+    "docs_excerpt": true,
+    "pre_fix_code": true,
+    "simulator": true
+  },
+  "hidden_from_model": {
+    "gold_patch": true,
+    "post_fix_commit": true,
+    "hidden_tests": true
+  },
+  "reproduction": {
+    "pre_fix_fails": null,
+    "gold_patch_passes": null,
+    "command": "bash setup.sh && bash reproduce_pre_fix.sh && bash apply_gold_patch.sh && bash evaluate.sh"
+  },
+  "difficulty_evidence": {
+    "files_changed_by_gold": 3,
+    "layers_touched": [
+      "DemoCamera",
+      "MMCore",
+      "tests"
+    ],
+    "requires_state_reasoning": true,
+    "requires_async_reasoning": true,
+    "requires_framework_semantics": true,
+    "requires_safety_constraints": false
+  },
+  "evaluation_layers": [
+    "build",
+    "fail_to_pass",
+    "regression",
+    "state_trace",
+    "gold_differential",
+    "minefield"
+  ],
+  "status": "verified_candidate",
+  "build": {
+    "system": "cmake",
+    "cxx_standard": 17,
+    "behavior_platform": "linux",
+    "compile_platforms": [
+      "linux",
+      "macos",
+      "windows"
+    ],
+    "artifact": "iab_adapter_tests",
+    "vendor_sdk_strategy": "none"
+  }
+}
