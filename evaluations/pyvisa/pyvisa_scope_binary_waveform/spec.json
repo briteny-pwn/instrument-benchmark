@@ -2,7 +2,61 @@
   "instance_id": "pyvisa_scope_binary_waveform",
   "spec_version": 2,
   "gateway": "pyvisa_sim",
-  "authoring": {"base_simulator": "pyvisa_sim/mockscope500.yaml", "seed": "scope-authoring-v1"},
+  "authoring": {"materialized": true, "base_simulator": "pyvisa_sim/mockscope500.yaml", "seed": "scope-authoring-v1"},
+  "world_distribution": {
+    "version": 1,
+    "materialization": "frozen",
+    "worlds": [
+      {
+        "id": "core_binary_block",
+        "group": "core",
+        "seed": "scope-core-v1",
+        "template": "pyvisa_sim/mockscope500.yaml",
+        "simulator": "worlds/core.yaml",
+        "patches": [
+          {"path": "/devices/MockScope500/dialogues/2/r", "value": {"choice": ["#18ABCDEFGH", "#18BCDEFGHI"]}}
+        ]
+      },
+      {
+        "id": "generalization_short_block",
+        "group": "generalization",
+        "seed": "scope-generalization-v1",
+        "template": "pyvisa_sim/mockscope500_short.yaml",
+        "simulator": "worlds/generalization.yaml",
+        "patches": [
+          {"path": "/devices/MockScope500/dialogues/2/r", "value": {"choice": ["#16QRSTUV", "#16LMNOPQ"]}}
+        ],
+        "spec_overrides": {
+          "snapshot_queries": [
+            {"name": "source", "resource": "TCPIP0::192.0.2.61::inst0::INSTR", "command": "DATA:SOURCE?"},
+            {"name": "encoding", "resource": "TCPIP0::192.0.2.61::inst0::INSTR", "command": "DATA:ENCODING?"},
+            {"name": "width", "resource": "TCPIP0::192.0.2.61::inst0::INSTR", "command": "DATA:WIDTH?", "parse": "int"},
+            {"name": "ymult", "resource": "TCPIP0::192.0.2.61::inst0::INSTR", "command": "WFMOUTPRE:YMULT?", "parse": "float"},
+            {"name": "yoff", "resource": "TCPIP0::192.0.2.61::inst0::INSTR", "command": "WFMOUTPRE:YOFF?", "parse": "float"}
+          ]
+        }
+      },
+      {
+        "id": "adversarial_two_digit_header",
+        "group": "adversarial",
+        "seed": "scope-adversarial-v1",
+        "template": "pyvisa_sim/mockscope500_long.yaml",
+        "simulator": "worlds/adversarial.yaml",
+        "patches": [
+          {"path": "/devices/MockScope500/dialogues/2/r", "value": {"choice": ["#212ABCDEFGHIJKL", "#212MNOPQRSTUVWX"]}}
+        ],
+        "spec_overrides": {
+          "snapshot_queries": [
+            {"name": "source", "resource": "TCPIP0::192.0.2.72::inst0::INSTR", "command": "DATA:SOURCE?"},
+            {"name": "encoding", "resource": "TCPIP0::192.0.2.72::inst0::INSTR", "command": "DATA:ENCODING?"},
+            {"name": "width", "resource": "TCPIP0::192.0.2.72::inst0::INSTR", "command": "DATA:WIDTH?", "parse": "int"},
+            {"name": "ymult", "resource": "TCPIP0::192.0.2.72::inst0::INSTR", "command": "WFMOUTPRE:YMULT?", "parse": "float"},
+            {"name": "yoff", "resource": "TCPIP0::192.0.2.72::inst0::INSTR", "command": "WFMOUTPRE:YOFF?", "parse": "float"}
+          ]
+        }
+      }
+    ]
+  },
   "pass_threshold": 0.85,
   "rubric": {
     "sim_execution": 0.05,

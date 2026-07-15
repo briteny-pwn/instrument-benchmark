@@ -2,7 +2,7 @@
   "instance_id": "epics_asyn_serial_pump_interlock",
   "spec_version": 2,
   "gateway": "state_machine",
-  "authoring": {"base_simulator": "sim/pump_interlock.json", "seed": "pump-authoring-v1"},
+  "authoring": {"materialized": true, "base_simulator": "sim/pump_interlock.json", "seed": "pump-authoring-v1"},
   "pass_threshold": 0.85,
   "rubric": {
     "sim_execution": 0.05,

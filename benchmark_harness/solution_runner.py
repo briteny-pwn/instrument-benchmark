@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import ast
 import builtins
+import importlib
 import importlib.util
 import json
 import sys
@@ -10,44 +10,31 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-
-FORBIDDEN_ROOTS = {
-    "avro", "bluesky", "caproto", "epics", "fastavro", "fandango", "lab_drivers",
-    "ophyd", "opentrons", "pcaspy", "pyepics", "pylabrobot", "pymeasure", "pyvisa",
-    "qcodes", "qcodes_contrib_drivers", "softioc", "tango", "taurus", "yaq", "yaqc",
-    "yaq_traits", "yaqd_core", "yaqd_fakes",
-}
-
-
-def _forbidden_imports(path: Path) -> list[str]:
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    found: set[str] = set()
-    for node in ast.walk(tree):
-        names: list[str] = []
-        if isinstance(node, ast.Import):
-            names.extend(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            names.append(node.module)
-        for name in names:
-            if name.split(".", 1)[0] in FORBIDDEN_ROOTS:
-                found.add(name)
-    return sorted(found)
+from forbidden_imports import FORBIDDEN_IMPORT_ROOTS, check_candidate_imports
 
 
 @contextmanager
 def _blocked_imports():
-    original = builtins.__import__
+    original_import = builtins.__import__
+    original_import_module = importlib.import_module
 
     def guarded(name: str, globals=None, locals=None, fromlist=(), level: int = 0):  # type: ignore[no-untyped-def]
-        if level == 0 and name.split(".", 1)[0] in FORBIDDEN_ROOTS:
+        if level == 0 and name.split(".", 1)[0] in FORBIDDEN_IMPORT_ROOTS:
             raise RuntimeError(f"forbidden instrument/framework import: {name}")
-        return original(name, globals, locals, fromlist, level)
+        return original_import(name, globals, locals, fromlist, level)
+
+    def guarded_import_module(name: str, package: str | None = None):
+        if name.split(".", 1)[0] in FORBIDDEN_IMPORT_ROOTS:
+            raise RuntimeError(f"forbidden instrument/framework import: {name}")
+        return original_import_module(name, package)
 
     builtins.__import__ = guarded
+    importlib.import_module = guarded_import_module
     try:
         yield
     finally:
-        builtins.__import__ = original
+        builtins.__import__ = original_import
+        importlib.import_module = original_import_module
 
 
 def _write(path: Path, value: Any) -> None:
@@ -61,7 +48,7 @@ def main() -> None:
     result_path = output_dir / "result.json"
     status: dict[str, Any] = {"ok": False, "forbidden_imports": []}
     try:
-        forbidden = _forbidden_imports(candidate)
+        forbidden = check_candidate_imports(candidate)
         status["forbidden_imports"] = forbidden
         if forbidden:
             raise RuntimeError("candidate imports forbidden instrument/framework modules")

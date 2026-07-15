@@ -15,6 +15,7 @@ from evaluations.common import grader_core, import_guard
 from .agents import get_adapter
 from .paths import ROOT, evaluation_dir
 from .run_store import load_manifest, update_hashes, update_manifest, write_json
+from .world_distribution import distribution_scenarios
 
 
 IMAGES = {
@@ -61,6 +62,28 @@ def ensure_images(names: tuple[str, ...]) -> dict[str, str]:
 
 def _name(prefix: str) -> str:
     return f"lab-{prefix}-{uuid.uuid4().hex[:10]}"
+
+
+def _agent_usage(events_text: str) -> dict[str, Any]:
+    """Extract final provider-reported usage without estimating missing values."""
+    result: dict[str, Any] = {"status": "not_reported"}
+    for line in events_text.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        usage = event.get("usage")
+        if isinstance(usage, dict):
+            result = {"status": "reported", **usage}
+        if event.get("total_cost_usd") is not None:
+            result["status"] = "reported"
+            result["total_cost_usd"] = event["total_cost_usd"]
+        if isinstance(event.get("modelUsage"), dict):
+            result["status"] = "reported"
+            result["model_usage"] = event["modelUsage"]
+    return result
 
 
 def _remove_container(name: str) -> None:
@@ -221,6 +244,7 @@ def generate(run_dir: Path) -> None:
             {
                 "returncode": process.returncode,
                 "duration_seconds": round(time.monotonic() - started, 3),
+                "usage": _agent_usage(process.stdout),
                 "stderr": process.stderr,
             },
         )
@@ -261,12 +285,13 @@ def evaluate(run_dir: Path) -> dict[str, Any]:
 
     with tempfile.TemporaryDirectory(prefix="ib-eval-", dir=run_dir / "evaluation") as temporary:
         temp_root = Path(temporary)
-        scenarios = spec.get("scenarios")
+        scenarios = distribution_scenarios(spec)
         if not scenarios:
             scenarios = [{"id": "default", "simulator": spec["simulator"]}]
         for index, scenario in enumerate(scenarios):
             scenario_id = scenario.get("id", f"scenario-{index + 1}")
             for repetition in range(1, repetitions + 1):
+                scenario_started = time.monotonic()
                 network = _name("evaluation-net")
                 control = temp_root / f"{scenario_id}-{repetition}" / "control"
                 output = temp_root / f"{scenario_id}-{repetition}" / "output"
@@ -275,7 +300,12 @@ def evaluate(run_dir: Path) -> dict[str, Any]:
                 simulator_name = ""
                 _run(["docker", "network", "create", "--internal", network], capture_output=True)
                 try:
-                    scenario_spec = grader_core._build_scenario_spec(spec, scenario) if spec.get("scenarios") else spec
+                    scenario_spec = (
+                        grader_core._build_scenario_spec(spec, scenario)
+                        if spec.get("scenarios") or spec.get("world_distribution")
+                        else spec
+                    )
+                    simulator_started = time.monotonic()
                     simulator_name = _start_simulator(
                         network=network,
                         eval_dir=eval_dir,
@@ -283,6 +313,7 @@ def evaluate(run_dir: Path) -> dict[str, Any]:
                         control=control,
                         scenario_spec=scenario_spec,
                     )
+                    simulator_startup_seconds = time.monotonic() - simulator_started
                     runner_name = _name("runner")
                     runner_command = [
                         "docker", "run", "--name", runner_name, "--network", network, "--read-only",
@@ -294,6 +325,7 @@ def evaluate(run_dir: Path) -> dict[str, Any]:
                         "--mount", f"type=bind,src={output.resolve()},dst=/output",
                         IMAGES["runner"][0],
                     ]
+                    runner_started = time.monotonic()
                     try:
                         process = _run(
                             runner_command,
@@ -306,6 +338,7 @@ def evaluate(run_dir: Path) -> dict[str, Any]:
                         process = subprocess.CompletedProcess(runner_command, 124, "", "solution runner timed out")
                     else:
                         _remove_container(runner_name)
+                    runner_duration_seconds = time.monotonic() - runner_started
                     evidence = _stop_simulator(simulator_name, control)
                     simulator_name = ""
                     status = json.loads((output / "execution.json").read_text(encoding="utf-8")) if (output / "execution.json").exists() else {"ok": False, "error": "runner produced no status"}
@@ -315,19 +348,31 @@ def evaluate(run_dir: Path) -> dict[str, Any]:
                         feedback.append(f"Forbidden instrument/framework imports observed: {', '.join(forbidden)}.")
                     if not status.get("ok"):
                         feedback.append(f"Candidate failed in isolated runner: {status.get('error', process.stderr)}")
-                    report = grader_core.grade_collected_scenario(
+                    report = grader_core.grade_collected_evidence(
                         spec=scenario_spec,
-                        result=result,
-                        trace=evidence.get("trace", []),
-                        sim_state=evidence.get("sim_state", {}),
-                        execution_score=1.0 if status.get("ok") else 0.0,
+                        collected={
+                            "schema_version": grader_core.COLLECTED_EVIDENCE_SCHEMA_VERSION,
+                            "execution_ok": status.get("ok") is True,
+                            "result": result,
+                            "trace": evidence.get("trace", []),
+                            "sim_state": evidence.get("sim_state", {}),
+                        },
                         forbidden_score=forbidden_score,
                         feedback=feedback,
                     )
                     report.update(
                         scenario_id=scenario_id,
+                        world_group=scenario.get("world_group"),
+                        world_seed=scenario.get("world_seed"),
                         repetition=repetition,
                         run_id=f"{scenario_id}#{repetition}" if repetitions > 1 else scenario_id,
+                        timing={
+                            "simulator_startup_seconds": round(simulator_startup_seconds, 3),
+                            "runner_duration_seconds": round(runner_duration_seconds, 3),
+                            "scenario_duration_seconds": round(
+                                time.monotonic() - scenario_started, 3
+                            ),
+                        },
                     )
                     scenario_reports.append(report)
                 finally:
@@ -336,7 +381,11 @@ def evaluate(run_dir: Path) -> dict[str, Any]:
                         _remove_container(simulator_name)
                     _remove_network(network)
 
-    report = grader_core.aggregate_scenario_reports(spec, scenario_reports) if spec.get("scenarios") else scenario_reports[0]
+    report = (
+        grader_core.aggregate_scenario_reports(spec, scenario_reports)
+        if spec.get("scenarios") or spec.get("world_distribution")
+        else scenario_reports[0]
+    )
     write_json(run_dir / "evaluation/report.json", report)
     update_manifest(
         run_dir,

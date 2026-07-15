@@ -2,7 +2,7 @@
   "instance_id": "pyvisa_awg_ascii_upload",
   "spec_version": 2,
   "gateway": "pyvisa_sim",
-  "authoring": {"base_simulator": "pyvisa_sim/mockawg100.yaml", "seed": "awg-authoring-v1"},
+  "authoring": {"materialized": true, "base_simulator": "pyvisa_sim/mockawg100.yaml", "seed": "awg-authoring-v1"},
   "pass_threshold": 0.85,
   "intercepted_write_patterns": ["^DATA:ARB\\s+.+$"],
   "write_rewrites": [

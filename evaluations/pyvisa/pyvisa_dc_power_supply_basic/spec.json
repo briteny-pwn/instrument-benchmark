@@ -2,7 +2,7 @@
   "instance_id": "pyvisa_dc_power_supply_basic",
   "spec_version": 2,
   "gateway": "pyvisa_sim",
-  "authoring": {"base_simulator": "pyvisa_sim/mockdp100.yaml", "seed": "power-authoring-v1"},
+  "authoring": {"materialized": true, "base_simulator": "pyvisa_sim/mockdp100.yaml", "seed": "power-authoring-v1"},
   "pass_threshold": 0.85,
   "rubric": {
     "sim_execution": 0.05,

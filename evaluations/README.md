@@ -39,6 +39,12 @@ Each evaluation provides:
   Yaq evaluations also use `sim/` scenario files to configure hidden native
   yaqd-fakes daemons.
 
+`registry.json` is the canonical cross-instance metadata source. Its
+`InstanceManifest` entries declare capability and difficulty labels, backend
+fidelity, task inputs, observable outputs, safety invariants, hidden scenario
+distribution, oracle bindings, and model-visible constant allowlists. The
+validator cross-checks those declarations against prompts and `spec.json`.
+
 The candidate never sees these files during the task. Whether evaluation uses
 `pyvisa-sim`, a state-machine simulator, a coupled signal model, or hidden
 yaqd-fakes daemons
@@ -170,6 +176,13 @@ Scenario-suite reports include overall and per-scenario score dispersion,
 normal-approximate mean-score intervals, and Wilson 95% pass-rate intervals.
 These statistics describe the executed hidden suite; heterogeneous scenarios
 must not be treated as independent samples from an unspecified population.
+
+Three PyVISA pilot instances additionally declare a versioned
+`world_distribution`. Its seeded template patches materialize gateway-compatible
+YAML or JSON, while `core`, `generalization`, and `adversarial` labels add
+group-level report summaries without changing checks or gateway APIs. The pilot
+uses checked-in frozen worlds; generation and review guidance is in
+`docs/world_distributions.md`.
 
 `gates` turn essential checks or dimensions into pass requirements. This keeps
 a high weighted total from compensating for fake access, a wrong oracle result,

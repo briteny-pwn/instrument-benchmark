@@ -568,6 +568,138 @@ class TraceOracleTests(unittest.TestCase):
         self.assertAlmostEqual(evidence["derived_intercept"], 0.01)
 
 
+class V2DispatchTests(unittest.TestCase):
+    def setUp(self) -> None:
+        raw_trace.reset_trace()
+
+    def run_check(self, check: dict, result: dict | None = None, state: dict | None = None):
+        return grader_core._run_v2_check(check, result or {}, state or {}, [])
+
+    def test_result_and_sim_state_checks_dispatch(self) -> None:
+        cases = [
+            ({"name": "json", "type": "result_json", "expected": {"value": 2}}, {"value": 2}, {}),
+            (
+                {"name": "state", "type": "sim_state", "path": "$.value", "expected": 2},
+                {},
+                {"value": 2},
+            ),
+            (
+                {
+                    "name": "all",
+                    "type": "sim_state_all",
+                    "path": "$.resources",
+                    "item_path": "$.ready",
+                    "expected": True,
+                },
+                {},
+                {"resources": {"a": {"ready": True}, "b": {"ready": True}}},
+            ),
+        ]
+        for check, result, state in cases:
+            with self.subTest(check=check["type"]):
+                score, detail = self.run_check(check, result, state)
+                self.assertEqual(score, 1.0)
+                self.assertEqual(detail["type"], check["type"])
+
+    def test_trace_sequence_binding_and_cleanup_checks_dispatch(self) -> None:
+        raw_trace.record("socket_connect", {})
+        raw_trace.record("open", {"handle": "h1", "resource": "TCPIP::device"})
+        raw_trace.record("query", {"handle": "h1", "command": "READ?", "response": "7"})
+        raw_trace.record("close", {"handle": "h1"})
+        raw_trace.record("socket_disconnect", {})
+        checks = [
+            {
+                "name": "coverage",
+                "type": "trace_coverage",
+                "expectations": [{"kind": "query", "command": "READ?"}],
+            },
+            {
+                "name": "ordered",
+                "type": "ordered_milestones",
+                "milestones": [{"kind": "open"}, {"kind": "query"}, {"kind": "close"}],
+            },
+            {
+                "name": "binding",
+                "type": "result_trace_binding",
+                "result_path": "$.resource",
+                "event_kind": "open",
+                "payload_field": "resource",
+            },
+            {"name": "anti", "type": "anti_hardcode", "requires": ["socket_connect", "query"]},
+            {"name": "cleanup", "type": "cleanup"},
+        ]
+        for check in checks:
+            with self.subTest(check=check["type"]):
+                score, detail = self.run_check(check, {"resource": "TCPIP::device"})
+                self.assertEqual(score, 1.0)
+                self.assertEqual(detail["type"], check["type"])
+
+    def test_v2_report_emits_exact_failure_codes_and_binding_audit(self) -> None:
+        spec = {
+            "instance_id": "failure-codes",
+            "spec_version": 2,
+            "checks": [
+                {"name": "oracle", "type": "result_json", "expected": {"value": 2}},
+                {"name": "anti", "type": "anti_hardcode", "requires": ["query"]},
+            ],
+            "gates": [{"check": "oracle", "min": 1.0}],
+        }
+        report = grader_core.grade_collected_evidence(
+            spec=spec,
+            collected={
+                "schema_version": grader_core.COLLECTED_EVIDENCE_SCHEMA_VERSION,
+                "execution_ok": True,
+                "result": {"value": 1},
+                "trace": [],
+                "sim_state": {},
+            },
+            forbidden_score=1.0,
+        )
+        self.assertIn("check_failed:oracle", report["failure_codes"])
+        self.assertIn("check_failed:anti", report["failure_codes"])
+        self.assertIn("gate_failed:check:oracle", report["failure_codes"])
+        anti = next(item for item in report["evidence"] if item["name"] == "anti")
+        self.assertEqual(anti["binding_audit"], {"status": "missing", "checks": []})
+
+    def test_anti_hardcode_requires_successful_response_binding(self) -> None:
+        spec = {
+            "instance_id": "response-binding",
+            "spec_version": 2,
+            "checks": [
+                {
+                    "name": "measurement_binding",
+                    "type": "result_trace_binding",
+                    "result_path": "$.value",
+                    "event_kind": "query",
+                    "payload_field": "response",
+                },
+                {"name": "anti", "type": "anti_hardcode", "requires": ["query"]},
+            ],
+        }
+        report = grader_core.grade_collected_evidence(
+            spec=spec,
+            collected={
+                "schema_version": grader_core.COLLECTED_EVIDENCE_SCHEMA_VERSION,
+                "execution_ok": True,
+                "result": {"value": "hardcoded"},
+                "trace": [{"kind": "query", "payload": {"response": "observed"}}],
+                "sim_state": {},
+            },
+            forbidden_score=1.0,
+        )
+        anti = next(item for item in report["evidence"] if item["name"] == "anti")
+        self.assertEqual(anti["score"], 0.0)
+        self.assertEqual(anti["binding_audit"]["status"], "failed")
+
+    def test_collected_evidence_schema_is_strict(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported collected evidence schema"):
+            grader_core.grade_collected_evidence(
+                spec={"spec_version": 2},
+                collected={"schema_version": 999},
+                forbidden_score=1.0,
+            )
+
+
 class GateTests(unittest.TestCase):
     def test_failed_required_check_blocks_pass(self) -> None:
         failures = grader_core._evaluate_gates(

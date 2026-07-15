@@ -2,7 +2,7 @@
   "instance_id": "yaq_fake_sensor_stability_scan",
   "spec_version": 2,
   "gateway": "yaq_native",
-  "authoring": {"base_simulator": "sim/scenario.json", "seed": "yaq-sensor-authoring-v1"},
+  "authoring": {"materialized": true, "base_simulator": "sim/scenario.json", "seed": "yaq-sensor-authoring-v1"},
   "pass_threshold": 0.85,
   "rubric": {
     "sim_execution": 0.05,

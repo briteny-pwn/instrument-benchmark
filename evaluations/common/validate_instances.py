@@ -7,6 +7,8 @@ import re
 import sys
 from pathlib import Path
 
+from .instance_manifest import validate_registry
+
 
 VISIBLE_FILES = {
     Path("prompt.md"),
@@ -24,7 +26,7 @@ LEAK_PATTERNS = {
 
 
 def validate(root: Path) -> list[str]:
-    errors: list[str] = []
+    errors: list[str] = validate_registry(root)
     instances_root = root / "instances"
     evaluations_root = root / "evaluations"
     for instance_dir in sorted(path for path in instances_root.glob("*/*") if path.is_dir()):

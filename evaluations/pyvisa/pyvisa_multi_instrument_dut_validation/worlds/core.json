@@ -1,0 +1,51 @@
+{
+  "resources": [
+    {
+      "name": "USB0::0x9999::0x0320::PSU320001::0::INSTR",
+      "role": "psu",
+      "idn": "Mock Instruments,MockPSU320,PSU320001,1.0"
+    },
+    {
+      "name": "GPIB0::7::INSTR",
+      "role": "switch",
+      "idn": "Mock Instruments,MockSwitch48,SW480001,1.0"
+    },
+    {
+      "name": "USB0::0x9999::0x0900::AWG900001::0::INSTR",
+      "role": "awg",
+      "idn": "Mock Instruments,MockAWG900,AWG900001,1.0"
+    },
+    {
+      "name": "TCPIP0::203.0.113.120::inst0::INSTR",
+      "role": "scope",
+      "idn": "Mock Instruments,MockScope1200,SCOPE1200001,1.0"
+    },
+    {
+      "name": "GPIB0::24::INSTR",
+      "role": "dmm",
+      "idn": "Mock Instruments,MockDMM7510,DMM7510001,1.0"
+    },
+    {
+      "name": "USB0::0x9999::0x0010::CNT10001::0::INSTR",
+      "role": "counter",
+      "idn": "Mock Instruments,MockCounter10,CNT10001,1.0"
+    }
+  ],
+  "physics": {
+    "required_paths": [
+      101,
+      102
+    ],
+    "nominal_supply_v": 5.0,
+    "nominal_awg_amplitude_v": 1.2,
+    "supply_offset_v": -0.001,
+    "dut_gain": 1.0,
+    "dut_offset_v": 0.0,
+    "dmm_noise_v": [
+      0.0
+    ],
+    "scope_noise_v": [
+      0.0
+    ]
+  }
+}

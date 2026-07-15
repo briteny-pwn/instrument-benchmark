@@ -9,6 +9,7 @@ from .linting import lint_all, lint_instance
 from .paths import ROOT, RUNS, parse_instance
 from .run_store import create_run
 from .security_check import run_security_check
+from .world_distribution import freeze_distribution
 
 
 def _run_dir(value: str) -> Path:
@@ -34,6 +35,9 @@ def main() -> None:
 
     security_parser = subparsers.add_parser("security-check")
     security_parser.add_argument("--instance", required=True)
+
+    freeze_parser = subparsers.add_parser("freeze-worlds")
+    freeze_parser.add_argument("--instance", required=True)
 
     init_parser = subparsers.add_parser("init")
     init_parser.add_argument("--instance", required=True)
@@ -70,6 +74,13 @@ def main() -> None:
         print(json.dumps(report, indent=2))
         if not report["pass"]:
             raise SystemExit(1)
+        return
+    if args.command == "freeze-worlds":
+        source, instance_id = parse_instance(args.instance)
+        outputs = freeze_distribution(
+            ROOT / "evaluations" / source / instance_id / "spec.json"
+        )
+        print(json.dumps({"worlds": [str(path.relative_to(ROOT)) for path in outputs]}, indent=2))
         return
 
     if args.command in {"init", "run"}:

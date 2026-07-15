@@ -39,6 +39,14 @@ class CollectedEvidenceTests(unittest.TestCase):
             "spec_version": 2,
             "checks": [
                 {
+                    "name": "value_binding",
+                    "type": "result_trace_binding",
+                    "dimension": "task_success",
+                    "result_path": "$.value",
+                    "event_kind": "query",
+                    "payload_field": "response",
+                },
+                {
                     "name": "access",
                     "type": "anti_hardcode",
                     "dimension": "instrument_access",
@@ -48,8 +56,11 @@ class CollectedEvidenceTests(unittest.TestCase):
         }
         report = grader_core.grade_collected_scenario(
             spec=spec,
-            result={"value": 1},
-            trace=[{"kind": "socket_connect", "payload": {}}, {"kind": "query", "payload": {}}],
+            result={"value": "1"},
+            trace=[
+                {"kind": "socket_connect", "payload": {}},
+                {"kind": "query", "payload": {"response": "1"}},
+            ],
             sim_state={},
             execution_score=1.0,
             forbidden_score=1.0,

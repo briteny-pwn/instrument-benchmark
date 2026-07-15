@@ -2,7 +2,57 @@
   "instance_id": "pyvisa_dmm_ascii_average",
   "spec_version": 2,
   "gateway": "pyvisa_sim",
-  "authoring": {"base_simulator": "pyvisa_sim/mockdmm2000.yaml", "seed": "dmm-authoring-v1"},
+  "authoring": {"materialized": true, "base_simulator": "pyvisa_sim/mockdmm2000.yaml", "seed": "dmm-authoring-v1"},
+  "world_distribution": {
+    "version": 1,
+    "materialization": "frozen",
+    "worlds": [
+      {
+        "id": "core_ascii",
+        "group": "core",
+        "seed": "dmm-core-v1",
+        "template": "pyvisa_sim/mockdmm2000.yaml",
+        "simulator": "worlds/core.yaml",
+        "patches": [
+          {"path": "/devices/MockDMM2000/dialogues/0/r", "value": {"choice": ["Mock Instruments,MockDMM2000,DMMCORE41,1.0", "Mock Instruments,MockDMM2000,DMMCORE73,1.0"]}}
+        ]
+      },
+      {
+        "id": "generalization_offset",
+        "group": "generalization",
+        "seed": "dmm-generalization-v1",
+        "template": "pyvisa_sim/mockdmm2000_offset.yaml",
+        "simulator": "worlds/generalization.yaml",
+        "patches": [
+          {"path": "/devices/MockDMM2000/dialogues/4/r", "value": {"choice": ["2.451,2.549,2.503,2.518,2.479", "2.447,2.552,2.501,2.521,2.481"]}}
+        ],
+        "spec_overrides": {
+          "snapshot_queries": [
+            {"name": "voltage_range", "resource": "GPIB0::21::INSTR", "command": "VOLT:RANG?", "parse": "float"},
+            {"name": "voltage_resolution", "resource": "GPIB0::21::INSTR", "command": "VOLT:RES?", "parse": "float"},
+            {"name": "sample_count", "resource": "GPIB0::21::INSTR", "command": "SAMP:COUN?", "parse": "int"}
+          ]
+        }
+      },
+      {
+        "id": "adversarial_numeric_format",
+        "group": "adversarial",
+        "seed": "dmm-adversarial-v1",
+        "template": "pyvisa_sim/mockdmm2000_scientific.yaml",
+        "simulator": "worlds/adversarial.yaml",
+        "patches": [
+          {"path": "/devices/MockDMM2000/dialogues/4/r", "value": {"choice": ["-1.0E-2,+2.0E-2,3.0E-2,-4.0E-2,0.0", "+1.5E-2,-2.5E-2,+3.5E-2,-4.5E-2,5.0E-3"]}}
+        ],
+        "spec_overrides": {
+          "snapshot_queries": [
+            {"name": "voltage_range", "resource": "GPIB0::33::INSTR", "command": "VOLT:RANG?", "parse": "float"},
+            {"name": "voltage_resolution", "resource": "GPIB0::33::INSTR", "command": "VOLT:RES?", "parse": "float"},
+            {"name": "sample_count", "resource": "GPIB0::33::INSTR", "command": "SAMP:COUN?", "parse": "int"}
+          ]
+        }
+      }
+    ]
+  },
   "pass_threshold": 0.85,
   "rubric": {
     "sim_execution": 0.05,

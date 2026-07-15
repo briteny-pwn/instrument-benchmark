@@ -2,7 +2,7 @@
   "instance_id": "qcodes_station_sweep_basic",
   "spec_version": 2,
   "gateway": "linear_sweep",
-  "authoring": {"base_simulator": "sim/nominal.json", "seed": "sweep-authoring-v1"},
+  "authoring": {"materialized": true, "base_simulator": "sim/nominal.json", "seed": "sweep-authoring-v1"},
   "pass_threshold": 0.85,
   "rubric": {
     "sim_execution": 0.05,

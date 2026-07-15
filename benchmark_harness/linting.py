@@ -7,6 +7,8 @@ from typing import Any
 
 import yaml
 
+from evaluations.common.instance_manifest import load_registry, validate_manifest
+
 from .paths import EVALUATIONS, INSTANCES
 
 
@@ -90,7 +92,19 @@ def lint_instance(root: Path, source: str, instance_id: str) -> list[str]:
         errors.append(f"unexpected visible file: {path}")
 
     spec = _load_data(evaluation_dir / "spec.json") or {}
-    public_constants = {str(value) for value in spec.get("public_constants", [])}
+    try:
+        manifest = load_registry(root)[f"{source}/{instance_id}"]
+    except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        errors.append(f"invalid instance registry: {exc}")
+        manifest = None
+    public_constants = {
+        str(value)
+        for value in (
+            manifest.allowed_public_constants
+            if manifest is not None
+            else spec.get("public_constants", [])
+        )
+    }
     sensitive = _sensitive_hidden_strings(evaluation_dir, public_constants)
     for relative in sorted(actual & VISIBLE_FILES):
         path = instance_dir / relative
@@ -108,6 +122,10 @@ def lint_instance(root: Path, source: str, instance_id: str) -> list[str]:
         text = prompt.read_text(encoding="utf-8")
         if "solution.py" not in text or "run_experiment" not in text:
             errors.append("prompt.md: missing solution.py/run_experiment output contract")
+        if manifest is not None:
+            prefix = f"{source}/{instance_id}: "
+            for error in validate_manifest(root, manifest, spec, text):
+                errors.append(error.removeprefix(prefix))
     return errors
 
 

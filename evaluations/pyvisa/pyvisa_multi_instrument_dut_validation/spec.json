@@ -2,7 +2,43 @@
   "instance_id": "pyvisa_multi_instrument_dut_validation",
   "spec_version": 2,
   "gateway": "coupled_signal",
-  "authoring": {"base_simulator": "sim/nominal.json", "seed": "dut-authoring-v1"},
+  "authoring": {"materialized": true, "base_simulator": "sim/nominal.json", "seed": "dut-authoring-v1"},
+  "world_distribution": {
+    "version": 1,
+    "materialization": "frozen",
+    "worlds": [
+      {
+        "id": "core_causal_bench",
+        "group": "core",
+        "seed": "dut-core-v1",
+        "template": "sim/nominal.json",
+        "simulator": "worlds/core.json",
+        "patches": [
+          {"path": "/physics/supply_offset_v", "value": {"choice": [0.001, 0.002, -0.001]}}
+        ]
+      },
+      {
+        "id": "generalization_noise_and_state",
+        "group": "generalization",
+        "seed": "dut-generalization-v1",
+        "template": "sim/noisy_pass.json",
+        "simulator": "worlds/generalization.json",
+        "patches": [
+          {"path": "/physics/supply_offset_v", "value": {"choice": [-0.002, 0.002, 0.0]}}
+        ]
+      },
+      {
+        "id": "adversarial_hidden_gain_failure",
+        "group": "adversarial",
+        "seed": "dut-adversarial-v1",
+        "template": "sim/dut_gain_failure.json",
+        "simulator": "worlds/adversarial.json",
+        "patches": [
+          {"path": "/physics/dut_gain", "value": {"choice": [0.88, 0.9, 0.92]}}
+        ]
+      }
+    ]
+  },
   "pass_threshold": 0.85,
   "rubric": {
     "sim_execution": 0.05,

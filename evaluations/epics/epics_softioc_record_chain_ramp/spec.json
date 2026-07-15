@@ -2,7 +2,7 @@
   "instance_id": "epics_softioc_record_chain_ramp",
   "spec_version": 2,
   "gateway": "state_machine",
-  "authoring": {"base_simulator": "sim/record_chain_ramp.json", "seed": "record-ramp-authoring-v1"},
+  "authoring": {"materialized": true, "base_simulator": "sim/record_chain_ramp.json", "seed": "record-ramp-authoring-v1"},
   "pass_threshold": 0.85,
   "rubric": {
     "sim_execution": 0.05, "forbidden_api": 0.10, "task_success": 0.40,

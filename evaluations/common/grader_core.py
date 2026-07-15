@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import importlib
 import builtins
 import copy
 import json
@@ -16,6 +17,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
 from typing import Any
+
+from benchmark_harness.world_distribution import distribution_scenarios
 
 from . import import_guard, raw_trace
 from .raw_sim_gateway import Gateway
@@ -46,10 +49,25 @@ DEFAULT_V2_RUBRIC = {
     "safety_and_cleanup": 0.10,
 }
 
+RESULT_BINDING_CHECK_TYPES = frozenset(
+    {
+        "result_trace_binding",
+        "result_sim_state_binding",
+        "trace_numeric_aggregate",
+        "trace_numeric_array",
+        "trace_string_array",
+        "trace_ieee_block",
+        "trace_xy_spectrum",
+        "trace_command_numeric_array",
+        "trace_response",
+    }
+)
+COLLECTED_EVIDENCE_SCHEMA_VERSION = 1
+
 
 def grade(candidate_path: Path, spec_path: Path) -> dict[str, Any]:
     spec = json.loads(spec_path.read_text(encoding="utf-8"))
-    if spec.get("scenarios"):
+    if spec.get("scenarios") or spec.get("world_distribution"):
         return _grade_scenario_suite(candidate_path, spec_path, spec)
     return _grade_single(candidate_path, spec_path, spec)
 
@@ -144,12 +162,14 @@ def _grade_single(candidate_path: Path, spec_path: Path, spec: dict[str, Any]) -
 def _grade_scenario_suite(candidate_path: Path, spec_path: Path, spec: dict[str, Any]) -> dict[str, Any]:
     scenario_reports: list[dict[str, Any]] = []
     repetitions = max(1, int(spec.get("suite", {}).get("repetitions", 1)))
-    for index, scenario in enumerate(spec["scenarios"]):
+    for index, scenario in enumerate(distribution_scenarios(spec)):
         scenario_id = scenario.get("id", f"scenario-{index + 1}")
         for repetition in range(1, repetitions + 1):
             scenario_spec = _build_scenario_spec(spec, scenario)
             report = _grade_single(candidate_path, spec_path, scenario_spec)
             report["scenario_id"] = scenario_id
+            report["world_group"] = scenario.get("world_group")
+            report["world_seed"] = scenario.get("world_seed")
             report["repetition"] = repetition
             report["run_id"] = f"{scenario_id}#{repetition}" if repetitions > 1 else scenario_id
             scenario_reports.append(report)
@@ -191,6 +211,7 @@ def aggregate_scenario_reports(
 
     reliability = _build_reliability_report(scenario_reports)
 
+    scenarios = distribution_scenarios(spec)
     return {
         "instance_id": spec.get("instance_id", "unknown"),
         "spec_version": spec.get("spec_version", 2),
@@ -200,10 +221,24 @@ def aggregate_scenario_reports(
         "pass": passed,
         "pass_rate": pass_rate,
         "scenario_count": len(scenario_reports),
-        "unique_scenario_count": len(spec["scenarios"]),
+        "unique_scenario_count": len(scenarios),
         "repetitions_per_scenario": repetitions,
         "reliability": reliability,
+        "world_groups": {
+            group: _summarize_runs(
+                [report for report in scenario_reports if report.get("world_group") == group]
+            )
+            for group in ("core", "generalization", "adversarial")
+            if any(report.get("world_group") == group for report in scenario_reports)
+        },
         "feedback": feedback,
+        "failure_codes": sorted(
+            {
+                code
+                for report in scenario_reports
+                for code in report.get("failure_codes", [])
+            }
+        ),
         "scenarios": scenario_reports,
     }
 
@@ -249,6 +284,40 @@ def grade_collected_scenario(
         "trace": raw_trace.serializable_trace(),
         "sim_state": sim_state,
     }
+
+
+def grade_collected_evidence(
+    *,
+    spec: dict[str, Any],
+    collected: dict[str, Any],
+    forbidden_score: float,
+    feedback: list[str] | None = None,
+) -> dict[str, Any]:
+    """Validate and score the evidence contract used by Docker and CI tests."""
+    version = collected.get("schema_version")
+    if version != COLLECTED_EVIDENCE_SCHEMA_VERSION:
+        raise ValueError(
+            f"unsupported collected evidence schema {version!r}; "
+            f"expected {COLLECTED_EVIDENCE_SCHEMA_VERSION}"
+        )
+    result = collected.get("result", {})
+    trace = collected.get("trace", [])
+    sim_state = collected.get("sim_state", {})
+    if not isinstance(result, dict):
+        raise TypeError("collected result must be an object")
+    if not isinstance(trace, list):
+        raise TypeError("collected trace must be an array")
+    if not isinstance(sim_state, dict):
+        raise TypeError("collected sim_state must be an object")
+    return grade_collected_scenario(
+        spec=spec,
+        result=result,
+        trace=trace,
+        sim_state=sim_state,
+        execution_score=1.0 if collected.get("execution_ok") is True else 0.0,
+        forbidden_score=forbidden_score,
+        feedback=feedback,
+    )
 
 
 def _build_reliability_report(reports: list[dict[str, Any]]) -> dict[str, Any]:
@@ -371,6 +440,7 @@ def _make_gateway(spec: dict[str, Any], sim_path: Path) -> Any:
 @contextmanager
 def _blocked_imports():
     original_import = builtins.__import__
+    original_import_module = importlib.import_module
 
     def guarded_import(name: str, globals=None, locals=None, fromlist=(), level: int = 0):  # type: ignore[no-untyped-def]
         root = name.split(".", 1)[0]
@@ -378,11 +448,18 @@ def _blocked_imports():
             raise RuntimeError(f"Forbidden instrument/framework import at runtime: {name}")
         return original_import(name, globals, locals, fromlist, level)
 
+    def guarded_import_module(name: str, package: str | None = None):
+        if name.split(".", 1)[0] in import_guard.FORBIDDEN_IMPORT_ROOTS:
+            raise RuntimeError(f"Forbidden instrument/framework import at runtime: {name}")
+        return original_import_module(name, package)
+
     builtins.__import__ = guarded_import
+    importlib.import_module = guarded_import_module
     try:
         yield
     finally:
         builtins.__import__ = original_import
+        importlib.import_module = original_import_module
 
 
 def _grade_raw_evidence(raw_spec: dict[str, Any], feedback: list[str]) -> dict[str, float]:
@@ -454,13 +531,59 @@ def _grade_v2(
     }
     buckets: dict[str, list[float]] = {name: [] for name in scores}
     evidence: list[dict[str, Any]] = []
+    failure_codes: set[str] = set()
 
     if not result:
         feedback.append("No experiment result was produced.")
+        failure_codes.add("missing_result")
+    if execution_score < 1:
+        failure_codes.add("execution_failed")
+    if forbidden_score < 1:
+        failure_codes.add("forbidden_import")
 
-    for check in spec.get("checks", []):
+    binding_checks = [
+        str(check.get("name", check.get("type")))
+        for check in spec.get("checks", [])
+        if check.get("type") in RESULT_BINDING_CHECK_TYPES
+    ]
+
+    configured_checks = list(spec.get("checks", []))
+    ordered_checks = [
+        *[check for check in configured_checks if check.get("type") != "anti_hardcode"],
+        *[check for check in configured_checks if check.get("type") == "anti_hardcode"],
+    ]
+    for check in ordered_checks:
         dimension = check.get("dimension", _default_dimension_for_check(check.get("type")))
         score, detail = _run_v2_check(check, result, sim_state, feedback)
+        if check.get("type") == "anti_hardcode":
+            binding_scores = {
+                item["name"]: float(item["score"])
+                for item in evidence
+                if item.get("name") in binding_checks
+            }
+            binding_satisfied = bool(binding_checks) and all(
+                binding_scores.get(name, 0.0) >= 1.0 for name in binding_checks
+            )
+            detail["binding_audit"] = (
+                {
+                    "status": "passed" if binding_satisfied else "failed",
+                    "checks": binding_checks,
+                    "scores": binding_scores,
+                }
+                if binding_checks
+                else {"status": "missing", "checks": []}
+            )
+            if not binding_satisfied:
+                score = 0.0
+                detail["score"] = score
+                feedback.append(
+                    f"{check.get('name', 'anti_hardcode')}: instrument responses were not "
+                    "fully bound to the reported result."
+                )
+        if score < 1:
+            code = f"check_failed:{check.get('name', check.get('type', 'unnamed'))}"
+            detail["failure_code"] = code
+            failure_codes.add(code)
         detail["dimension"] = dimension
         evidence.append(detail)
         buckets.setdefault(dimension, []).append(score)
@@ -473,6 +596,22 @@ def _grade_v2(
     total = sum(scores.get(name, 0.0) * weight for name, weight in rubric.items())
     total = round(total, 4)
     gate_failures = _evaluate_gates(spec.get("gates", []), scores, evidence)
+    for gate in spec.get("gates", []):
+        target = (
+            f"dimension:{gate['dimension']}"
+            if "dimension" in gate
+            else f"check:{gate['check']}"
+            if "check" in gate
+            else "invalid"
+        )
+        minimum = float(gate.get("min", 1.0))
+        actual = (
+            float(scores.get(gate["dimension"], 0.0))
+            if "dimension" in gate
+            else float(next((item["score"] for item in evidence if item.get("name") == gate.get("check")), 0.0))
+        )
+        if actual < minimum:
+            failure_codes.add(f"gate_failed:{target}")
     for failure in gate_failures:
         feedback.append(f"Required gate failed: {failure}.")
     return {
@@ -482,6 +621,7 @@ def _grade_v2(
         "total": total,
         "pass": total >= spec.get("pass_threshold", 0.8) and not gate_failures,
         "gate_failures": gate_failures,
+        "failure_codes": sorted(failure_codes),
         "feedback": feedback,
         "evidence": evidence,
         "result": result,
