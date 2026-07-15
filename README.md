@@ -6,11 +6,13 @@ Simulation-first Instrument Access Benchmark is a repair benchmark derived from 
 
 - 20 scored candidates from the configured upstream repositories.
 - 5 human-reviewable verified candidates with issue/PR/commit provenance, difficulty analysis, simulation plan, and evaluation oracle.
-- 3 executable repair instances.
+- 3 executable repair instances in the original Python phase.
 - Micro-Manager phase: 20 scored candidates, 10 verified candidates, and five
   C++ DeviceAdapters instances (`iab_0006`–`iab_0010`).
 - Every executable instance proves pre-fix failure and gold-patch success locally.
-- Model patches can be supplied to the same evaluator, which emits a JSON report across fail-to-pass, regression, state trace, gold differential, and minefield layers.
+- The evaluator emits schema-v2 reports with `strict_pass`, `evaluation_score`
+  (0–100 partial credit), per-test results, category scores, and trace
+  checkpoint matches. `passed` remains as a compatibility field.
 
 These counts describe engineering readiness, not model-ranking validity or transfer to physical hardware. Real-hardware calibration is a phase-2 concern.
 
@@ -22,6 +24,10 @@ schemas/instance.schema.json      canonical instance metadata contract
 data/candidates.json              deterministic 20-candidate snapshot
 data/scored_candidates.json       scored and graded snapshot
 data/verified_candidates/         five evidence bundles
+data/micro_manager_scored_candidates.json
+                                  20 DeviceAdapters candidates
+data/micro_manager_verified_candidates/
+                                  10 DeviceAdapters evidence bundles
 instances/iab_*/                  executable repair instances
 evaluator/                        patch runner and trace differential
 iab/                              shared mining/scoring primitives
@@ -35,7 +41,7 @@ The archived Level 1 work is retained for provenance but is not part of IAB-Sim-
 ## Candidate pipeline
 
 ```text
-GitHub closed issue + merged PR
+GitHub issue + merged PR (or merged PR with reproduction evidence)
   -> capture base and merge commits
   -> hard-filter non-instrument and non-code changes
   -> score evidence and simulability
@@ -51,6 +57,11 @@ GITHUB_TOKEN=... python3 scripts/mine_github_issues.py --limit 20
 python3 scripts/curate_candidates.py
 python3 scripts/score_candidates.py data/candidates.json
 python3 scripts/build_verified_candidates.py
+
+# Micro-Manager DeviceAdapters phase
+python3 scripts/build_micro_manager_candidates.py
+python3 scripts/build_micro_manager_verified.py
+python3 scripts/build_micro_manager_instances.py
 ```
 
 The token is used only in request headers and is never persisted. The checked-in snapshots make evaluation independent of GitHub availability.
@@ -102,6 +113,16 @@ docker run --rm iab-0003
 | `iab_0001` | ophyd issue #1242 / PR #1243 | Device connection-timeout default and override semantics | deterministic child-signal mock |
 | `iab_0003` | ophyd issue #1218 / PR #1219 | configured trigger value ignored | stateful detector trigger simulator |
 | `iab_0005` | InstrumentKit issue #439 / PR #440 | `auth=None` breaks legacy TCP/IP driver constructors | socket/communicator mock |
+| `iab_0006` | mmCoreAndDevices PR #946 | DemoCamera XY-stage position, Busy, and polling state | C++ source contract and trace harness |
+| `iab_0007` | mmCoreAndDevices PR #828 | AlliedVision property callback synchronization | C++ source contract and callback harness |
+| `iab_0008` | mmCoreAndDevices PR #965 | PVCAM multi-ROI property updates | C++ source contract and ROI harness |
+| `iab_0009` | mmCoreAndDevices PR #914 | MMCore per-device timeout semantics | C++ source contract and timeout harness |
+| `iab_0010` | mmCoreAndDevices PR #124 | TSI SDK DLL loading compatibility | C++ source contract and loader harness |
+
+The Micro-Manager snapshots use public adapter sources and fake Core/transport
+or SDK contracts; they do not redistribute private vendor SDKs. Linux CI runs
+behavior and trace checks. macOS and Windows CI jobs cover C++ compilation and
+dynamic-library smoke checks.
 
 ## Evaluation semantics
 
@@ -110,6 +131,11 @@ docker run --rm iab-0003
 - `state_trace`: records device-facing actions and state transitions.
 - `gold_differential`: compares ordered semantic checkpoints while allowing extra implementation events and timestamps.
 - `minefield`: rejects hard-coded simulator values, duplicate actions, swallowed errors, invalid precedence, and bypassed constructor semantics.
+
+Partial scoring uses fixed weights: patch application (2), build/load (8), bug
+fix (35), regression (20), state behavior (10), trace checkpoints (10), and
+minefields/recovery (15). Strict pass still requires every required test and
+checkpoint; a partial score must not be described as a complete repair rate.
 
 The evaluator and unified-diff applier use only the Python standard library. Mining additionally uses PyYAML.
 
