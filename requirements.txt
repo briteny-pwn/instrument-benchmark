@@ -1,5 +1,1 @@
-pyvisa-sim==0.7.1
 PyYAML==6.0.3
-numpy==2.5.1
-yaqc==2023.6.0
-yaqd-fakes==2023.6.0

@@ -1,0 +1,10 @@
+[
+  {
+    "source_project": "instrumentkit", "source_repo": "https://github.com/instrumentkit/InstrumentKit",
+    "issue_url": "https://github.com/instrumentkit/InstrumentKit/issues/468", "pr_url": "https://github.com/instrumentkit/InstrumentKit/pull/469", "pr_number": 469,
+    "title": "Fix TC038D.setpoint when not using unitful newval", "issue_title": "float object has no attribute to",
+    "pre_fix_commit": "a4e12e807ac2f1cf62afc54ec96dbdb7c7459dc5", "post_fix_commit": "d5812f6cd19cd423f7ace71647607b6ced98bf05", "gold_patch_commit": "d5812f6cd19cd423f7ace71647607b6ced98bf05",
+    "changed_files": 1, "additions": 2, "deletions": 2, "language": "python", "domain": "instrument_drivers",
+    "task_type": "real_bug_repair", "failure_modes": ["framework_semantic_mismatch"], "simulator_type": "mock_object"
+  }
+]

@@ -1,0 +1,44 @@
+[
+  {
+    "source_project": "ophyd", "source_repo": "https://github.com/bluesky/ophyd",
+    "issue_url": "https://github.com/bluesky/ophyd/issues/1242", "pr_url": "https://github.com/bluesky/ophyd/pull/1243", "pr_number": 1243,
+    "title": "EpicsSignalBase connection timeout fix + Device connection timeout",
+    "issue_title": "EpicsSignal.set_defaults no longer works with connection timeouts",
+    "pre_fix_commit": "1c2b121e63de747f9d3780f6fc208c8912f89d49", "post_fix_commit": "496fae33a8181307ab199d18fc4e32b14248b6e3", "gold_patch_commit": "496fae33a8181307ab199d18fc4e32b14248b6e3",
+    "changed_files": 3, "additions": 318, "deletions": 6, "language": "python", "domain": "scientific_control",
+    "task_type": "framework_semantic_integration", "failure_modes": ["timeout", "framework_semantic_mismatch", "device_initialization"], "simulator_type": "mock_object"
+  },
+  {
+    "source_project": "ophyd", "source_repo": "https://github.com/bluesky/ophyd",
+    "issue_url": "https://github.com/bluesky/ophyd/issues/1256", "pr_url": "https://github.com/bluesky/ophyd/pull/1257", "pr_number": 1257,
+    "title": "EpicsSignalNoValidation does not accept write_pv as kwarg",
+    "issue_title": "EpicsSignalNoValidation does not accept 'write_pv' as kwarg",
+    "pre_fix_commit": "f29fb219fa18fa8f5a8214d65302714d97c74a7f", "post_fix_commit": "578a24ce16f7de853bed5b84507785a6582cb63b", "gold_patch_commit": "578a24ce16f7de853bed5b84507785a6582cb63b",
+    "changed_files": 1, "additions": 56, "deletions": 54, "language": "python", "domain": "scientific_control",
+    "task_type": "framework_semantic_integration", "failure_modes": ["framework_semantic_mismatch", "device_initialization"], "simulator_type": "mock_object"
+  },
+  {
+    "source_project": "ophyd", "source_repo": "https://github.com/bluesky/ophyd",
+    "issue_url": "https://github.com/bluesky/ophyd/issues/1218", "pr_url": "https://github.com/bluesky/ophyd/pull/1219", "pr_number": 1219,
+    "title": "use provided value of trigger_value", "issue_title": "Provided value of trigger_value is ignored",
+    "pre_fix_commit": "5df3f5694f5c4c0ac049f0e601512f220e85744b", "post_fix_commit": "52c082dfd0d9f433391b87b693ffef476b06026f", "gold_patch_commit": "52c082dfd0d9f433391b87b693ffef476b06026f",
+    "changed_files": 2, "additions": 27, "deletions": 1, "language": "python", "domain": "scientific_control",
+    "task_type": "framework_semantic_integration", "failure_modes": ["state_machine", "framework_semantic_mismatch"], "simulator_type": "stateful_simulator"
+  },
+  {
+    "source_project": "ophyd", "source_repo": "https://github.com/bluesky/ophyd",
+    "issue_url": "https://github.com/bluesky/ophyd/issues/1206", "pr_url": "https://github.com/bluesky/ophyd/pull/1207", "pr_number": 1207,
+    "title": "Repair EpicsSignal.set() for array PVs", "issue_title": "FailedStatus from ophyd while writing array to EpicsSignal",
+    "pre_fix_commit": "9c77d86cd7c3b1c6e34d88b9b3eed27063c9b616", "post_fix_commit": "050b98f34d68bd9577179accfdfca8f635cc0f31", "gold_patch_commit": "050b98f34d68bd9577179accfdfca8f635cc0f31",
+    "changed_files": 2, "additions": 46, "deletions": 2, "language": "python", "domain": "scientific_control",
+    "task_type": "real_bug_repair", "failure_modes": ["stale_data", "framework_semantic_mismatch"], "simulator_type": "mock_object"
+  },
+  {
+    "source_project": "instrumentkit", "source_repo": "https://github.com/instrumentkit/InstrumentKit",
+    "issue_url": "https://github.com/instrumentkit/InstrumentKit/issues/439", "pr_url": "https://github.com/instrumentkit/InstrumentKit/pull/440", "pr_number": 440,
+    "title": "Fix the open_tcpip bug that crept in with the auth argument", "issue_title": "inst.open_tcpip() errors for various instruments",
+    "pre_fix_commit": "98f8212009fb2069a2484dc41c25f6fbb33a1b32", "post_fix_commit": "3e014d3af950bd290e21fde10a3500b5b1dc43ea", "gold_patch_commit": "3e014d3af950bd290e21fde10a3500b5b1dc43ea",
+    "changed_files": 3, "additions": 31, "deletions": 5, "language": "python", "domain": "instrument_drivers",
+    "task_type": "real_bug_repair", "failure_modes": ["device_initialization", "framework_semantic_mismatch", "resource_conflict"], "simulator_type": "mock_object"
+  }
+]

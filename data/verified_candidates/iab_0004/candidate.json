@@ -1,0 +1,58 @@
+{
+  "instance_id": "iab_0004",
+  "source_project": "ophyd",
+  "source_repo": "https://github.com/bluesky/ophyd",
+  "source_type": "resolved_issue_plus_pr",
+  "issue_url": "https://github.com/bluesky/ophyd/issues/1206",
+  "pr_url": "https://github.com/bluesky/ophyd/pull/1207",
+  "pre_fix_commit": "9c77d86cd7c3b1c6e34d88b9b3eed27063c9b616",
+  "post_fix_commit": "050b98f34d68bd9577179accfdfca8f635cc0f31",
+  "gold_patch_commit": "050b98f34d68bd9577179accfdfca8f635cc0f31",
+  "instrument_category": "scientific_control",
+  "task_type": "real_bug_repair",
+  "failure_modes": [
+    "stale_data",
+    "framework_semantic_mismatch"
+  ],
+  "framework": "ophyd",
+  "language": "python",
+  "simulator_type": "mock_object",
+  "requires_real_hardware": false,
+  "given_to_model": {
+    "issue_text": true,
+    "failure_log": true,
+    "docs_excerpt": true,
+    "pre_fix_code": true,
+    "simulator": true
+  },
+  "hidden_from_model": {
+    "gold_patch": true,
+    "post_fix_commit": true,
+    "hidden_tests": true
+  },
+  "reproduction": {
+    "pre_fix_fails": null,
+    "gold_patch_passes": null,
+    "command": ""
+  },
+  "difficulty_evidence": {
+    "files_changed_by_gold": 2,
+    "layers_touched": [
+      "driver",
+      "framework",
+      "tests"
+    ],
+    "requires_state_reasoning": true,
+    "requires_async_reasoning": true,
+    "requires_framework_semantics": true,
+    "requires_safety_constraints": false
+  },
+  "evaluation_layers": [
+    "fail_to_pass",
+    "regression",
+    "state_trace",
+    "gold_differential",
+    "minefield"
+  ],
+  "status": "verified_candidate"
+}

@@ -1,0 +1,10 @@
+sources:
+  - {name: ophyd, repo: bluesky/ophyd, priority: high, language: python, domain: scientific_control}
+  - {name: bluesky, repo: bluesky/bluesky, priority: medium, language: python, domain: experiment_orchestration}
+  - {name: qcodes, repo: microsoft/Qcodes, priority: high, language: python, domain: instrument_drivers}
+  - {name: qcodes_contrib_drivers, repo: QCoDeS/Qcodes_contrib_drivers, priority: high, language: python, domain: instrument_drivers}
+  - {name: pymeasure, repo: pymeasure/pymeasure, priority: high, language: python, domain: instrument_drivers}
+  - {name: instrumentkit, repo: instrumentkit/InstrumentKit, priority: medium, language: python, domain: instrument_drivers}
+  - {name: areaDetector, repo: areaDetector/areaDetector, priority: high, language: c_cpp_epics, domain: detector_control}
+  - {name: ADSimDetector, repo: areaDetector/ADSimDetector, priority: high, language: c_cpp_epics, domain: detector_simulation}
+  - {name: micro_manager, repo: micro-manager/micro-manager, priority: high, language: cpp, domain: microscopy_device_adapters}

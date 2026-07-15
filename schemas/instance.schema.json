@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iab.example/schemas/instance.schema.json",
+  "title": "IAB-Sim executable instance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instance_id", "source_project", "source_repo", "source_type", "issue_url", "pr_url", "pre_fix_commit", "post_fix_commit", "gold_patch_commit", "instrument_category", "task_type", "failure_modes", "framework", "language", "simulator_type", "requires_real_hardware", "given_to_model", "hidden_from_model", "reproduction", "difficulty_evidence", "evaluation_layers", "status"],
+  "properties": {
+    "instance_id": {"type": "string", "pattern": "^iab_[0-9]{4}$"},
+    "source_project": {"type": "string", "minLength": 1},
+    "source_repo": {"type": "string", "pattern": "^https://github\\.com/[^/]+/[^/]+$"},
+    "source_type": {"const": "resolved_issue_plus_pr"},
+    "issue_url": {"type": "string", "format": "uri"},
+    "pr_url": {"type": "string", "format": "uri"},
+    "pre_fix_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "post_fix_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "gold_patch_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "instrument_category": {"type": "string", "minLength": 1},
+    "task_type": {"enum": ["real_bug_repair", "version_compatibility", "framework_semantic_integration", "multi_device_integration", "safety_critical_integration"]},
+    "failure_modes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["state_machine", "async_timing", "timeout", "stale_data", "firmware_version_skew", "framework_semantic_mismatch", "resource_conflict", "metadata_mismatch", "device_initialization", "error_recovery", "safety_boundary", "multi_device_sync"]}},
+    "framework": {"type": "string", "minLength": 1},
+    "language": {"type": "string", "minLength": 1},
+    "simulator_type": {"enum": ["mock_object", "stateful_simulator", "trace_replay", "soft_device"]},
+    "requires_real_hardware": {"const": false},
+    "given_to_model": {"$ref": "#/$defs/visibility"},
+    "hidden_from_model": {"$ref": "#/$defs/hidden"},
+    "reproduction": {"type": "object", "required": ["pre_fix_fails", "gold_patch_passes", "command"], "properties": {"pre_fix_fails": {"type": ["boolean", "null"]}, "gold_patch_passes": {"type": ["boolean", "null"]}, "command": {"type": "string"}}},
+    "difficulty_evidence": {"type": "object", "required": ["files_changed_by_gold", "layers_touched", "requires_state_reasoning", "requires_async_reasoning", "requires_framework_semantics", "requires_safety_constraints"], "properties": {"files_changed_by_gold": {"type": "integer", "minimum": 0}, "layers_touched": {"type": "array", "items": {"type": "string"}}, "requires_state_reasoning": {"type": "boolean"}, "requires_async_reasoning": {"type": "boolean"}, "requires_framework_semantics": {"type": "boolean"}, "requires_safety_constraints": {"type": "boolean"}}},
+    "evaluation_layers": {"type": "array", "minItems": 3, "items": {"enum": ["fail_to_pass", "regression", "state_trace", "gold_differential", "minefield"]}},
+    "status": {"enum": ["candidate", "verified_candidate", "executable"]}
+  },
+  "$defs": {
+    "visibility": {"type": "object", "required": ["issue_text", "failure_log", "docs_excerpt", "pre_fix_code", "simulator"], "properties": {"issue_text": {"const": true}, "failure_log": {"const": true}, "docs_excerpt": {"const": true}, "pre_fix_code": {"const": true}, "simulator": {"const": true}}},
+    "hidden": {"type": "object", "required": ["gold_patch", "post_fix_commit", "hidden_tests"], "properties": {"gold_patch": {"const": true}, "post_fix_commit": {"const": true}, "hidden_tests": {"const": true}}}
+  }
+}
