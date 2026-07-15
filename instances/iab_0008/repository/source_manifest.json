@@ -1,0 +1,13 @@
+{
+  "commit": "c364d4e70db1e507c4dba24574e7d58236c12f08",
+  "files": [
+    "DeviceAdapters/PVCAM/PVCAMAdapter.h",
+    "DeviceAdapters/PVCAM/PVCAMUniversal.cpp",
+    "DeviceAdapters/PVCAM/Version.h"
+  ],
+  "git_blobs": {
+    "DeviceAdapters/PVCAM/PVCAMAdapter.h": "76962eacae09bd57a6c4bc6509c264031d79d5c4",
+    "DeviceAdapters/PVCAM/PVCAMUniversal.cpp": "bfb49dc7a6029d35707bcc4a022b384952fa0769",
+    "DeviceAdapters/PVCAM/Version.h": "ebdf7a1ba27047f5826a544e4809db9ced0380f8"
+  }
+}

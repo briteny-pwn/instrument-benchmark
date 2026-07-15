@@ -1,0 +1,67 @@
+{
+  "source_paths": [
+    "DeviceAdapters/PVCAM/PVCAMAdapter.h",
+    "DeviceAdapters/PVCAM/PVCAMUniversal.cpp",
+    "DeviceAdapters/PVCAM/Version.h"
+  ],
+  "rules": {
+    "port_scan": {
+      "any": [
+        "port",
+        "Port"
+      ],
+      "all": [
+        "multi",
+        "ROI"
+      ]
+    },
+    "restore_port": {
+      "any": [
+        "restore",
+        "original",
+        "curPort",
+        "currentPort"
+      ]
+    },
+    "multi_roi_capability": {
+      "all": [
+        "MultiROI"
+      ]
+    },
+    "kinetix_support": {
+      "any": [
+        "Kinetix",
+        "kinetix"
+      ]
+    },
+    "roi_regression": {
+      "all": [
+        "SetROI"
+      ]
+    },
+    "single_roi_fallback": {
+      "any": [
+        "single",
+        "Single",
+        "1"
+      ]
+    }
+  },
+  "groups": {
+    "bug_fix": [
+      "port_scan",
+      "restore_port"
+    ],
+    "regression": [
+      "roi_regression",
+      "single_roi_fallback"
+    ],
+    "state_trace": [
+      "multi_roi_capability",
+      "kinetix_support"
+    ],
+    "minefields": [
+      "restore_port"
+    ]
+  }
+}

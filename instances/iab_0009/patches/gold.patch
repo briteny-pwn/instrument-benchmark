@@ -1,0 +1,308 @@
+diff --git a/MMCore/Devices/DeviceInstance.h b/MMCore/Devices/DeviceInstance.h
+index 4902d9023..9bc2dfe63 100644
+--- a/MMCore/Devices/DeviceInstance.h
++++ b/MMCore/Devices/DeviceInstance.h
+@@ -27,6 +27,7 @@
+ #include <cstring>
+ #include <functional>
+ #include <memory>
++#include <optional>
+ #include <string>
+ #include <vector>
+ 
+@@ -81,6 +82,7 @@ class DeviceInstance
+    logging::Logger coreLogger_;
+    bool initializeCalled_ = false;
+    bool initialized_ = false;
++   std::optional<long> timeoutMsOverride_{};
+ 
+ public:
+    DeviceInstance(const DeviceInstance&) = delete;
+@@ -102,6 +104,10 @@ class DeviceInstance
+    bool IsInitialized() const { return initialized_; }
+    bool HasInitializationBeenAttempted() const { return initializeCalled_; }
+ 
++   std::optional<long> GetTimeoutMsOverride() const /* final */ { return timeoutMsOverride_; }
++   void SetTimeoutMsOverride(long ms) /* final */ { timeoutMsOverride_ = ms; }
++   void ClearTimeoutMsOverride() /* final */ { timeoutMsOverride_.reset(); }
++
+ protected:
+    // The DeviceInstance object owns the raw device pointer (pDevice) as soon
+    // as the constructor is called, even if the constructor throws.
+diff --git a/MMCore/MMCore.cpp b/MMCore/MMCore.cpp
+index c825684b7..7885335b2 100644
+--- a/MMCore/MMCore.cpp
++++ b/MMCore/MMCore.cpp
+@@ -108,7 +108,7 @@ namespace notif = mmcore::internal::notification;
+  * (Keep the 3 numbers on one line to make it easier to look at diffs when
+  * merging/rebasing.)
+  */
+-const int MMCore_versionMajor = 12, MMCore_versionMinor = 4, MMCore_versionPatch = 0;
++const int MMCore_versionMajor = 12, MMCore_versionMinor = 5, MMCore_versionPatch = 0;
+ 
+ 
+ ///////////////////////////////////////////////////////////////////////////////
+@@ -1417,6 +1417,76 @@ long CMMCore::getTimeoutMs()
+    return timeoutMs_;
+ }
+ 
++/**
++ * Sets a per-device override for the wait/busy timeout.
++ *
++ * When set, the override replaces the global timeout (see setTimeoutMs) for
++ * waitForDevice on this specific device. The override does not persist across
++ * device unload/reload.
++ *
++ * @param label      the device label (must name a loaded non-Core device)
++ * @param timeoutMs  the timeout in milliseconds (must be positive)
++ */
++void CMMCore::setDeviceTimeoutMs(const char* label, long timeoutMs) MMCORE_LEGACY_THROW(CMMError)
++{
++   CheckDeviceLabel(label);
++   if (IsCoreDeviceLabel(label))
++      throw CMMError("Cannot set per-device timeout on the Core device");
++   if (timeoutMs <= 0)
++      throw CMMError("Device timeout must be positive");
++   std::shared_ptr<mmi::DeviceInstance> pDevice = deviceManager_->GetDevice(label);
++   pDevice->SetTimeoutMsOverride(timeoutMs);
++   LOG_DEBUG(coreLogger_) << "Set device timeout override for " << label << " to " << timeoutMs << " ms";
++}
++
++/**
++ * Clears the per-device wait/busy timeout override, falling back to the
++ * global timeout. No-op if no override is set.
++ *
++ * @param label   the device label (must name a loaded non-Core device)
++ */
++void CMMCore::unsetDeviceTimeout(const char* label) MMCORE_LEGACY_THROW(CMMError)
++{
++   CheckDeviceLabel(label);
++   if (IsCoreDeviceLabel(label))
++      throw CMMError("Cannot unset per-device timeout on the Core device");
++   std::shared_ptr<mmi::DeviceInstance> pDevice = deviceManager_->GetDevice(label);
++   if (pDevice->GetTimeoutMsOverride().has_value())
++   {
++      pDevice->ClearTimeoutMsOverride();
++      LOG_DEBUG(coreLogger_) << "Cleared device timeout override for " << label;
++   }
++}
++
++/**
++ * Returns the effective wait/busy timeout for the specified device: the
++ * per-device override if set, otherwise the global timeout.
++ *
++ * @param label   the device label
++ */
++long CMMCore::getDeviceTimeoutMs(const char* label) MMCORE_LEGACY_THROW(CMMError)
++{
++   CheckDeviceLabel(label);
++   if (IsCoreDeviceLabel(label))
++      return timeoutMs_;
++   std::shared_ptr<mmi::DeviceInstance> pDevice = deviceManager_->GetDevice(label);
++   return pDevice->GetTimeoutMsOverride().value_or(timeoutMs_);
++}
++
++/**
++ * Returns true iff the specified device has a per-device timeout override.
++ *
++ * @param label   the device label
++ */
++bool CMMCore::hasDeviceTimeout(const char* label) MMCORE_LEGACY_THROW(CMMError)
++{
++   CheckDeviceLabel(label);
++   if (IsCoreDeviceLabel(label))
++      return false;
++   std::shared_ptr<mmi::DeviceInstance> pDevice = deviceManager_->GetDevice(label);
++   return pDevice->GetTimeoutMsOverride().has_value();
++}
++
+ /**
+  * Waits (blocks the calling thread) for specified time in milliseconds.
+  * @param intervalMs the time to sleep in milliseconds
+@@ -1450,8 +1520,10 @@ void CMMCore::waitForDevice(std::shared_ptr<mmcore::internal::DeviceInstance> pD
+ {
+    LOG_DEBUG(coreLogger_) << "Waiting for device " << pDev->GetLabel() << "...";
+ 
++   const long effectiveTimeoutMs = pDev->GetTimeoutMsOverride().value_or(timeoutMs_);
++
+    auto now = std::chrono::steady_clock::now();
+-   auto timeout = std::chrono::duration<long long, std::milli>(timeoutMs_);
++   auto timeout = std::chrono::duration<long long, std::milli>(effectiveTimeoutMs);
+    auto deadline = now + timeout;
+ 
+    while (true)
+@@ -1468,10 +1540,10 @@ void CMMCore::waitForDevice(std::shared_ptr<mmcore::internal::DeviceInstance> pD
+       {
+          std::string label = pDev->GetLabel();
+          std::ostringstream mez;
+-         mez << "wait timed out after " << timeoutMs_ << " ms. ";
++         mez << "wait timed out after " << effectiveTimeoutMs << " ms. ";
+          logError(label.c_str(), mez.str().c_str());
+          throw CMMError("Wait for device " + ToQuotedString(label) + " timed out after " +
+-               ToString(timeoutMs_) + "ms",
++               ToString(effectiveTimeoutMs) + "ms",
+                MMERR_DevicePollingTimeout);
+       }
+ 
+diff --git a/MMCore/MMCore.h b/MMCore/MMCore.h
+index ec602b3ca..d7eb64d77 100644
+--- a/MMCore/MMCore.h
++++ b/MMCore/MMCore.h
+@@ -269,6 +269,10 @@ class CMMCore
+ 
+    void setTimeoutMs(long timeoutMs);
+    long getTimeoutMs();
++   void setDeviceTimeoutMs(const char* label, long timeoutMs) MMCORE_LEGACY_THROW(CMMError);
++   void unsetDeviceTimeout(const char* label) MMCORE_LEGACY_THROW(CMMError);
++   long getDeviceTimeoutMs(const char* label) MMCORE_LEGACY_THROW(CMMError);
++   bool hasDeviceTimeout(const char* label) MMCORE_LEGACY_THROW(CMMError);
+ 
+    void sleep(double intervalMs) const;
+    ///@}
+diff --git a/MMCore/unittest/DeviceTimeout-Tests.cpp b/MMCore/unittest/DeviceTimeout-Tests.cpp
+new file mode 100644
+index 000000000..d1f24c582
+--- /dev/null
++++ b/MMCore/unittest/DeviceTimeout-Tests.cpp
+@@ -0,0 +1,116 @@
++#include <catch2/catch_all.hpp>
++
++#include "MMCore.h"
++#include "MockDeviceUtils.h"
++#include "StubDevices.h"
++
++TEST_CASE("Per-device timeout set/get/has/unset") {
++   StubGeneric dev;
++   MockAdapterWithDevices adapter{{"dev", &dev}};
++   CMMCore c;
++   adapter.LoadIntoCore(c);
++
++   SECTION("no override by default; get returns global") {
++      CHECK_FALSE(c.hasDeviceTimeout("dev"));
++      CHECK(c.getDeviceTimeoutMs("dev") == c.getTimeoutMs());
++   }
++
++   SECTION("set, get, has, unset happy path") {
++      c.setDeviceTimeoutMs("dev", 123);
++      CHECK(c.hasDeviceTimeout("dev"));
++      CHECK(c.getDeviceTimeoutMs("dev") == 123);
++      // Global is untouched
++      CHECK(c.getTimeoutMs() == 5000);
++
++      c.unsetDeviceTimeout("dev");
++      CHECK_FALSE(c.hasDeviceTimeout("dev"));
++      CHECK(c.getDeviceTimeoutMs("dev") == c.getTimeoutMs());
++   }
++
++   SECTION("unset without an override is a no-op") {
++      CHECK_NOTHROW(c.unsetDeviceTimeout("dev"));
++      CHECK_FALSE(c.hasDeviceTimeout("dev"));
++   }
++
++   SECTION("set with zero throws") {
++      CHECK_THROWS(c.setDeviceTimeoutMs("dev", 0));
++      CHECK_FALSE(c.hasDeviceTimeout("dev"));
++   }
++
++   SECTION("set with negative throws") {
++      CHECK_THROWS(c.setDeviceTimeoutMs("dev", -1));
++      CHECK_FALSE(c.hasDeviceTimeout("dev"));
++   }
++
++   SECTION("set overwrites existing override") {
++      c.setDeviceTimeoutMs("dev", 100);
++      c.setDeviceTimeoutMs("dev", 200);
++      CHECK(c.getDeviceTimeoutMs("dev") == 200);
++   }
++}
++
++TEST_CASE("Per-device timeout: unknown label throws") {
++   CMMCore c;
++
++   CHECK_THROWS(c.setDeviceTimeoutMs("nosuchdevice", 100));
++   CHECK_THROWS(c.unsetDeviceTimeout("nosuchdevice"));
++   CHECK_THROWS(c.getDeviceTimeoutMs("nosuchdevice"));
++   CHECK_THROWS(c.hasDeviceTimeout("nosuchdevice"));
++}
++
++TEST_CASE("Per-device timeout: Core label handling") {
++   CMMCore c;
++
++   SECTION("set on Core throws") {
++      CHECK_THROWS(c.setDeviceTimeoutMs("Core", 100));
++   }
++
++   SECTION("unset on Core throws") {
++      CHECK_THROWS(c.unsetDeviceTimeout("Core"));
++   }
++
++   SECTION("get on Core returns the global timeout") {
++      CHECK(c.getDeviceTimeoutMs("Core") == c.getTimeoutMs());
++      c.setTimeoutMs(1234);
++      CHECK(c.getDeviceTimeoutMs("Core") == 1234);
++   }
++
++   SECTION("has on Core returns false") {
++      CHECK_FALSE(c.hasDeviceTimeout("Core"));
++   }
++}
++
++TEST_CASE("Per-device timeout survives across waitForDevice calls") {
++   StubGeneric dev;
++   MockAdapterWithDevices adapter{{"dev", &dev}};
++   CMMCore c;
++   adapter.LoadIntoCore(c);
++
++   c.setDeviceTimeoutMs("dev", 777);
++   c.waitForDevice("dev");
++   CHECK(c.hasDeviceTimeout("dev"));
++   CHECK(c.getDeviceTimeoutMs("dev") == 777);
++
++   c.waitForDevice("dev");
++   CHECK(c.hasDeviceTimeout("dev"));
++   CHECK(c.getDeviceTimeoutMs("dev") == 777);
++}
++
++TEST_CASE("Per-device timeout is forgotten after unloadDevice") {
++   StubGeneric dev;
++   MockAdapterWithDevices adapter{{"dev", &dev}};
++   CMMCore c;
++   adapter.LoadIntoCore(c);
++
++   c.setDeviceTimeoutMs("dev", 999);
++   CHECK(c.hasDeviceTimeout("dev"));
++
++   c.unloadDevice("dev");
++   CHECK_THROWS(c.hasDeviceTimeout("dev"));
++
++   // Reload under the same label; override must be gone.
++   c.loadDevice("dev", "mock_adapter", "dev");
++   c.initializeDevice("dev");
++   CHECK_FALSE(c.hasDeviceTimeout("dev"));
++   CHECK(c.getDeviceTimeoutMs("dev") == c.getTimeoutMs());
++}
+diff --git a/MMCore/unittest/meson.build b/MMCore/unittest/meson.build
+index c64a19b28..381eaa902 100644
+--- a/MMCore/unittest/meson.build
++++ b/MMCore/unittest/meson.build
+@@ -14,6 +14,7 @@ mmcore_test_sources = files(
+     'CircularBuffer-Tests.cpp',
+     'CoreCreateDestroy-Tests.cpp',
+     'CoreProperties-Tests.cpp',
++    'DeviceTimeout-Tests.cpp',
+     'EventCallback-Tests.cpp',
+     'ImageMetadata-Tests.cpp',
+     'ImageMetadataTags-Tests.cpp',
+diff --git a/MMCoreJ_wrap/pom.xml b/MMCoreJ_wrap/pom.xml
+index 4d1536038..030aa3030 100644
+--- a/MMCoreJ_wrap/pom.xml
++++ b/MMCoreJ_wrap/pom.xml
+@@ -6,7 +6,7 @@
+ 
+     <groupId>org.micro-manager.mmcorej</groupId>
+     <artifactId>MMCoreJ</artifactId>
+-    <version>12.4.0</version>
++    <version>12.5.0</version>
+ 
+     <name>MMCore Java API</name>
+     <description>Java bindings for MMCore, the device abstraction layer of Micro-Manager, the microscope control and acquisition platform.</description>

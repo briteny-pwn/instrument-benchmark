@@ -1,0 +1,17 @@
+{
+  "commit": "717bd246cce282b7ed0f42784b19443214c7ca5a",
+  "files": [
+    "DeviceAdapters/TSI/TSI.vcxproj",
+    "DeviceAdapters/TSI/TSI3Cam.cpp",
+    "DeviceAdapters/TSI/TSILibrary.cpp",
+    "DeviceAdapters/TSI/tl_camera_sdk_load.c",
+    "DeviceAdapters/TSI/tl_camera_sdk_load.h"
+  ],
+  "git_blobs": {
+    "DeviceAdapters/TSI/TSI.vcxproj": "2287a9b664f230c1c1cb43294bfa4850727d93fa",
+    "DeviceAdapters/TSI/TSI3Cam.cpp": "e1bdd3f05c385973c7a0e5825dc8f42190af3ee2",
+    "DeviceAdapters/TSI/TSILibrary.cpp": "3e309bef1dc504221689520e9b8ec3beec1b1a5e",
+    "DeviceAdapters/TSI/tl_camera_sdk_load.c": "370916ac67e2bb671a10ae25f446785a128001f3",
+    "DeviceAdapters/TSI/tl_camera_sdk_load.h": "19d519795872d5d153280933fca5ab712c0c41f2"
+  }
+}

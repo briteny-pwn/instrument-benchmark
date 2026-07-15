@@ -1,0 +1,84 @@
+{
+  "instance_id": "iab_0007",
+  "source_project": "micro_manager_core",
+  "source_repo": "https://github.com/micro-manager/mmCoreAndDevices",
+  "source_type": "merged_pr_with_reproduction",
+  "issue_url": "",
+  "pr_url": "https://github.com/micro-manager/mmCoreAndDevices/pull/828",
+  "pre_fix_commit": "763087f66564f551c5ed986120af199aea00059f",
+  "post_fix_commit": "a30abc6b305f2f1767fc0a2a34ce709d56d04af8",
+  "gold_patch_commit": "a30abc6b305f2f1767fc0a2a34ce709d56d04af8",
+  "parent_repo": "https://github.com/micro-manager/micro-manager",
+  "adapter_name": "AlliedVisionCamera",
+  "changed_paths": [
+    "DeviceAdapters/AlliedVisionCamera/AlliedVisionCamera.cpp",
+    "DeviceAdapters/AlliedVisionCamera/AlliedVisionCamera.h"
+  ],
+  "platforms": [
+    "linux",
+    "macos",
+    "windows"
+  ],
+  "vendor_sdk_strategy": "public_stub",
+  "instrument_category": "camera",
+  "task_type": "real_bug_repair",
+  "failure_modes": [
+    "async_timing",
+    "property_state_desync",
+    "stale_data"
+  ],
+  "framework": "Micro-Manager",
+  "language": "cpp",
+  "simulator_type": "stateful_simulator",
+  "requires_real_hardware": false,
+  "given_to_model": {
+    "issue_text": true,
+    "failure_log": true,
+    "docs_excerpt": true,
+    "pre_fix_code": true,
+    "simulator": true
+  },
+  "hidden_from_model": {
+    "gold_patch": true,
+    "post_fix_commit": true,
+    "hidden_tests": true
+  },
+  "reproduction": {
+    "pre_fix_fails": null,
+    "gold_patch_passes": null,
+    "command": "bash setup.sh && bash reproduce_pre_fix.sh && bash apply_gold_patch.sh && bash evaluate.sh"
+  },
+  "difficulty_evidence": {
+    "files_changed_by_gold": 2,
+    "layers_touched": [
+      "AlliedVisionCamera",
+      "MMCore",
+      "tests"
+    ],
+    "requires_state_reasoning": false,
+    "requires_async_reasoning": true,
+    "requires_framework_semantics": true,
+    "requires_safety_constraints": false
+  },
+  "evaluation_layers": [
+    "build",
+    "fail_to_pass",
+    "regression",
+    "state_trace",
+    "gold_differential",
+    "minefield"
+  ],
+  "status": "executable",
+  "build": {
+    "system": "cmake",
+    "cxx_standard": 17,
+    "behavior_platform": "linux",
+    "compile_platforms": [
+      "linux",
+      "macos",
+      "windows"
+    ],
+    "artifact": "iab_adapter_tests",
+    "vendor_sdk_strategy": "public_stub"
+  }
+}

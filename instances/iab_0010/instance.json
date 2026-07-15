@@ -1,0 +1,87 @@
+{
+  "instance_id": "iab_0010",
+  "source_project": "micro_manager_core",
+  "source_repo": "https://github.com/micro-manager/mmCoreAndDevices",
+  "source_type": "merged_pr_with_reproduction",
+  "issue_url": "",
+  "pr_url": "https://github.com/micro-manager/mmCoreAndDevices/pull/124",
+  "pre_fix_commit": "717bd246cce282b7ed0f42784b19443214c7ca5a",
+  "post_fix_commit": "1df90a600a42b47449fb5310a107645199feb636",
+  "gold_patch_commit": "1df90a600a42b47449fb5310a107645199feb636",
+  "parent_repo": "https://github.com/micro-manager/micro-manager",
+  "adapter_name": "TSI",
+  "changed_paths": [
+    "DeviceAdapters/TSI/TSI.vcxproj",
+    "DeviceAdapters/TSI/TSI3Cam.cpp",
+    "DeviceAdapters/TSI/TSILibrary.cpp",
+    "DeviceAdapters/TSI/tl_camera_sdk_load.c",
+    "DeviceAdapters/TSI/tl_camera_sdk_load.h"
+  ],
+  "platforms": [
+    "linux",
+    "macos",
+    "windows"
+  ],
+  "vendor_sdk_strategy": "public_stub",
+  "instrument_category": "adapter_loading",
+  "task_type": "version_compatibility",
+  "failure_modes": [
+    "dynamic_loading",
+    "platform_compatibility",
+    "firmware_version_skew"
+  ],
+  "framework": "Micro-Manager",
+  "language": "cpp",
+  "simulator_type": "mock_object",
+  "requires_real_hardware": false,
+  "given_to_model": {
+    "issue_text": true,
+    "failure_log": true,
+    "docs_excerpt": true,
+    "pre_fix_code": true,
+    "simulator": true
+  },
+  "hidden_from_model": {
+    "gold_patch": true,
+    "post_fix_commit": true,
+    "hidden_tests": true
+  },
+  "reproduction": {
+    "pre_fix_fails": null,
+    "gold_patch_passes": null,
+    "command": "bash setup.sh && bash reproduce_pre_fix.sh && bash apply_gold_patch.sh && bash evaluate.sh"
+  },
+  "difficulty_evidence": {
+    "files_changed_by_gold": 5,
+    "layers_touched": [
+      "TSI",
+      "MMCore",
+      "tests"
+    ],
+    "requires_state_reasoning": false,
+    "requires_async_reasoning": false,
+    "requires_framework_semantics": true,
+    "requires_safety_constraints": false
+  },
+  "evaluation_layers": [
+    "build",
+    "fail_to_pass",
+    "regression",
+    "state_trace",
+    "gold_differential",
+    "minefield"
+  ],
+  "status": "executable",
+  "build": {
+    "system": "cmake",
+    "cxx_standard": 17,
+    "behavior_platform": "linux",
+    "compile_platforms": [
+      "linux",
+      "macos",
+      "windows"
+    ],
+    "artifact": "iab_adapter_tests",
+    "vendor_sdk_strategy": "public_stub"
+  }
+}

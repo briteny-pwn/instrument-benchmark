@@ -1,0 +1,17 @@
+{
+  "commit": "9a357388f17ac38c0b881117b7240d3ad0b6c901",
+  "files": [
+    "MMCore/Devices/DeviceInstance.h",
+    "MMCore/MMCore.cpp",
+    "MMCore/MMCore.h",
+    "MMCore/unittest/meson.build",
+    "MMCoreJ_wrap/pom.xml"
+  ],
+  "git_blobs": {
+    "MMCore/Devices/DeviceInstance.h": "4902d9023e2754882f4389aa35dd3cfe5532c4e3",
+    "MMCore/MMCore.cpp": "c825684b731c56a272be2b8870553b21e38e21cb",
+    "MMCore/MMCore.h": "ec602b3ca06cb23dedf6f4da6d4f6ca113e6179a",
+    "MMCore/unittest/meson.build": "c64a19b286efab9d97e98e84bfd643041e0d9da1",
+    "MMCoreJ_wrap/pom.xml": "4d1536038295ebf510bdea26e75efc350c674003"
+  }
+}

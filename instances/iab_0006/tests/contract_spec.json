@@ -1,0 +1,64 @@
+{
+  "source_paths": [
+    "DeviceAdapters/DemoCamera/DemoCamera.h",
+    "DeviceAdapters/DemoCamera/DemoImageGeneration.cpp",
+    "DeviceAdapters/DemoCamera/DemoStages.cpp"
+  ],
+  "rules": {
+    "callback_configuration": {
+      "all": [
+        "UsesOnXYStagePositionChanged",
+        "usesCallbacks_"
+      ]
+    },
+    "move_notification": {
+      "all": [
+        "NotifyMoveStarted"
+      ]
+    },
+    "settled_target": {
+      "all": [
+        "posX_um_ = targetPosX_um_",
+        "posY_um_ = targetPosY_um_"
+      ]
+    },
+    "busy_lock": {
+      "all": [
+        "MMThreadGuard guard(moveLock_)"
+      ]
+    },
+    "coordinate_conversion": {
+      "all": [
+        "ControllerUmToUserUm"
+      ]
+    },
+    "callback_lifecycle": {
+      "all": [
+        "StartNotificationThread",
+        "StopNotificationThread"
+      ]
+    },
+    "relative_position": {
+      "all": [
+        "SetRelativePositionUm"
+      ]
+    }
+  },
+  "groups": {
+    "bug_fix": [
+      "move_notification",
+      "settled_target"
+    ],
+    "regression": [
+      "busy_lock",
+      "relative_position"
+    ],
+    "state_trace": [
+      "callback_configuration",
+      "callback_lifecycle"
+    ],
+    "minefields": [
+      "coordinate_conversion"
+    ]
+  }
+}

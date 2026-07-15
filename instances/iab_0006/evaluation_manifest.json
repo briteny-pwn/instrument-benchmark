@@ -1,0 +1,19 @@
+{
+  "schema_version": 2,
+  "strict_layers": [
+    "fail_to_pass",
+    "regression",
+    "state_trace",
+    "minefields",
+    "gold_differential"
+  ],
+  "categories": {
+    "patch_application": 2,
+    "build_and_load": 8,
+    "bug_fix": 35,
+    "regression": 20,
+    "state_trace_behavior": 10,
+    "trace_checkpoints": 10,
+    "minefields": 15
+  }
+}

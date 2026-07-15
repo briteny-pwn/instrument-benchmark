@@ -1,0 +1,11 @@
+{
+  "commit": "763087f66564f551c5ed986120af199aea00059f",
+  "files": [
+    "DeviceAdapters/AlliedVisionCamera/AlliedVisionCamera.cpp",
+    "DeviceAdapters/AlliedVisionCamera/AlliedVisionCamera.h"
+  ],
+  "git_blobs": {
+    "DeviceAdapters/AlliedVisionCamera/AlliedVisionCamera.cpp": "69dc35b28564d3930dfed650b557dcc2f7f12311",
+    "DeviceAdapters/AlliedVisionCamera/AlliedVisionCamera.h": "3e61a74af1148cbbe39aeacb13b1fb163c8858ac"
+  }
+}

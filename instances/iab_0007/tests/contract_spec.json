@@ -1,0 +1,58 @@
+{
+  "source_paths": [
+    "DeviceAdapters/AlliedVisionCamera/AlliedVisionCamera.cpp",
+    "DeviceAdapters/AlliedVisionCamera/AlliedVisionCamera.h"
+  ],
+  "rules": {
+    "recursive_mutex": {
+      "all": [
+        "recursive_mutex"
+      ]
+    },
+    "atomic_initialization_guard": {
+      "all": [
+        "atomic",
+        "initialized_"
+      ]
+    },
+    "nonblocking_callback_lock": {
+      "all": [
+        "try_to_lock"
+      ]
+    },
+    "property_callback": {
+      "all": [
+        "onProperty"
+      ]
+    },
+    "allowed_value_update": {
+      "all": [
+        "ClearAllowedValues",
+        "SetAllowedValues"
+      ]
+    },
+    "camera_lifecycle": {
+      "all": [
+        "setupProperties"
+      ]
+    }
+  },
+  "groups": {
+    "bug_fix": [
+      "recursive_mutex",
+      "atomic_initialization_guard",
+      "nonblocking_callback_lock"
+    ],
+    "regression": [
+      "property_callback",
+      "allowed_value_update"
+    ],
+    "state_trace": [
+      "camera_lifecycle",
+      "atomic_initialization_guard"
+    ],
+    "minefields": [
+      "nonblocking_callback_lock"
+    ]
+  }
+}
