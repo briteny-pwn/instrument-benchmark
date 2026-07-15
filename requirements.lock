@@ -1,0 +1,13 @@
+fastavro==1.12.2
+numpy==2.5.1
+platformdirs==4.10.0
+PyVISA==1.16.2
+PyVISA-sim==0.7.1
+PyYAML==6.0.3
+stringparser==0.7
+tomli==2.4.1
+tomli_w==1.2.0
+typing_extensions==4.16.0
+yaqc==2023.6.0
+yaqd-core==2025.12.0
+yaqd-fakes==2023.6.0

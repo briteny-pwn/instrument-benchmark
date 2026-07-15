@@ -1,0 +1,1 @@
+protocol_version,record_type,data_status,study_id,benchmark_release,pair_id,item_id,trial_id,condition,backend,instrument_class,instrument_id_pseudonym,firmware_or_runtime,calibration_record_id,environment,operator_id_pseudonym,candidate_sha256,seed,started_at,ended_at,passed,score,safety_state_ok,operator_intervention,incident,deviation_notes,evidence_uri

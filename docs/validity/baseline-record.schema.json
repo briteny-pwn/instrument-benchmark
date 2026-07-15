@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://instrument-benchmark.local/schemas/baseline-record-v1.json",
+  "title": "Instrument Benchmark baseline result",
+  "type": "object",
+  "required": ["protocol_version", "system_id", "item_id", "trial_id", "passed"],
+  "properties": {
+    "protocol_version": {"const": 1},
+    "record_type": {"const": "baseline_result"},
+    "system_id": {"type": "string", "minLength": 1},
+    "provider": {"type": ["string", "null"]},
+    "agent": {"type": ["string", "null"]},
+    "item_id": {"type": "string", "minLength": 1},
+    "trial_id": {"type": "string", "minLength": 1},
+    "pair_id": {"type": ["string", "null"]},
+    "seed": {"type": ["string", "integer", "null"]},
+    "benchmark_release": {"type": ["string", "null"]},
+    "backend": {"type": "string"},
+    "capabilities": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "passed": {"type": "boolean"},
+    "score": {"type": "number", "minimum": 0, "maximum": 1},
+    "hidden_scenario_pass_rate": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "scenario_outcomes": {"type": "array", "items": {"type": "object"}},
+    "dimension_scores": {
+      "type": "object",
+      "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}
+    },
+    "rubric": {
+      "type": "object",
+      "additionalProperties": {"type": "number", "minimum": 0}
+    },
+    "pass_threshold": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "manifest_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "additionalProperties": true
+}

@@ -28,8 +28,10 @@ Bluesky/Ophyd, or any other prebuilt instrument framework.
   a separately materialized, unscored authoring scenario.
 - The reference suite currently covers 69 hidden-world runs and passes 19/19
   instances with a score of `1.0`.
-- The negative suite currently rejects 12/12 known invalid approaches, and 43
+- The negative suite currently rejects 12/12 known invalid approaches, and 61
   evaluator/harness unit tests pass.
+- Three representative PyVISA instances now use reproducible frozen
+  `core`/`generalization`/`adversarial` world distributions.
 
 These numbers verify the repository implementation; they are not, by
 themselves, evidence of model-ranking validity or transfer to real hardware.
@@ -49,7 +51,9 @@ instances/
         simulator_protocol.md
 
 evaluations/
+  registry.json
   common/
+    instance_manifest.py
     raw_sim_gateway.py
     state_machine_gateway.py
     coupled_signal_gateway.py
@@ -84,8 +88,11 @@ runs/
   {run_id}/
 
 docs/
+  BENCHMARK_CARD.md
   benchmark_credibility.md
+  capability_matrix.md
   instances.md
+  validity/
   sources/
     pyvisa.md
     qcodes.md
@@ -358,14 +365,60 @@ Until those studies are complete, scores should be treated as reproducible
 simulation-benchmark evidence, not a universal measure of real laboratory
 competence.
 
+## Validation TODO
+
+Engineering infrastructure completed in the current development version:
+
+- [x] Define a machine-readable registry for all 19 instances, including
+  capability tags, difficulty factors, backend fidelity, task/output contracts,
+  safety invariants, and independent oracle bindings.
+- [x] Add prompt/spec/registry consistency checks and explicit unscored
+  authoring-world materialization.
+- [x] Pilot deterministic parameterized world generation on an ASCII DMM,
+  binary oscilloscope, and coupled multi-instrument task.
+- [x] Add structured failure codes, response-bound anti-hardcode checks,
+  single-source static/runtime import restrictions, and exact negative-suite
+  assertions.
+- [x] Add manifest schema v2, pinned dependencies, a Benchmark Card, validity
+  analysis tooling, study templates, and a Docker collected-evidence CI entry
+  point.
+
+Outstanding work required before publication-level model ranking:
+
+- [ ] Extend parameterized world distributions beyond the three pilot
+  instances; document each sampling population and add substantially more than
+  three frozen worlds where statistical generalization is claimed.
+- [ ] Add at least one semantic negative candidate for every instance and
+  positive/negative coverage for every v2 check type.
+- [ ] Run the full 19-instance reference suite through the official Docker
+  collected-evidence path on release infrastructure.
+- [ ] Collect repeated results from 5--8 representative models plus null,
+  template, reference, and qualified human baselines.
+- [ ] Publish MIPR/MHSPR, item difficulty and discrimination, failure
+  categories, test-retest variance, and paired model comparisons.
+- [ ] Run rubric-weight, threshold, and scenario-composition sensitivity
+  analyses on real baseline records.
+- [ ] Arrange independent domain-expert review and publish adjudication
+  outcomes.
+- [ ] Calibrate a representative SCPI/VISA, yaq, and native EPICS subset
+  against native simulators or real hardware, reporting the transfer gap.
+- [ ] Expand native EPICS/Tango coverage before making ecosystem-specific
+  compatibility claims.
+
+Detailed evaluator and backend work remains tracked in
+[`evaluations/TODO.md`](evaluations/TODO.md).
+
 ## Setup
 
 Create a local environment and install the hidden evaluation dependencies:
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pip install -r requirements.lock
 ```
+
+`requirements.txt` remains the direct-dependency declaration; formal images
+and reproducible local validation use the fully pinned lock file.
 
 ## Running Instances
 
@@ -406,10 +459,19 @@ evaluation/report.json
 hashes.json
 ```
 
-The manifest records the task, model, image and source revisions, timestamps,
-and scenario version. Hashes bind the visible input, extracted solution, and
-report so a run can be audited without exposing hidden evaluation material to
-the candidate.
+Manifest schema v2 records the benchmark release, clean/dirty source revision,
+spec/scenario/generator and dependency hashes, authoring/evaluation/model
+seeds, image digests, runtime, model identity, decoding availability, and
+timestamps. `hashes.json` additionally binds the visible input, extracted
+solution, and report so a run can be audited without exposing hidden
+evaluation material to the candidate.
+
+The release claim, limitations, baseline statistics, sensitivity tools, and
+native/hardware and expert-review protocols are documented in
+[`docs/BENCHMARK_CARD.md`](docs/BENCHMARK_CARD.md) and
+[`docs/validity/README.md`](docs/validity/README.md). External observations are
+not bundled; empty templates are provided and analyses report
+`blocked_no_data` when no records are supplied.
 
 Before a formal run, validate every visible bundle and the Docker boundary:
 
@@ -428,6 +490,15 @@ Run repository-level evaluator checks:
 .venv/bin/python -m evaluations.run_reference_suite
 .venv/bin/python -m evaluations.run_negative_suite
 .venv/bin/python -m unittest discover -s benchmark_harness/tests
+```
+
+At least one release/CI shard should also exercise the same Docker
+collected-evidence path used by formal runs:
+
+```bash
+.venv/bin/python -m evaluations.run_isolated_suite \
+  --instance pyvisa/pyvisa_dc_power_supply_basic
+# Use --all for release validation.
 ```
 
 ## Current Instances
@@ -482,6 +553,10 @@ evaluations/{source}/{instance_id}/
 
 A good instance should define:
 
+- one complete `InstanceManifest` entry in `evaluations/registry.json`, including
+  capability and difficulty labels, backend fidelity, task inputs, observable
+  outputs, safety invariants, scenario distribution, oracle bindings, and the
+  public-constant allowlist;
 - instrument command manual and response formats;
 - raw simulator connection instructions;
 - a concrete instrument-related experiment;
@@ -502,3 +577,7 @@ Keep scoring weights, expected traces, import-guard details, and fixed simulator
 answers out of model-visible documents.
 Keep human-facing summaries in `docs/` instead of inside concrete instance
 directories.
+
+The validator cross-checks the registry against every visible prompt and hidden
+spec. See [`docs/capability_matrix.md`](docs/capability_matrix.md) for the full
+review matrix and metadata contract.

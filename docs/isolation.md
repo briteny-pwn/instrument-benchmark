@@ -46,10 +46,13 @@ evaluation/report.json
 hashes.json
 ```
 
-The manifest records the task, model, repository revision, timestamps, and
-container image digests. `hashes.json` binds the visible inputs, extracted
-solution, and final report. Neither file is exposed inside the candidate
-container.
+Manifest schema v2 records the benchmark release, repository revision and dirty
+state, selected spec, referenced scenario and generator hashes, dependency
+lock/requirements hashes, authoring/evaluation/model seeds, runtime/model and
+decoding metadata, timestamps, and container image digests. A null model seed
+or decoding value means the adapter did not expose it; it must not be inferred.
+`hashes.json` binds the visible inputs, extracted solution, and final report.
+Neither file is exposed inside the candidate container.
 
 Historical files under `experience/` predate this boundary. Because those
 runs could inspect the repository and hidden evaluations, they are retained
