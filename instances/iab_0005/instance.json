@@ -1,0 +1,10 @@
+{
+  "instance_id": "iab_0005", "source_project": "instrumentkit", "source_repo": "https://github.com/instrumentkit/InstrumentKit", "source_type": "resolved_issue_plus_pr",
+  "issue_url": "https://github.com/instrumentkit/InstrumentKit/issues/439", "pr_url": "https://github.com/instrumentkit/InstrumentKit/pull/440",
+  "pre_fix_commit": "98f8212009fb2069a2484dc41c25f6fbb33a1b32", "post_fix_commit": "3e014d3af950bd290e21fde10a3500b5b1dc43ea", "gold_patch_commit": "3e014d3af950bd290e21fde10a3500b5b1dc43ea",
+  "instrument_category": "serial_over_tcp_instrument", "task_type": "real_bug_repair", "failure_modes": ["device_initialization", "framework_semantic_mismatch", "resource_conflict"], "framework": "InstrumentKit", "language": "python", "simulator_type": "mock_object", "requires_real_hardware": false,
+  "given_to_model": {"issue_text": true, "failure_log": true, "docs_excerpt": true, "pre_fix_code": true, "simulator": true}, "hidden_from_model": {"gold_patch": true, "post_fix_commit": true, "hidden_tests": true},
+  "reproduction": {"pre_fix_fails": true, "gold_patch_passes": true, "command": "bash setup.sh && bash reproduce_pre_fix.sh && bash apply_gold_patch.sh && bash evaluate.sh"},
+  "difficulty_evidence": {"files_changed_by_gold": 3, "layers_touched": ["connection_factory", "communicator", "driver_constructor", "tests"], "requires_state_reasoning": true, "requires_async_reasoning": false, "requires_framework_semantics": true, "requires_safety_constraints": false},
+  "evaluation_layers": ["fail_to_pass", "regression", "state_trace", "gold_differential", "minefield"], "status": "executable"
+}

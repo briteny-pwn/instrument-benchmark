@@ -1,0 +1,11 @@
+{
+  "source_repo": "https://github.com/bluesky/ophyd",
+  "commit": "1c2b121e63de747f9d3780f6fc208c8912f89d49",
+  "scope": "all files modified by upstream PR 1243",
+  "files": ["ophyd/device.py", "ophyd/tests/__init__.py", "ophyd/tests/test_timeout.py"],
+  "git_blobs": {
+    "ophyd/device.py": "8cc795319e3fc81f69c8636e2ba94cc1bd7f286b",
+    "ophyd/tests/__init__.py": "c9adcf03aa1b1f5c63e7d1bdae53f23e783b4b90",
+    "ophyd/tests/test_timeout.py": "cb34eca7184818fc17e4c472555a05272b79d4b2"
+  }
+}

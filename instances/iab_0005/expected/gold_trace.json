@@ -1,0 +1,4 @@
+[
+  {"action": "connect", "host": "bridge", "port": 9001},
+  {"action": "construct", "driver": "legacy"}
+]

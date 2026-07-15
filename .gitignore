@@ -7,6 +7,10 @@ __pycache__/
 *.py[cod]
 /experience/*
 !/experience/README.md
+/legacy/level1/experience/*
+!/legacy/level1/experience/README.md
 /runs/
+/instances/iab_*/.work/
+/bundles/
 /evaluations/*/solution.py
 /evaluations/*/*/solution.py

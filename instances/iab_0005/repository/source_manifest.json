@@ -1,0 +1,11 @@
+{
+  "source_repo": "https://github.com/instrumentkit/InstrumentKit",
+  "commit": "98f8212009fb2069a2484dc41c25f6fbb33a1b32",
+  "scope": "all files modified by upstream PR 440",
+  "files": ["src/instruments/abstract_instruments/instrument.py", "src/instruments/yokogawa/yokogawa6370.py", "tests/test_base_instrument.py"],
+  "git_blobs": {
+    "src/instruments/abstract_instruments/instrument.py": "ce349dee302d1fa2da7ca1b28d8af0d2688a27f5",
+    "src/instruments/yokogawa/yokogawa6370.py": "c7c5b16eab9e1f8318c9054db888f31b0021c6d7",
+    "tests/test_base_instrument.py": "14eb609c425c33ecf91c9fa4c46af2b29099c82f"
+  }
+}

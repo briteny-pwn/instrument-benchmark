@@ -1,0 +1,10 @@
+{
+  "instance_id": "iab_0001", "source_project": "ophyd", "source_repo": "https://github.com/bluesky/ophyd", "source_type": "resolved_issue_plus_pr",
+  "issue_url": "https://github.com/bluesky/ophyd/issues/1242", "pr_url": "https://github.com/bluesky/ophyd/pull/1243",
+  "pre_fix_commit": "1c2b121e63de747f9d3780f6fc208c8912f89d49", "post_fix_commit": "496fae33a8181307ab199d18fc4e32b14248b6e3", "gold_patch_commit": "496fae33a8181307ab199d18fc4e32b14248b6e3",
+  "instrument_category": "epics_device_control", "task_type": "framework_semantic_integration", "failure_modes": ["timeout", "framework_semantic_mismatch", "device_initialization"], "framework": "ophyd", "language": "python", "simulator_type": "mock_object", "requires_real_hardware": false,
+  "given_to_model": {"issue_text": true, "failure_log": true, "docs_excerpt": true, "pre_fix_code": true, "simulator": true}, "hidden_from_model": {"gold_patch": true, "post_fix_commit": true, "hidden_tests": true},
+  "reproduction": {"pre_fix_fails": true, "gold_patch_passes": true, "command": "bash setup.sh && bash reproduce_pre_fix.sh && bash apply_gold_patch.sh && bash evaluate.sh"},
+  "difficulty_evidence": {"files_changed_by_gold": 3, "layers_touched": ["signal_defaults", "device_lifecycle", "component_connection", "tests"], "requires_state_reasoning": true, "requires_async_reasoning": true, "requires_framework_semantics": true, "requires_safety_constraints": false},
+  "evaluation_layers": ["fail_to_pass", "regression", "state_trace", "gold_differential", "minefield"], "status": "executable"
+}

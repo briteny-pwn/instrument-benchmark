@@ -1,0 +1,47 @@
+diff --git a/ophyd/device.py b/ophyd/device.py
+index 86c43345c..270e19759 100644
+--- a/ophyd/device.py
++++ b/ophyd/device.py
+@@ -1457,7 +1457,8 @@ def done_acquisition(**ignored_kwargs):
+             # has finished
+             self._done_acquiring()
+ 
+-        acq_signal.put(1, wait=False, callback=done_acquisition)
++        trigger_value = self._sig_attrs[acq_signal.attr_name].trigger_value
++        acq_signal.put(trigger_value, wait=False, callback=done_acquisition)
+         return status
+ 
+     def stop(self, *, success=False):
+diff --git a/ophyd/tests/test_device.py b/ophyd/tests/test_device.py
+index c3d8b464c..926bbab53 100644
+--- a/ophyd/tests/test_device.py
++++ b/ophyd/tests/test_device.py
+@@ -944,3 +944,28 @@ class MyDevice(Device):
+     assert MyDevice.cpt3._get_class_from_annotation() is SignalRO
+     assert MyDevice.cpt3.cls is SignalRO
+     assert MyDevice.cpt4._get_class_from_annotation() is None
++
++
++@pytest.mark.parametrize(
++    "initial, after",
++    [
++        [False, True],
++        [0, 1],
++        ["", "1!"],
++    ],
++)
++def test_trigger_value(initial, after):
++    """Ensure the configured trigger_value is used."""
++
++    class FakeTriggerableDevice(Device):
++        """Common trigger signals expect value=1"""
++
++        strigger = Component(Signal, value=initial, trigger_value=after)
++
++    d = FakeTriggerableDevice("", name="test")
++    assert len(d.trigger_signals) == 1
++    assert [d.strigger] == d.trigger_signals
++    assert d.strigger.get() == initial
++
++    d.trigger()
++    assert d.strigger.get() == after

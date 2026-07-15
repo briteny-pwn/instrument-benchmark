@@ -1,0 +1,4 @@
+[
+  {"action": "trigger", "value": 5, "state_before": "idle", "state_after": "acquiring"},
+  {"action": "complete", "state_before": "acquiring", "state_after": "complete"}
+]

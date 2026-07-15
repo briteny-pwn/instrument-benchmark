@@ -1,40 +1,36 @@
-# Instances
+# Executable repair instances
 
-This directory contains the canonical task bundles. The isolated runner copies
-only the three files listed below into a neutral `/workspace`; this README,
-source-family path, instance identifier, repository metadata, and sibling
-tasks are not mounted into the candidate container.
+Each `iab_NNNN` directory is a self-contained repair benchmark derived from a real closed issue and merged pull request. The candidate edits exact pre-fix upstream files under `repository/`; this is not a from-scratch protocol-client task. `source_manifest.json` records the pre-fix commit and full Git blob hashes for every included file.
 
-The structure is:
+Required contents:
 
 ```text
-instances/
-  {source}/
-    {instance_id}/
-      prompt.md
-      environment/
-        instrument_manual.md
-        simulator_protocol.md
+instance.json
+problem.md
+Dockerfile
+setup.sh
+reproduce_pre_fix.sh
+apply_gold_patch.sh
+evaluate.sh
+repository/
+simulator/
+tests/
+patches/gold.patch
+expected/
 ```
 
-An instance is only:
+The committed `repository/` is immutable benchmark input. `setup.sh` copies it to ignored `.work/repository`. Gold and candidate patches are applied only to that copy.
 
-```text
-prompt + environment
+The normal audit lifecycle is:
+
+```bash
+cd instances/iab_0001
+bash setup.sh
+bash reproduce_pre_fix.sh
+bash apply_gold_patch.sh
+bash evaluate.sh
 ```
 
-Concrete instance directories should contain only task-facing materials needed
-to write the requested solution. Human-facing summaries belong in `docs/`.
+To score a candidate patch from a clean pre-fix copy, pass it directly to `evaluate.sh`. The JSON report contains independent fail-to-pass, regression, state-trace, gold-differential, and minefield results.
 
-Current source families:
-
-- `pyvisa`: protocol material derived from PyVISA/pyvisa-sim style instruments.
-- `qcodes`: protocol material derived from QCoDeS-style station/driver tasks.
-- `epics`: protocol material derived from EPICS StreamDevice, asyn, soft IOC,
-  and caproto-style tasks.
-- `tango`: protocol material derived from Tango Controls and SimulatorDS-style
-  device, command, attribute, property, state, and event tasks.
-- `yaq`: protocol material derived from yaq daemon, trait, state, and
-  yaqd-fakes simulated instrument tasks.
-
-In all source families, the candidate writes its own raw client from scratch.
+The earlier source-family/manual/raw-protocol bundles have moved to `legacy/level1/instances` and are not current benchmark instances.
