@@ -14,3 +14,9 @@ use any design that satisfies the contract.
 The episode score is a weighted scenario score. `strict_pass` requires every
 required scenario. Build and patch application are infrastructure gates and
 are reported separately from behavior capability.
+
+模型 patch 在隔离副本中评测，不要求复现 gold patch：
+
+```bash
+python3 -c 'from pathlib import Path; from evaluator.episode import run_episode; print(run_episode(Path("episodes/iep_0001"), Path("/absolute/model.patch")))'
+```

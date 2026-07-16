@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -13,9 +15,19 @@ def load_manifest(episode: Path) -> dict[str, Any]:
     return json.loads((episode / "episode.json").read_text())
 
 
-def run_episode(episode: Path) -> dict[str, Any]:
+def run_episode(episode: Path, patch: Path | None = None) -> dict[str, Any]:
     manifest = load_manifest(episode)
-    proc = subprocess.run([sys.executable, "harness.py"], cwd=episode, text=True, capture_output=True)
+    work = episode / ".work"
+    if work.exists(): shutil.rmtree(work)
+    shutil.copytree(episode / "repository", work / "repository")
+    if patch is not None:
+        from evaluator.run_instance import apply_patch
+        try:
+            apply_patch(work, patch)
+        except Exception as exc:
+            return {"schema_version": 1, "episode_id": manifest["episode_id"], "strict_pass": False, "score": 0.0, "scenarios": [], "failure_kind": "patch_apply", "error": str(exc)}
+    env = {**os.environ, "IAB_EPISODE_REPOSITORY": str(work / "repository")}
+    proc = subprocess.run([sys.executable, "harness.py"], cwd=episode, env=env, text=True, capture_output=True)
     marker = next((line for line in proc.stdout.splitlines() if line.startswith("IAB_EPISODE_RESULTS=")), "")
     result = json.loads(marker.removeprefix("IAB_EPISODE_RESULTS=")) if marker else {"scenarios": []}
     scenarios = {item["id"]: item for item in result.get("scenarios", [])}

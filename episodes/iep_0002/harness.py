@@ -1,4 +1,7 @@
 import json
+import os
+import sys
+sys.path.insert(0, os.environ.get("IAB_EPISODE_REPOSITORY", "repository"))
 from repository.adapter import CameraAdapter, Hardware
 
 
