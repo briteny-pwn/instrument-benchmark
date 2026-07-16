@@ -96,7 +96,8 @@ def fraction(tests: list[dict]) -> float:
     return sum(bool(test.get("passed")) for test in tests) / len(tests) if tests else 0.0
 
 
-def scored_report(mode: str, layers: dict, passed: bool) -> dict:
+def scored_report(mode: str, layers: dict, passed: bool, *, infrastructure_error: bool = False) -> dict:
+    from evaluator.confidence import calculate_confidence
     trace = layers.get("gold_differential", {})
     total = trace.get("total", 0)
     categories = {
@@ -110,7 +111,7 @@ def scored_report(mode: str, layers: dict, passed: bool) -> dict:
     }
     for value in categories.values(): value["earned"] = round(value["weight"] * value["fraction"], 4)
     tests = [{**test, "layer": layer} for layer, result in layers.items() for test in result.get("tests", [])]
-    failure_kind = None if passed else "test"
+    failure_kind = None if passed else ("infrastructure_error" if infrastructure_error else "test")
     return {
         "schema_version": 2, "strict_pass": passed, "passed": passed,
         "evaluation_score": round(sum(value["earned"] for value in categories.values()), 4),
@@ -118,6 +119,7 @@ def scored_report(mode: str, layers: dict, passed: bool) -> dict:
         "categories": categories, "tests": tests,
         "trace_checkpoints": {"matched": trace.get("matched", 0), "total": total, "errors": trace.get("errors", [])},
         "failure_kind": failure_kind, "mode": mode, "layers": layers,
+        "confidence": calculate_confidence(layers, infrastructure_error=infrastructure_error),
     }
 
 

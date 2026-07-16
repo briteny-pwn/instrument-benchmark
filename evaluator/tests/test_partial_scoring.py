@@ -14,9 +14,17 @@ def test_partial_score_is_continuous():
     assert 0 < report["score"] < 100
     assert report["schema_version"] == 2
     assert report["strict_pass"] is False
+    assert 0 <= report["confidence"]["score"] <= 100
+    assert report["confidence"]["factors"]["layer_coverage"] == 1.0
 
 
 def test_trace_checkpoint_ratio():
     matched, errors = compare_trace_progress([{"event": "a"}], [{"event": "a"}, {"event": "b"}])
     assert matched == 1
     assert errors
+
+
+def test_infrastructure_error_reduces_confidence():
+    report = scored_report("evaluate", {"fail_to_pass": {"returncode": 1, "tests": []}}, False, infrastructure_error=True)
+    assert report["failure_kind"] == "infrastructure_error"
+    assert report["confidence"]["factors"]["infrastructure"] == 0.0

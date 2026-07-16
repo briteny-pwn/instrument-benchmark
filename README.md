@@ -12,7 +12,9 @@ Simulation-first Instrument Access Benchmark is a repair benchmark derived from 
 - Every executable instance proves pre-fix failure and gold-patch success locally.
 - The evaluator emits schema-v2 reports with `strict_pass`, `evaluation_score`
   (0–100 partial credit), per-test results, category scores, and trace
-  checkpoint matches. `passed` remains as a compatibility field.
+  checkpoint matches. It also reports independent evidence `confidence`; this
+  is not another model capability score. `passed` remains as a compatibility
+  field.
 
 These counts describe engineering readiness, not model-ranking validity or transfer to physical hardware. Real-hardware calibration is a phase-2 concern.
 

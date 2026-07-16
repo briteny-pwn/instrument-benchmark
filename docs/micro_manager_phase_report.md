@@ -23,3 +23,9 @@ Reports use schema v2. `strict_pass` remains the all-required-tests gate while
 `evaluation_score` is the weighted 0–100 partial score. Gold patches for all
 five instances pass strictly and score 100 locally; the project validator also
 checks the model bundle boundary and legacy phase-1 compatibility.
+
+Reports also contain an independent `confidence` object. It summarizes layer
+coverage, assertion volume, trace checkpoint evidence, reproducibility, and
+infrastructure health. Confidence is not a second model score: a high repair
+score with sparse or infrastructure-contaminated evidence can still have low
+confidence.
