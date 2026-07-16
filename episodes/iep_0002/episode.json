@@ -1,0 +1,11 @@
+{
+  "episode_id": "iep_0002",
+  "provenance": {"source_repo": "https://github.com/micro-manager/mmCoreAndDevices", "source_ref": "PR #828 AlliedVision property callback synchronization", "source_type": "merged_pr_with_reproduction", "evidence_url": "https://github.com/micro-manager/mmCoreAndDevices/pull/828", "fixture_kind": "contract_projection"},
+  "contract": {"operations": ["initialize", "set_exposure", "property_callback", "read_property"], "states": ["uninitialized", "ready", "updating", "error"], "invariants": ["callbacks never publish stale hardware values", "property writes are serialized", "initialization and callback cannot race"]},
+  "scenarios": [
+    {"id": "normal_property", "fault": "none", "weight": 1, "required_events": ["ready", "write:exposure=10", "callback:exposure=10"]},
+    {"id": "callback_race", "fault": "callback_during_initialization", "weight": 2, "required_events": ["callback:ignored-before-ready", "ready", "callback:exposure=20"]},
+    {"id": "hardware_reject", "fault": "write_rejected", "weight": 2, "required_events": ["write:exposure=30", "error:write-rejected", "property:exposure=20"]}
+  ],
+  "status": "executable"
+}

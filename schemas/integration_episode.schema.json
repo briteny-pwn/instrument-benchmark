@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iab.example/schemas/integration_episode.schema.json",
+  "title": "IAB integration episode",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["episode_id", "provenance", "contract", "scenarios", "status"],
+  "properties": {
+    "episode_id": {"type": "string", "pattern": "^iep_[0-9]{4}$"},
+    "provenance": {"type": "object", "additionalProperties": false, "required": ["source_repo", "source_ref", "source_type", "evidence_url", "fixture_kind"], "properties": {"source_repo": {"type": "string", "format": "uri"}, "source_ref": {"type": "string", "minLength": 1}, "source_type": {"enum": ["resolved_issue_plus_pr", "merged_pr_with_reproduction"]}, "evidence_url": {"type": "string", "format": "uri"}, "fixture_kind": {"enum": ["upstream_snapshot", "contract_projection"]}}},
+    "contract": {"type": "object", "additionalProperties": false, "required": ["operations", "states", "invariants"], "properties": {"operations": {"type": "array", "minItems": 1, "items": {"type": "string"}}, "states": {"type": "array", "minItems": 2, "items": {"type": "string"}}, "invariants": {"type": "array", "minItems": 1, "items": {"type": "string"}}}},
+    "scenarios": {"type": "array", "minItems": 3, "items": {"type": "object", "additionalProperties": false, "required": ["id", "fault", "weight", "required_events"], "properties": {"id": {"type": "string"}, "fault": {"type": "string"}, "weight": {"type": "number", "exclusiveMinimum": 0}, "required_events": {"type": "array", "minItems": 1, "items": {"type": "string"}}}}},
+    "status": {"enum": ["draft", "verified", "executable"]}
+  }
+}

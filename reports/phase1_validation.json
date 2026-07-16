@@ -173,6 +173,7 @@
     }
   },
   "unit_tests": {
+    "tests/test_episodes.py": true,
     "tests/test_micro_manager.py": true,
     "tests/test_scoring.py": true,
     "evaluator/tests/test_model_bundle.py": true,

@@ -1,0 +1,11 @@
+{
+  "episode_id": "iep_0001",
+  "provenance": {"source_repo": "https://github.com/micro-manager/mmCoreAndDevices", "source_ref": "PR #946 DemoCamera XY-stage position and Busy polling", "source_type": "merged_pr_with_reproduction", "evidence_url": "https://github.com/micro-manager/mmCoreAndDevices/pull/946", "fixture_kind": "contract_projection"},
+  "contract": {"operations": ["initialize", "move", "poll", "recover"], "states": ["disconnected", "ready", "busy", "error"], "invariants": ["Busy is true between move acceptance and completion", "position is reported only after a completed poll", "disconnect is recoverable"]},
+  "scenarios": [
+    {"id": "nominal_move", "fault": "none", "weight": 1, "required_events": ["ready", "move_start", "busy:true", "position:42", "busy:false"]},
+    {"id": "delayed_poll", "fault": "poll_delay", "weight": 1, "required_events": ["move_start", "busy:true", "poll:delayed", "position:42", "busy:false"]},
+    {"id": "disconnect_recovery", "fault": "disconnect_after_start", "weight": 2, "required_events": ["move_start", "busy:true", "error:disconnect", "recover", "ready", "busy:false"]}
+  ],
+  "status": "executable"
+}

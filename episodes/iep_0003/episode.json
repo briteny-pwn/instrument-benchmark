@@ -1,0 +1,11 @@
+{
+  "episode_id": "iep_0003",
+  "provenance": {"source_repo": "https://github.com/micro-manager/mmCoreAndDevices", "source_ref": "PR #914 MMCore per-device timeout semantics", "source_type": "merged_pr_with_reproduction", "evidence_url": "https://github.com/micro-manager/mmCoreAndDevices/pull/914", "fixture_kind": "contract_projection"},
+  "contract": {"operations": ["acquire", "set_timeout", "abort", "shutdown"], "states": ["idle", "acquiring", "aborted", "closed"], "invariants": ["per-device timeout overrides global timeout", "abort releases the device lease", "shutdown is safe while an operation is pending"]},
+  "scenarios": [
+    {"id": "per_device_timeout", "fault": "slow_acquisition", "weight": 2, "required_events": ["acquire", "timeout:device", "abort"]},
+    {"id": "abort_releases_lease", "fault": "abort_during_acquisition", "weight": 2, "required_events": ["acquire", "abort", "lease:released", "acquire:second"]},
+    {"id": "shutdown_pending", "fault": "shutdown_during_acquisition", "weight": 1, "required_events": ["acquire", "shutdown", "lease:released", "closed"]}
+  ],
+  "status": "executable"
+}

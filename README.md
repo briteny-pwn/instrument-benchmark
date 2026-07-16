@@ -9,6 +9,8 @@ Simulation-first Instrument Access Benchmark is a repair benchmark derived from 
 - 3 executable repair instances in the original Python phase.
 - Micro-Manager phase: 20 scored candidates, 10 verified candidates, and five
   C++ DeviceAdapters instances (`iab_0006`–`iab_0010`).
+- Integration episode phase: three scenario-driven fixtures covering timing,
+  property synchronization, timeout, recovery, and resource ownership.
 - Every executable instance proves pre-fix failure and gold-patch success locally.
 - The evaluator emits schema-v2 reports with `strict_pass`, `evaluation_score`
   (0–100 partial credit), per-test results, category scores, and trace
@@ -31,6 +33,7 @@ data/micro_manager_scored_candidates.json
 data/micro_manager_verified_candidates/
                                   10 DeviceAdapters evidence bundles
 instances/iab_*/                  executable repair instances
+episodes/iep_*/                   scenario-driven integration episodes
 evaluator/                        patch runner and trace differential
 iab/                              shared mining/scoring primitives
 scripts/                          mine, curate, score, build, validate
@@ -147,8 +150,11 @@ Run the project-wide gate:
 
 ```bash
 python3 scripts/validate_phase1.py
+python3 scripts/validate_episodes.py
 ```
 
 It checks counts, provenance, metadata, required files, pre-fix failure, gold-patch success, model-patch substitution, and JSON report generation for all executable instances.
 
 See [the instance schema](docs/instance_schema.md), [the phase-1 report](docs/phase1_report.md), and [the Micro-Manager phase report](docs/micro_manager_phase_report.md) for the full contract and limitations.
+See [the integration episode design](docs/integration_episode.md) for the
+scenario-driven evaluation model.
