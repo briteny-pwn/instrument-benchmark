@@ -5,6 +5,12 @@ one expected patch. Their provenance points to upstream Micro-Manager PRs; the
 local fixtures are explicitly marked `contract_projection` because they model
 the observable device contract without copying vendor SDKs.
 
+The primary submission is a directory containing a runnable `adapter.py`. It
+may be a repair, a rewrite, or a transport wrapper. The evaluator never scores
+textual similarity to the gold fixture; it scores behavior under injected
+faults. Patch submission remains only for compatibility with the original
+SWE-shaped instances.
+
 Run the scenario harnesses:
 
 ```bash

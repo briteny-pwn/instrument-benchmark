@@ -47,7 +47,8 @@
           }
         ],
         "stderr": "",
-        "returncode": 0
+        "returncode": 0,
+        "submission_mode": "reference"
       },
       "gold": {
         "schema_version": 1,
@@ -93,7 +94,8 @@
           }
         ],
         "stderr": "",
-        "returncode": 0
+        "returncode": 0,
+        "submission_mode": "reference"
       }
     },
     "iep_0002": {
@@ -135,7 +137,8 @@
           }
         ],
         "stderr": "",
-        "returncode": 0
+        "returncode": 0,
+        "submission_mode": "reference"
       },
       "gold": {
         "schema_version": 1,
@@ -175,7 +178,8 @@
           }
         ],
         "stderr": "",
-        "returncode": 0
+        "returncode": 0,
+        "submission_mode": "reference"
       }
     },
     "iep_0003": {
@@ -215,7 +219,8 @@
           }
         ],
         "stderr": "",
-        "returncode": 0
+        "returncode": 0,
+        "submission_mode": "reference"
       },
       "gold": {
         "schema_version": 1,
@@ -255,7 +260,8 @@
           }
         ],
         "stderr": "",
-        "returncode": 0
+        "returncode": 0,
+        "submission_mode": "reference"
       }
     }
   },

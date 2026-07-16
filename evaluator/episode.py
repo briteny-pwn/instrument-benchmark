@@ -23,13 +23,16 @@ def ordered_subsequence(events: list[str], required: list[str]) -> bool:
     return cursor == len(required)
 
 
-def run_episode(episode: Path, patch: Path | None = None, *, repository: Path | None = None) -> dict[str, Any]:
+def run_episode(episode: Path, patch: Path | None = None, *, repository: Path | None = None, submission: Path | None = None) -> dict[str, Any]:
     episode = episode.resolve()
     if repository is not None: repository = repository.resolve()
     manifest = load_manifest(episode)
     work = episode / ".work"
     if work.exists(): shutil.rmtree(work)
-    shutil.copytree(repository or episode / "repository", work / "repository")
+    source = submission or repository or episode / "repository"
+    shutil.copytree(source, work / "repository")
+    if patch is not None and submission is not None:
+        return {"schema_version": 1, "episode_id": manifest["episode_id"], "strict_pass": False, "score": 0.0, "scenarios": [], "failure_kind": "invalid_submission", "error": "choose patch or submission, not both"}
     if patch is not None:
         from evaluator.run_instance import apply_patch
         try:
@@ -48,4 +51,4 @@ def run_episode(episode: Path, patch: Path | None = None, *, repository: Path | 
     earned = sum(float(item["weight"]) for item in manifest["scenarios"] if scenarios.get(item["id"], {}).get("passed"))
     score = round(100 * earned / total_weight, 2) if total_weight else 0.0
     strict = all(scenarios.get(item["id"], {}).get("passed") for item in manifest["scenarios"])
-    return {"schema_version": 1, "episode_id": manifest["episode_id"], "strict_pass": strict, "score": score, "scenarios": result.get("scenarios", []), "stderr": proc.stderr[-4000:], "returncode": proc.returncode}
+    return {"schema_version": 1, "episode_id": manifest["episode_id"], "strict_pass": strict, "score": score, "scenarios": result.get("scenarios", []), "stderr": proc.stderr[-4000:], "returncode": proc.returncode, "submission_mode": "directory" if submission else "patch" if patch else "reference"}

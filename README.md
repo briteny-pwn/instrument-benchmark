@@ -20,6 +20,17 @@ Simulation-first Instrument Access Benchmark is a repair benchmark derived from 
 
 These counts describe engineering readiness, not model-ranking validity or transfer to physical hardware. Real-hardware calibration is a phase-2 concern.
 
+## What makes this different from SWE
+
+The primary unit is an integration episode, not a patch. A model may submit a
+new adapter, a state machine, or a transport wrapper as a runnable directory.
+The evaluator drives that implementation through nominal, delayed, rejected,
+disconnected, concurrent, and recovery scenarios. It scores observable device
+behavior and operational invariants; a gold patch is only a provenance artifact
+and compatibility baseline. This captures the central scientific-instrument
+difficulty: coordinating a stateful, asynchronous, failure-prone external
+device with a framework contract.
+
 ## Repository layout
 
 ```text
