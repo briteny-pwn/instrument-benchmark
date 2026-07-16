@@ -7,9 +7,9 @@
 
 struct Check { const char* name; const char* marker; };
 static const Check checks[] = {
-    {"sdk_initialize", "tl_camera_sdk_dll_initialize"},
-    {"sdk_terminate", "tl_camera_sdk_dll_terminate"},
-    {"sdk_loader_header", "TL_CAMERA_GET_EXPOSURE_TIME"}
+    {"sdk_initialize_signature", "tl_camera_sdk_dll_initialize(void)"},
+    {"sdk_initialize_no_path", "tl_camera_sdk_dll_initialize()"},
+    {"sdk_loader_header", "tl_camera_sdk_dll_terminate(void)"}
 };
 int main(int argc, char** argv) {
   if (argc != 3) return 2;

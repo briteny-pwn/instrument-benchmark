@@ -1,1 +1,1 @@
-[{"event": "sdk_initialize"}, {"event": "sdk_terminate"}, {"event": "sdk_loader_header"}]
+[{"event": "sdk_initialize_signature"}, {"event": "sdk_initialize_no_path"}, {"event": "sdk_loader_header"}]

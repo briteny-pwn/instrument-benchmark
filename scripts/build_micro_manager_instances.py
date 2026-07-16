@@ -17,7 +17,7 @@ MARKERS = {
     828: [("callback_mutex", "std::recursive_mutex"), ("initialization_guard", "m_propertiesReady"), ("nonblocking_callback", "try_to_lock")],
     965: [("multi_roi_state", "usesMultiROI_"), ("multi_roi_api", "SetMultiROI"), ("roi_capacity", "roiCountMax")],
     914: [("set_timeout_api", "setDeviceTimeoutMs"), ("get_timeout_api", "GetTimeoutMsOverride"), ("effective_timeout", "timeoutMsOverride_")],
-    124: [("sdk_initialize", "tl_camera_sdk_dll_initialize"), ("sdk_terminate", "tl_camera_sdk_dll_terminate"), ("sdk_loader_header", "TL_CAMERA_GET_EXPOSURE_TIME")],
+    124: [("sdk_initialize_signature", "tl_camera_sdk_dll_initialize(void)"), ("sdk_initialize_no_path", "tl_camera_sdk_dll_initialize()"), ("sdk_loader_header", "tl_camera_sdk_dll_terminate(void)")],
 }
 
 
