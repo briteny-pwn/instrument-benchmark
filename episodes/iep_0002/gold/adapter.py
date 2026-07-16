@@ -19,8 +19,7 @@ class CameraAdapter:
 
     def property_callback(self, value, emit):
         if not self.ready:
-            self.exposure = value
-            emit(f"callback:exposure={value}")
+            emit("callback:ignored-before-ready")
             return
         self.exposure = value
         emit(f"callback:exposure={value}")

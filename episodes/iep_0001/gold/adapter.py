@@ -23,6 +23,7 @@ class StageAdapter:
             return
         if event == "disconnect":
             self.state = "error"
+            self.busy = False
             emit("error:disconnect")
             return
         self.position = event
@@ -34,6 +35,7 @@ class StageAdapter:
     def recover(self, emit):
         self.transport.connect()
         self.state = "ready"
+        self.busy = False
+        emit("busy:false")
         emit("recover")
         emit("ready")
-        emit("busy:false")

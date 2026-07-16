@@ -3,130 +3,260 @@
   "passed": true,
   "episodes": {
     "iep_0001": {
-      "schema_version": 1,
-      "episode_id": "iep_0001",
-      "strict_pass": true,
-      "score": 100.0,
-      "scenarios": [
-        {
-          "id": "nominal_move",
-          "passed": true,
-          "events": [
-            "ready",
-            "move_start",
-            "busy:true",
-            "position:42",
-            "busy:false"
-          ]
-        },
-        {
-          "id": "delayed_poll",
-          "passed": true,
-          "events": [
-            "ready",
-            "move_start",
-            "busy:true",
-            "poll:delayed",
-            "position:42",
-            "busy:false"
-          ]
-        },
-        {
-          "id": "disconnect_recovery",
-          "passed": true,
-          "events": [
-            "ready",
-            "move_start",
-            "busy:true",
-            "error:disconnect",
-            "recover",
-            "ready",
-            "busy:false"
-          ]
-        }
-      ],
-      "stderr": "",
-      "returncode": 0
+      "pre_fix": {
+        "schema_version": 1,
+        "episode_id": "iep_0001",
+        "strict_pass": false,
+        "score": 50.0,
+        "scenarios": [
+          {
+            "id": "nominal_move",
+            "passed": true,
+            "events": [
+              "ready",
+              "move_start",
+              "busy:true",
+              "position:42",
+              "busy:false"
+            ]
+          },
+          {
+            "id": "delayed_poll",
+            "passed": true,
+            "events": [
+              "ready",
+              "move_start",
+              "busy:true",
+              "poll:delayed",
+              "position:42",
+              "busy:false"
+            ]
+          },
+          {
+            "id": "disconnect_recovery",
+            "passed": false,
+            "events": [
+              "ready",
+              "move_start",
+              "busy:true",
+              "error:disconnect",
+              "recover",
+              "ready",
+              "busy:false"
+            ]
+          }
+        ],
+        "stderr": "",
+        "returncode": 0
+      },
+      "gold": {
+        "schema_version": 1,
+        "episode_id": "iep_0001",
+        "strict_pass": true,
+        "score": 100.0,
+        "scenarios": [
+          {
+            "id": "nominal_move",
+            "passed": true,
+            "events": [
+              "ready",
+              "move_start",
+              "busy:true",
+              "position:42",
+              "busy:false"
+            ]
+          },
+          {
+            "id": "delayed_poll",
+            "passed": true,
+            "events": [
+              "ready",
+              "move_start",
+              "busy:true",
+              "poll:delayed",
+              "position:42",
+              "busy:false"
+            ]
+          },
+          {
+            "id": "disconnect_recovery",
+            "passed": true,
+            "events": [
+              "ready",
+              "move_start",
+              "busy:true",
+              "error:disconnect",
+              "busy:false",
+              "recover",
+              "ready"
+            ]
+          }
+        ],
+        "stderr": "",
+        "returncode": 0
+      }
     },
     "iep_0002": {
-      "schema_version": 1,
-      "episode_id": "iep_0002",
-      "strict_pass": true,
-      "score": 100.0,
-      "scenarios": [
-        {
-          "id": "normal_property",
-          "passed": true,
-          "events": [
-            "ready",
-            "write:exposure=10",
-            "callback:exposure=10"
-          ]
-        },
-        {
-          "id": "callback_race",
-          "passed": true,
-          "events": [
-            "callback:ignored-before-ready",
-            "ready",
-            "callback:exposure=20",
-            "write:exposure=20",
-            "callback:exposure=20"
-          ]
-        },
-        {
-          "id": "hardware_reject",
-          "passed": true,
-          "events": [
-            "ready",
-            "write:exposure=30",
-            "error:write-rejected",
-            "property:exposure=20"
-          ]
-        }
-      ],
-      "stderr": "",
-      "returncode": 0
+      "pre_fix": {
+        "schema_version": 1,
+        "episode_id": "iep_0002",
+        "strict_pass": false,
+        "score": 60.0,
+        "scenarios": [
+          {
+            "id": "normal_property",
+            "passed": true,
+            "events": [
+              "ready",
+              "write:exposure=10",
+              "callback:exposure=10"
+            ]
+          },
+          {
+            "id": "callback_race",
+            "passed": false,
+            "events": [
+              "callback:exposure=20",
+              "ready",
+              "callback:exposure=20",
+              "write:exposure=20",
+              "callback:exposure=20"
+            ]
+          },
+          {
+            "id": "hardware_reject",
+            "passed": true,
+            "events": [
+              "ready",
+              "write:exposure=30",
+              "error:write-rejected",
+              "property:exposure=20"
+            ]
+          }
+        ],
+        "stderr": "",
+        "returncode": 0
+      },
+      "gold": {
+        "schema_version": 1,
+        "episode_id": "iep_0002",
+        "strict_pass": true,
+        "score": 100.0,
+        "scenarios": [
+          {
+            "id": "normal_property",
+            "passed": true,
+            "events": [
+              "ready",
+              "write:exposure=10",
+              "callback:exposure=10"
+            ]
+          },
+          {
+            "id": "callback_race",
+            "passed": true,
+            "events": [
+              "callback:ignored-before-ready",
+              "ready",
+              "callback:exposure=20",
+              "write:exposure=20",
+              "callback:exposure=20"
+            ]
+          },
+          {
+            "id": "hardware_reject",
+            "passed": true,
+            "events": [
+              "ready",
+              "write:exposure=30",
+              "error:write-rejected",
+              "property:exposure=20"
+            ]
+          }
+        ],
+        "stderr": "",
+        "returncode": 0
+      }
     },
     "iep_0003": {
-      "schema_version": 1,
-      "episode_id": "iep_0003",
-      "strict_pass": true,
-      "score": 100.0,
-      "scenarios": [
-        {
-          "id": "per_device_timeout",
-          "passed": true,
-          "events": [
-            "acquire",
-            "timeout:device",
-            "abort",
-            "lease:released"
-          ]
-        },
-        {
-          "id": "abort_releases_lease",
-          "passed": true,
-          "events": [
-            "acquire",
-            "abort",
-            "lease:released",
-            "acquire:second"
-          ]
-        },
-        {
-          "id": "shutdown_pending",
-          "passed": true,
-          "events": [
-            "acquire",
-            "shutdown",
-            "lease:released",
-            "closed"
-          ]
-        }
-      ],
-      "stderr": "",
-      "returncode": 0
+      "pre_fix": {
+        "schema_version": 1,
+        "episode_id": "iep_0003",
+        "strict_pass": false,
+        "score": 60.0,
+        "scenarios": [
+          {
+            "id": "per_device_timeout",
+            "passed": false,
+            "events": [
+              "acquire",
+              "timeout:device"
+            ]
+          },
+          {
+            "id": "abort_releases_lease",
+            "passed": true,
+            "events": [
+              "acquire",
+              "abort",
+              "lease:released",
+              "acquire:second"
+            ]
+          },
+          {
+            "id": "shutdown_pending",
+            "passed": true,
+            "events": [
+              "acquire",
+              "shutdown",
+              "lease:released",
+              "closed"
+            ]
+          }
+        ],
+        "stderr": "",
+        "returncode": 0
+      },
+      "gold": {
+        "schema_version": 1,
+        "episode_id": "iep_0003",
+        "strict_pass": true,
+        "score": 100.0,
+        "scenarios": [
+          {
+            "id": "per_device_timeout",
+            "passed": true,
+            "events": [
+              "acquire",
+              "timeout:device",
+              "abort",
+              "lease:released"
+            ]
+          },
+          {
+            "id": "abort_releases_lease",
+            "passed": true,
+            "events": [
+              "acquire",
+              "abort",
+              "lease:released",
+              "acquire:second"
+            ]
+          },
+          {
+            "id": "shutdown_pending",
+            "passed": true,
+            "events": [
+              "acquire",
+              "shutdown",
+              "lease:released",
+              "closed"
+            ]
+          }
+        ],
+        "stderr": "",
+        "returncode": 0
+      }
     }
   },
   "failures": []

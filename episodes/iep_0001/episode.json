@@ -5,7 +5,7 @@
   "scenarios": [
     {"id": "nominal_move", "fault": "none", "weight": 1, "required_events": ["ready", "move_start", "busy:true", "position:42", "busy:false"]},
     {"id": "delayed_poll", "fault": "poll_delay", "weight": 1, "required_events": ["move_start", "busy:true", "poll:delayed", "position:42", "busy:false"]},
-    {"id": "disconnect_recovery", "fault": "disconnect_after_start", "weight": 2, "required_events": ["move_start", "busy:true", "error:disconnect", "recover", "ready", "busy:false"]}
+    {"id": "disconnect_recovery", "fault": "disconnect_after_start", "weight": 2, "required_events": ["move_start", "busy:true", "error:disconnect", "busy:false", "recover", "ready"]}
   ],
   "status": "executable"
 }
