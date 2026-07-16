@@ -28,3 +28,9 @@ def test_infrastructure_error_reduces_confidence():
     report = scored_report("evaluate", {"fail_to_pass": {"returncode": 1, "tests": []}}, False, infrastructure_error=True)
     assert report["failure_kind"] == "infrastructure_error"
     assert report["confidence"]["factors"]["infrastructure"] == 0.0
+
+
+def test_patch_apply_failure_cannot_earn_build_points():
+    report = scored_report("evaluate", {}, False, infrastructure_error=True, patch_applied=False)
+    assert report["score"] == 0.0
+    assert report["categories"]["build_and_load"]["earned"] == 0.0

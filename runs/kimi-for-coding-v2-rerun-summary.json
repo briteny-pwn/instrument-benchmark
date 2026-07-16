@@ -1,0 +1,110 @@
+{
+  "model": "kimi-for-coding",
+  "evaluator_schema_version": 2,
+  "runs_per_instance": 3,
+  "total_runs": 9,
+  "results": [
+    {
+      "instance": "iab_0001",
+      "run": 1,
+      "evaluation_score": 0.0,
+      "strict_pass": false,
+      "confidence": 0.0,
+      "failure_kind": "patch_apply",
+      "patch_applied": false
+    },
+    {
+      "instance": "iab_0001",
+      "run": 2,
+      "evaluation_score": 0.0,
+      "strict_pass": false,
+      "confidence": 0.0,
+      "failure_kind": "patch_apply",
+      "patch_applied": false
+    },
+    {
+      "instance": "iab_0001",
+      "run": 3,
+      "evaluation_score": 0.0,
+      "strict_pass": false,
+      "confidence": 0.0,
+      "failure_kind": "patch_apply",
+      "patch_applied": false
+    },
+    {
+      "instance": "iab_0003",
+      "run": 1,
+      "evaluation_score": 0.0,
+      "strict_pass": false,
+      "confidence": 0.0,
+      "failure_kind": "patch_apply",
+      "patch_applied": false
+    },
+    {
+      "instance": "iab_0003",
+      "run": 2,
+      "evaluation_score": 0.0,
+      "strict_pass": false,
+      "confidence": 0.0,
+      "failure_kind": "patch_apply",
+      "patch_applied": false
+    },
+    {
+      "instance": "iab_0003",
+      "run": 3,
+      "evaluation_score": 100.0,
+      "strict_pass": true,
+      "confidence": 87.5,
+      "failure_kind": null,
+      "patch_applied": true
+    },
+    {
+      "instance": "iab_0005",
+      "run": 1,
+      "evaluation_score": 0.0,
+      "strict_pass": false,
+      "confidence": 0.0,
+      "failure_kind": "patch_apply",
+      "patch_applied": false
+    },
+    {
+      "instance": "iab_0005",
+      "run": 2,
+      "evaluation_score": 0.0,
+      "strict_pass": false,
+      "confidence": 0.0,
+      "failure_kind": "patch_apply",
+      "patch_applied": false
+    },
+    {
+      "instance": "iab_0005",
+      "run": 3,
+      "evaluation_score": 0.0,
+      "strict_pass": false,
+      "confidence": 0.0,
+      "failure_kind": "patch_apply",
+      "patch_applied": false
+    }
+  ],
+  "aggregate": {
+    "strict_passes": 1,
+    "mean_evaluation_score": 11.11111111111111,
+    "mean_confidence": 9.722222222222221,
+    "patch_apply_failures": 8
+  },
+  "isolation": {
+    "model_visible": [
+      "problem.md",
+      "repository",
+      "simulator"
+    ],
+    "hidden": [
+      "gold patch",
+      "hidden tests",
+      "expected trace",
+      "provenance"
+    ],
+    "api_key_persisted": false,
+    "workspace": "/tmp/iab-kimi-rerun"
+  }
+}

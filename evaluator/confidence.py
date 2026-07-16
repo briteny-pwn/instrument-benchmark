@@ -26,7 +26,7 @@ def calculate_confidence(layers: dict[str, Any], *, infrastructure_error: bool =
     trace_total = int(trace.get("total", 0) or 0)
     trace_match = int(trace.get("matched", 0) or 0)
     trace_evidence = _clip(trace_match / trace_total) if trace_total else 0.0
-    executed = [result for name, result in layers.items() if name != "gold_differential"]
+    executed = [result for name, result in layers.items() if name not in {"gold_differential", "patch_application"}]
     reproducibility = sum("returncode" in result for result in executed) / len(executed) if executed else 0.0
     infrastructure = 0.0 if infrastructure_error else 1.0
     score = round(100.0 * (0.25 * coverage + 0.25 * assertion_evidence + 0.20 * trace_evidence + 0.20 * reproducibility + 0.10 * infrastructure), 2)

@@ -96,12 +96,12 @@ def fraction(tests: list[dict]) -> float:
     return sum(bool(test.get("passed")) for test in tests) / len(tests) if tests else 0.0
 
 
-def scored_report(mode: str, layers: dict, passed: bool, *, infrastructure_error: bool = False) -> dict:
+def scored_report(mode: str, layers: dict, passed: bool, *, infrastructure_error: bool = False, patch_applied: bool = True) -> dict:
     from evaluator.confidence import calculate_confidence
     trace = layers.get("gold_differential", {})
     total = trace.get("total", 0)
     categories = {
-        "patch_application": {"weight": 2.0, "fraction": 1.0},
+        "patch_application": {"weight": 2.0, "fraction": 1.0 if patch_applied else 0.0},
         "build_and_load": {"weight": 8.0, "fraction": fraction(layers.get("build_and_load", {}).get("tests", [])) if "build_and_load" in layers else 1.0},
         "bug_fix": {"weight": 35.0, "fraction": fraction(layers.get("fail_to_pass", {}).get("tests", []))},
         "regression": {"weight": 20.0, "fraction": fraction(layers.get("regression", {}).get("tests", []))},
@@ -109,6 +109,8 @@ def scored_report(mode: str, layers: dict, passed: bool, *, infrastructure_error
         "trace_checkpoints": {"weight": 10.0, "fraction": trace.get("matched", 0) / total if total else 0.0},
         "minefields": {"weight": 15.0, "fraction": fraction(layers.get("minefields", {}).get("tests", []))},
     }
+    if not patch_applied:
+        for value in categories.values(): value["fraction"] = 0.0
     for value in categories.values(): value["earned"] = round(value["weight"] * value["fraction"], 4)
     tests = [{**test, "layer": layer} for layer, result in layers.items() for test in result.get("tests", [])]
     failure_kind = None if passed else ("infrastructure_error" if infrastructure_error else "test")
@@ -123,9 +125,9 @@ def scored_report(mode: str, layers: dict, passed: bool, *, infrastructure_error
     }
 
 
-def write_report(instance: Path, mode: str, layers: dict, passed: bool, *, failure_kind: str | None = None) -> None:
+def write_report(instance: Path, mode: str, layers: dict, passed: bool, *, failure_kind: str | None = None, infrastructure_error: bool = False, patch_applied: bool = True) -> None:
     identifier = json.loads((instance / "instance.json").read_text())["instance_id"]
-    report = scored_report(mode, layers, passed)
+    report = scored_report(mode, layers, passed, infrastructure_error=infrastructure_error, patch_applied=patch_applied)
     report["instance_id"] = identifier
     if failure_kind is not None: report["failure_kind"] = failure_kind
     target = instance / ".work" / "evaluation_report.json"
@@ -148,7 +150,12 @@ def main() -> int:
     if args.mode == "apply-gold":
         apply_patch(work, instance / "patches" / "gold.patch"); print(json.dumps({"instance_id": identifier, "gold_patch_applied": True})); return 0
     if args.patch:
-        work = prepare(instance); apply_patch(work, args.patch)
+        work = prepare(instance)
+        try:
+            apply_patch(work, args.patch)
+        except Exception as exc:
+            write_report(instance, args.mode, {"patch_application": {"passed": False, "returncode": 1, "tests": [], "stderr": str(exc)}}, False, failure_kind="patch_apply", infrastructure_error=True, patch_applied=False)
+            return 1
     if args.mode == "pre-fix":
         result = run_layer(instance, work, "fail_to_pass")
         confirmed = not result["passed"]
