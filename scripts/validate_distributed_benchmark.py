@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import platform
 import subprocess
 import sys
 from pathlib import Path
@@ -17,13 +19,19 @@ from instrument_benchmark.contracts import dump_json, load_run_config
 from instrument_benchmark.orchestrator import run_benchmark
 
 
-def run_command(cwd: Path, arguments: list[str]) -> dict[str, Any]:
+def run_command(
+    cwd: Path,
+    arguments: list[str],
+    *,
+    environment: dict[str, str] | None = None,
+) -> dict[str, Any]:
     completed = subprocess.run(
         arguments,
         cwd=cwd,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        env=environment,
         check=False,
     )
     return {
@@ -57,7 +65,13 @@ def main() -> int:
     evaluator = ROOT.parent / "evaluator"
     config_path = ROOT / "configs" / "pyvisa_dut_validation_v1.yaml"
     config = load_run_config(config_path)
+    docker_environment = dict(os.environ)
+    docker_environment["IAB_RUN_DOCKER_TESTS"] = "1"
     commands = [
+        run_command(
+            ROOT,
+            ["docker", "info", "--format", "{{.OSType}} {{.ServerVersion}}"],
+        ),
         run_command(
             instance,
             [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
@@ -65,6 +79,19 @@ def main() -> int:
         run_command(
             evaluator,
             [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
+        ),
+        run_command(
+            evaluator,
+            [
+                sys.executable,
+                "-m",
+                "unittest",
+                "tests.integration.test_container_image_linux",
+                "tests.integration.test_container_isolation_linux",
+                "tests.integration.test_docker_full_suite_linux",
+                "-v",
+            ],
+            environment=docker_environment,
         ),
         run_command(
             evaluator,
@@ -107,8 +134,30 @@ def main() -> int:
             )["cases"]
         )
     )
+    stale = run_command(
+        ROOT,
+        [
+            "docker",
+            "ps",
+            "-a",
+            "--filter",
+            "name=^iab-",
+            "--format",
+            "{{.ID}}",
+        ],
+    )
+    commands.append(stale)
+    native_linux = platform.system() == "Linux"
+    docker_linux = (
+        commands[0]["exit_code"] == 0
+        and commands[0]["output"].strip().startswith("linux ")
+    )
+    no_stale_containers = not stale["output"].strip()
     passed = (
-        all(command["exit_code"] == 0 for command in commands)
+        native_linux
+        and docker_linux
+        and no_stale_containers
+        and all(command["exit_code"] == 0 for command in commands)
         and first["strict_pass"]
         and first["score"] == 100
         and first["fixed_world_pass_rate"] == 1.0
@@ -130,10 +179,13 @@ def main() -> int:
             }
             for case in adversarial
         ],
+        "native_linux": native_linux,
+        "docker_linux": docker_linux,
+        "no_stale_containers": no_stale_containers,
         "limitations": [
             "Simulation results do not prove transfer to physical hardware.",
-            "Production ranking should add an OS-level sandbox around the "
-            "candidate process.",
+            "Container isolation proves the benchmark boundary, not transfer "
+            "to vendor drivers or physical buses.",
         ],
     }
     dump_json(config.report_path, first)

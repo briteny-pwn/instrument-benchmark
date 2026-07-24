@@ -28,6 +28,8 @@ class RunConfig:
     max_output_bytes: int
     repeated_worlds: int
     repeated_base_seed: int
+    container_protocol_version: int
+    image_mode: str
 
 
 @dataclass(frozen=True)
@@ -67,6 +69,8 @@ def load_run_config(path: Path) -> RunConfig:
         "max_output_bytes",
         "repeated_worlds",
         "repeated_base_seed",
+        "container_protocol_version",
+        "image_mode",
     }
     if not isinstance(value, dict) or set(value) != required:
         raise ContractError("run config fields do not match schema version 1")
@@ -96,6 +100,10 @@ def load_run_config(path: Path) -> RunConfig:
         repeated_base_seed=_positive_int(
             value["repeated_base_seed"], "repeated_base_seed"
         ),
+        container_protocol_version=_positive_int(
+            value["container_protocol_version"], "container_protocol_version"
+        ),
+        image_mode=_exact(value["image_mode"], "locked", "image_mode"),
     )
 
 
@@ -144,6 +152,16 @@ def validate_dependencies(
         raise ContractError("evaluator protocol mismatch")
     if instance_id not in evaluator.get("supported_instances", []):
         raise ContractError("instance is not supported by evaluator")
+    container = instance.get("container")
+    if not isinstance(container, dict):
+        raise ContractError("instance container contract is missing")
+    protocol = container.get("protocol_version")
+    if protocol != evaluator.get("container_protocol_version"):
+        raise ContractError("container protocol mismatch")
+    if evaluator.get("candidate_execution") != "docker":
+        raise ContractError("evaluator must require Docker candidate execution")
+    if evaluator.get("image_mode") != "locked":
+        raise ContractError("evaluator image mode must be locked")
 
 
 def validate_visible_hashes(instance_root: Path, manifest: dict[str, Any]) -> None:
@@ -173,6 +191,8 @@ def validate_evaluator_report(value: Any) -> dict[str, Any]:
         "strict_gates",
         "evidence_confidence",
         "worlds",
+        "infrastructure_valid",
+        "retry_eligible",
     }
     missing = sorted(required - set(value))
     if missing:
@@ -181,6 +201,36 @@ def validate_evaluator_report(value: Any) -> dict[str, Any]:
         raise ContractError("unsupported report schema_version")
     if isinstance(value["score"], bool) or not 0 <= float(value["score"]) <= 100:
         raise ContractError("report score must be between 0 and 100")
+    worlds = value["worlds"]
+    if not isinstance(worlds, list) or not worlds:
+        raise ContractError("evaluator report worlds must be non-empty")
+    for index, world in enumerate(worlds):
+        if not isinstance(world, dict):
+            raise ContractError(f"world {index} must be an object")
+        container = world.get("container_evidence")
+        if not isinstance(container, dict):
+            raise ContractError(f"world {index} missing container evidence")
+        required_security = {
+            "container_id",
+            "image_digest",
+            "network_mode",
+            "readonly_rootfs",
+            "user",
+            "cleanup_succeeded",
+        }
+        if not required_security.issubset(container):
+            raise ContractError(f"world {index} container evidence is incomplete")
+        if (
+            not isinstance(container["image_digest"], str)
+            or not container["image_digest"].startswith("sha256:")
+        ):
+            raise ContractError(f"world {index} image digest is invalid")
+        if container["network_mode"] != "none" or not container["readonly_rootfs"]:
+            raise ContractError(f"world {index} Docker security evidence failed")
+        if container["user"] != "10001:10001":
+            raise ContractError(f"world {index} container user is invalid")
+        if container["cleanup_succeeded"] is not True:
+            raise ContractError(f"world {index} cleanup evidence failed")
     return value
 
 
@@ -241,3 +291,8 @@ def _positive_int(raw: Any, name: str) -> int:
         raise ContractError(f"{name} must be a positive integer")
     return raw
 
+
+def _exact(raw: Any, expected: str, name: str) -> str:
+    if raw != expected:
+        raise ContractError(f"{name} must be {expected}")
+    return expected

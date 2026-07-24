@@ -72,6 +72,8 @@ def run_benchmark(
             "max_output_bytes": config.max_output_bytes,
             "repeated_worlds": config.repeated_worlds,
             "repeated_base_seed": config.repeated_base_seed,
+            "container_protocol_version": config.container_protocol_version,
+            "image_mode": config.image_mode,
         }
         dump_json(request_path, request)
         completed = _invoke_evaluator(
@@ -106,9 +108,46 @@ def run_benchmark(
     report["orchestration"] = {
         "schema_version": 1,
         "evaluator_exit_code": 0,
+        "container_provenance": _container_provenance(
+            instance_root, instance_manifest
+        ),
     }
     dump_json(config.report_path, report)
     return report
+
+
+def _container_provenance(
+    instance_root: Path, instance_manifest: dict[str, Any]
+) -> dict[str, Any]:
+    container = instance_manifest.get("container")
+    if not isinstance(container, dict):
+        raise ContractError("instance container contract is missing")
+    lock_name = container.get("lock_file")
+    if not isinstance(lock_name, str):
+        raise ContractError("instance image lock path is missing")
+    lock = load_yaml_mapping(instance_root / lock_name)
+    built = lock.get("built_image")
+    if not isinstance(built, dict):
+        raise ContractError("instance built image lock is missing")
+    completed = subprocess.run(
+        ["docker", "version", "--format", "{{.Server.Version}}"],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0 or not completed.stdout.strip():
+        raise RuntimeError(
+            "cannot record Docker Engine version: "
+            f"{completed.stderr.strip() or 'unknown error'}"
+        )
+    return {
+        "container_protocol_version": container.get("protocol_version"),
+        "image_mode": "locked",
+        "dockerfile_sha256": lock.get("dockerfile_sha256"),
+        "image_digest": built.get("digest"),
+        "docker_engine_version": completed.stdout.strip(),
+    }
 
 
 def _invoke_evaluator(

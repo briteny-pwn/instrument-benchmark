@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -17,6 +18,7 @@ from instrument_benchmark.contracts import (  # noqa: E402
     load_run_config,
     repository_provenance,
     validate_dependencies,
+    validate_evaluator_report,
 )
 from instrument_benchmark.orchestrator import run_benchmark  # noqa: E402
 from scripts.validate_distributed_benchmark import semantic_projection  # noqa: E402
@@ -63,11 +65,15 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 "id": "pyvisa_dut_validation_v1",
                 "protocol_version": 1,
             },
+            "container": {"protocol_version": 1},
         }
         evaluator = {
             "evaluator_id": "pyvisa_dut_validation_v1",
             "protocol_version": 1,
             "supported_instances": ["pyvisa_dut_validation_v1"],
+            "container_protocol_version": 1,
+            "candidate_execution": "docker",
+            "image_mode": "locked",
         }
         validate_dependencies(instance, evaluator)
         evaluator["protocol_version"] = 2
@@ -96,6 +102,8 @@ class DistributedOrchestratorTests(unittest.TestCase):
                         "max_output_bytes: 65536",
                         "repeated_worlds: 10",
                         "repeated_base_seed: 40000",
+                        "container_protocol_version: 1",
+                        "image_mode: locked",
                     )
                 )
             )
@@ -125,8 +133,16 @@ class DistributedOrchestratorTests(unittest.TestCase):
                         "  protocol_version: 1",
                         "visible_files:",
                         f"  task.txt: {digest}",
+                        "container:",
+                        "  protocol_version: 1",
+                        "  lock_file: image.lock.yaml",
                     )
                 )
+            )
+            (instance / "image.lock.yaml").write_text(
+                "dockerfile_sha256: " + "1" * 64 + "\n"
+                "built_image:\n"
+                "  digest: sha256:" + "2" * 64 + "\n"
             )
             (evaluator / "evaluator.yaml").write_text(
                 "\n".join(
@@ -134,6 +150,9 @@ class DistributedOrchestratorTests(unittest.TestCase):
                         "schema_version: 1",
                         "evaluator_id: pyvisa_dut_validation_v1",
                         "protocol_version: 1",
+                        "container_protocol_version: 1",
+                        "candidate_execution: docker",
+                        "image_mode: locked",
                         "supported_instances:",
                         "  - pyvisa_dut_validation_v1",
                     )
@@ -146,9 +165,15 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 "import argparse,json\n"
                 "p=argparse.ArgumentParser();s=p.add_subparsers(dest='c');r=s.add_parser('run');"
                 "r.add_argument('--request');r.add_argument('--report');a=p.parse_args();"
-                "q=json.load(open(a.request));json.dump({'schema_version':1,'status':'completed',"
+                "q=json.load(open(a.request));"
+                "assert q['container_protocol_version']==1 and q['image_mode']=='locked';"
+                "json.dump({'schema_version':1,'status':'completed',"
                 "'strict_pass':True,'score':100,'dimensions':{},'strict_gates':{},"
-                "'evidence_confidence':{},'worlds':[]},open(a.report,'w'))\n"
+                "'evidence_confidence':{},'infrastructure_valid':True,'retry_eligible':False,"
+                "'worlds':[{'container_evidence':{'container_id':'c1',"
+                "'image_digest':'sha256:'+'2'*64,'network_mode':'none',"
+                "'readonly_rootfs':True,'user':'10001:10001',"
+                "'cleanup_succeeded':True}}]},open(a.report,'w'))\n"
             )
             for repo in (instance, evaluator):
                 subprocess.run(["git", "add", "."], cwd=repo, check=True)
@@ -171,20 +196,58 @@ class DistributedOrchestratorTests(unittest.TestCase):
                         "max_output_bytes: 65536",
                         "repeated_worlds: 1",
                         "repeated_base_seed: 40000",
+                        "container_protocol_version: 1",
+                        "image_mode: locked",
                     )
                 )
             )
-            result = run_benchmark(
-                config,
-                instrument_checkout=instrument,
-                allow_dirty=False,
-            )
+            with patch(
+                "instrument_benchmark.orchestrator._container_provenance",
+                return_value={
+                    "container_protocol_version": 1,
+                    "image_mode": "locked",
+                    "dockerfile_sha256": "1" * 64,
+                    "image_digest": "sha256:" + "2" * 64,
+                    "docker_engine_version": "test",
+                },
+            ):
+                result = run_benchmark(
+                    config,
+                    instrument_checkout=instrument,
+                    allow_dirty=False,
+                )
             self.assertEqual(result["score"], 100)
             self.assertEqual(
                 set(result["provenance"]),
                 {"instrument", "instance", "evaluator"},
             )
             self.assertTrue(report.is_file())
+
+    def test_report_requires_per_world_docker_security_evidence(self) -> None:
+        base = {
+            "schema_version": 1,
+            "status": "completed",
+            "strict_pass": True,
+            "score": 100,
+            "dimensions": {},
+            "strict_gates": {},
+            "evidence_confidence": {},
+            "infrastructure_valid": True,
+            "retry_eligible": False,
+            "worlds": [{"container_evidence": None}],
+        }
+        with self.assertRaisesRegex(ContractError, "container evidence"):
+            validate_evaluator_report(base)
+        base["worlds"][0]["container_evidence"] = {
+            "container_id": "c1",
+            "image_digest": "",
+            "network_mode": "none",
+            "readonly_rootfs": True,
+            "user": "10001:10001",
+            "cleanup_succeeded": True,
+        }
+        with self.assertRaisesRegex(ContractError, "image digest"):
+            validate_evaluator_report(base)
 
     def test_semantic_projection_ignores_run_provenance(self) -> None:
         first = {
