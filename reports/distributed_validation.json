@@ -1,0 +1,3495 @@
+{
+  "dimensions": {
+    "causal_state": 20.0,
+    "discovery": 15.0,
+    "driver": 15.0,
+    "experiment": 25.0,
+    "robustness": 15.0,
+    "safety": 10.0
+  },
+  "evaluator": {
+    "id": "pyvisa_dut_validation_v1",
+    "protocol_version": 1,
+    "run_id": "pyvisa-dut-validation-reference"
+  },
+  "evidence_confidence": {
+    "final_state": 1.0,
+    "infrastructure": 1.0,
+    "journal": 1.0,
+    "oracle": 1.0,
+    "scenarios": 1.0,
+    "semantics": 1.0,
+    "total": 1.0
+  },
+  "fixed_world_pass_rate": 1.0,
+  "orchestration": {
+    "evaluator_exit_code": 0,
+    "schema_version": 1
+  },
+  "provenance": {
+    "evaluator": {
+      "branch": "main",
+      "commit": "8ecd2a293c95060311c72c2fa8e520060a3bcdb8",
+      "dirty": false,
+      "path": "/Users/britenyyyang/benchmark/evaluator",
+      "remote": "https://github.com/briteny-pwn/instrument-benchmark-evaluator.git"
+    },
+    "instance": {
+      "branch": "main",
+      "commit": "0827bed150d854a8688a9c8f92645157c718f864",
+      "dirty": false,
+      "path": "/Users/britenyyyang/benchmark/instance",
+      "remote": "https://github.com/briteny-pwn/instrument-benchmark-instances.git"
+    },
+    "instrument": {
+      "branch": "distributed-model",
+      "commit": "eba464400015ec60d863ef683febed6ff46004f6",
+      "dirty": false,
+      "path": "/Users/britenyyyang/benchmark/instrument",
+      "remote": "https://github.com/briteny-pwn/instrument-benchmark.git"
+    }
+  },
+  "repeated_world_pass_rate": 1.0,
+  "run_id": "pyvisa-dut-validation-reference",
+  "schema_version": 1,
+  "score": 100.0,
+  "status": "completed",
+  "strict_gates": {
+    "active_close_all": true,
+    "correct_decision": true,
+    "five_devices_accessed": true,
+    "fixed_world_threshold": true,
+    "no_forbidden_access": true,
+    "oracle_agreement": true,
+    "repeated_world_threshold": true,
+    "safe_final_state": true
+  },
+  "strict_pass": true,
+  "validation": {
+    "adversarial_cases": [
+      {
+        "expected_status": "completed",
+        "failed_gates": [
+          "five_devices_accessed",
+          "oracle_agreement",
+          "correct_decision"
+        ],
+        "submission": "hardcoded_result.py",
+        "world": "nominal"
+      },
+      {
+        "expected_status": "candidate_failure",
+        "failed_gates": [
+          "five_devices_accessed",
+          "oracle_agreement"
+        ],
+        "submission": "fixed_resources.py",
+        "world": "reordered_resources"
+      },
+      {
+        "expected_status": "completed",
+        "failed_gates": [
+          "active_close_all",
+          "oracle_agreement"
+        ],
+        "submission": "leaked_sessions.py",
+        "world": "distractor_devices"
+      },
+      {
+        "expected_status": "invalid_submission",
+        "failed_gates": [
+          "no_forbidden_access"
+        ],
+        "submission": "import_pyvisa.py",
+        "world": "nominal"
+      },
+      {
+        "expected_status": "invalid_result",
+        "failed_gates": [
+          "oracle_agreement"
+        ],
+        "submission": "bad_ascii_parser.py",
+        "world": "numeric_formats"
+      },
+      {
+        "expected_status": "invalid_result",
+        "failed_gates": [
+          "oracle_agreement"
+        ],
+        "submission": "bad_ieee_length.py",
+        "world": "binary_block_variants"
+      },
+      {
+        "expected_status": "candidate_failure",
+        "failed_gates": [
+          "oracle_agreement"
+        ],
+        "submission": "fixed_short_wait.py",
+        "world": "delayed_settle"
+      },
+      {
+        "expected_status": "candidate_failure",
+        "failed_gates": [
+          "oracle_agreement"
+        ],
+        "submission": "no_initial_reset.py",
+        "world": "dirty_initial_state"
+      },
+      {
+        "expected_status": "completed",
+        "failed_gates": [
+          "oracle_agreement",
+          "correct_decision"
+        ],
+        "submission": "always_pass.py",
+        "world": "dut_gain_failure"
+      },
+      {
+        "expected_status": "candidate_failure",
+        "failed_gates": [
+          "oracle_agreement"
+        ],
+        "submission": "no_retry.py",
+        "world": "command_error"
+      },
+      {
+        "expected_status": "completed",
+        "failed_gates": [
+          "safe_final_state"
+        ],
+        "submission": "unsafe_cleanup.py",
+        "world": "nominal"
+      }
+    ],
+    "commands": [
+      {
+        "command": [
+          "/Users/britenyyyang/benchmark/instrument benchmark/.venv/bin/python",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-v"
+        ],
+        "cwd": "/Users/britenyyyang/benchmark/instance",
+        "exit_code": 0,
+        "output": "test_manifest_declares_five_roles_and_evaluator_contract (test_instance.InstanceContractTests.test_manifest_declares_five_roles_and_evaluator_contract) ... ok\ntest_manual_source_manifest_has_five_official_sources (test_instance.InstanceContractTests.test_manual_source_manifest_has_five_official_sources) ... ok\ntest_starter_python_compiles (test_instance.InstanceContractTests.test_starter_python_compiles) ... ok\ntest_visible_file_hashes_are_complete_and_exact (test_instance.InstanceContractTests.test_visible_file_hashes_are_complete_and_exact) ... ok\ntest_visible_tree_has_no_hidden_evaluator_material (test_instance.InstanceContractTests.test_visible_tree_has_no_hidden_evaluator_material) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 0.010s\n\nOK\n"
+      },
+      {
+        "command": [
+          "/Users/britenyyyang/benchmark/instrument benchmark/.venv/bin/python",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-v"
+        ],
+        "cwd": "/Users/britenyyyang/benchmark/evaluator",
+        "exit_code": 0,
+        "output": "test_cli_runs_reference_candidate_and_writes_report (test_cli.EvaluatorCliContractTests.test_cli_runs_reference_candidate_and_writes_report) ... ok\ntest_load_request_resolves_absolute_paths (test_cli.EvaluatorCliContractTests.test_load_request_resolves_absolute_paths) ... ok\ntest_request_rejects_wrong_instance_id (test_cli.EvaluatorCliContractTests.test_request_rejects_wrong_instance_id) ... ok\ntest_request_rejects_wrong_protocol (test_cli.EvaluatorCliContractTests.test_request_rejects_wrong_protocol) ... ok\n\n----------------------------------------------------------------------\nRan 4 tests in 5.146s\n\nOK\n"
+      },
+      {
+        "command": [
+          "/Users/britenyyyang/benchmark/instrument benchmark/.venv/bin/python",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "evaluators/pyvisa_dut_validation_v1/tests",
+          "-v"
+        ],
+        "cwd": "/Users/britenyyyang/benchmark/evaluator",
+        "exit_code": 0,
+        "output": "test_all_nine_required_world_families_are_configured (test_adversarial.HiddenWorldTests.test_all_nine_required_world_families_are_configured) ... ok\ntest_declared_negative_submissions_fail_intended_checks (test_adversarial.HiddenWorldTests.test_declared_negative_submissions_fail_intended_checks) ... ok\ntest_reference_solution_strict_passes_every_fixed_world (test_adversarial.HiddenWorldTests.test_reference_solution_strict_passes_every_fixed_world) ... ok\ntest_repeated_specs_are_deterministic_and_parameterized (test_adversarial.HiddenWorldTests.test_repeated_specs_are_deterministic_and_parameterized) ... ok\ntest_worlds_change_the_declared_dimensions (test_adversarial.HiddenWorldTests.test_worlds_change_the_declared_dimensions) ... ok\ntest_acquisition_before_settle_fails_named_constraint (test_constraints.ConstraintTests.test_acquisition_before_settle_fails_named_constraint) ... ok\ntest_forced_close_is_not_active_cleanup (test_constraints.ConstraintTests.test_forced_close_is_not_active_cleanup) ... ok\ntest_journal_records_query_bytes_hashes_state_and_explicit_close (test_constraints.ConstraintTests.test_journal_records_query_bytes_hashes_state_and_explicit_close) ... ok\ntest_transient_instrument_error_and_recovery_are_both_journaled (test_constraints.ConstraintTests.test_transient_instrument_error_and_recovery_are_both_journaled) ... ok\ntest_unsafe_final_state_fails_independently_of_trace (test_constraints.ConstraintTests.test_unsafe_final_state_fails_independently_of_trace) ... ok\ntest_valid_dmm_scope_orderings_both_pass (test_constraints.ConstraintTests.test_valid_dmm_scope_orderings_both_pass) ... ok\ntest_reference_full_suite_is_reproducible_and_strict_pass (test_end_to_end.EndToEndTests.test_reference_full_suite_is_reproducible_and_strict_pass) ... ok\ntest_binary_read_round_trip (test_gateway.GatewayTests.test_binary_read_round_trip) ... ok\ntest_lists_opens_configures_queries_and_closes (test_gateway.GatewayTests.test_lists_opens_configures_queries_and_closes) ... ok\ntest_oversized_frame_is_rejected_without_server_exit (test_gateway.GatewayTests.test_oversized_frame_is_rejected_without_server_exit) ... ok\ntest_parallel_sessions_do_not_cross_pending_responses (test_gateway.GatewayTests.test_parallel_sessions_do_not_cross_pending_responses) ... ok\ntest_read_without_pending_response_is_typed_error (test_gateway.GatewayTests.test_read_without_pending_response_is_typed_error) ... ok\ntest_session_cannot_be_used_by_another_client (test_gateway.GatewayTests.test_session_cannot_be_used_by_another_client) ... ok\ntest_use_after_close_is_typed_error (test_gateway.GatewayTests.test_use_after_close_is_typed_error) ... ok\ntest_awg_upload_requires_selection_before_output (test_instruments.InstrumentRackTests.test_awg_upload_requires_selection_before_output) ... ok\ntest_dmm_returns_configured_ascii_samples_from_world (test_instruments.InstrumentRackTests.test_dmm_returns_configured_ascii_samples_from_world) ... ok\ntest_psu_set_query_and_output_update_world (test_instruments.InstrumentRackTests.test_psu_set_query_and_output_update_world) ... ok\ntest_pyvisa_sim_definition_exposes_five_resources (test_instruments.InstrumentRackTests.test_pyvisa_sim_definition_exposes_five_resources) ... ok\ntest_resource_order_can_be_changed_without_changing_roles (test_instruments.InstrumentRackTests.test_resource_order_can_be_changed_without_changing_roles) ... ok\ntest_scope_returns_ieee_block_and_preamble_from_world (test_instruments.InstrumentRackTests.test_scope_returns_ieee_block_and_preamble_from_world) ... ok\ntest_switch_routes_update_shared_world (test_instruments.InstrumentRackTests.test_switch_routes_update_shared_world) ... ok\ntest_unknown_command_is_reported_through_error_queue (test_instruments.InstrumentRackTests.test_unknown_command_is_reported_through_error_queue) ... ok\ntest_aggregate_requires_all_fixed_and_ninety_percent_repeated (test_scoring.ScoringTests.test_aggregate_requires_all_fixed_and_ninety_percent_repeated) ... ok\ntest_candidate_measurement_is_checked_against_raw_observation (test_scoring.ScoringTests.test_candidate_measurement_is_checked_against_raw_observation) ... ok\ntest_confidence_does_not_change_capability_score (test_scoring.ScoringTests.test_confidence_does_not_change_capability_score) ... ok\ntest_high_score_cannot_compensate_for_unsafe_final_state (test_scoring.ScoringTests.test_high_score_cannot_compensate_for_unsafe_final_state) ... ok\ntest_oracle_reconstructs_ascii_binary_and_derived_metrics (test_scoring.ScoringTests.test_oracle_reconstructs_ascii_binary_and_derived_metrics) ... ok\ntest_valid_run_has_all_world_level_gates (test_scoring.ScoringTests.test_valid_run_has_all_world_level_gates) ... ok\ntest_measurement_requires_route_power_stimulus_and_settling (test_world.DUTWorldTests.test_measurement_requires_route_power_stimulus_and_settling) ... ok\ntest_measurements_are_causally_derived_from_waveform_and_gain (test_world.DUTWorldTests.test_measurements_are_causally_derived_from_waveform_and_gain) ... ok\ntest_reopen_does_not_reset_world (test_world.DUTWorldTests.test_reopen_does_not_reset_world) ... ok\ntest_safe_cleanup_snapshot (test_world.DUTWorldTests.test_safe_cleanup_snapshot) ... ok\ntest_same_seed_reproduces_measurements (test_world.DUTWorldTests.test_same_seed_reproduces_measurements) ... ok\n\n----------------------------------------------------------------------\nRan 38 tests in 30.885s\n\nOK\n"
+      },
+      {
+        "command": [
+          "/Users/britenyyyang/benchmark/instrument benchmark/.venv/bin/python",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-v"
+        ],
+        "cwd": "/Users/britenyyyang/benchmark/instrument",
+        "exit_code": 0,
+        "output": "test_dependency_manifests_must_match_ids_and_protocol (test_orchestrator.DistributedOrchestratorTests.test_dependency_manifests_must_match_ids_and_protocol) ... ok\ntest_fake_evaluator_is_invoked_through_json_cli (test_orchestrator.DistributedOrchestratorTests.test_fake_evaluator_is_invoked_through_json_cli) ... Initialized empty Git repository in /private/var/folders/8l/yt5m3zfx7mbd6mqljfb2x5kc0000gn/T/tmpd5nk4rlu/instrument/.git/\n[main (root-commit) 6f251e1] initial\n 1 file changed, 1 insertion(+)\n create mode 100644 README.md\nInitialized empty Git repository in /private/var/folders/8l/yt5m3zfx7mbd6mqljfb2x5kc0000gn/T/tmpd5nk4rlu/instance/.git/\n[main (root-commit) 4eef14e] initial\n 1 file changed, 1 insertion(+)\n create mode 100644 README.md\nInitialized empty Git repository in /private/var/folders/8l/yt5m3zfx7mbd6mqljfb2x5kc0000gn/T/tmpd5nk4rlu/evaluator/.git/\n[main (root-commit) c82412c] initial\n 1 file changed, 1 insertion(+)\n create mode 100644 README.md\n[main 24f1b43] contract\n 2 files changed, 8 insertions(+)\n create mode 100644 instance.yaml\n create mode 100644 task.txt\n[main c8261ed] contract\n 3 files changed, 7 insertions(+)\n create mode 100644 evaluator.yaml\n create mode 100644 instrument_benchmark_evaluator/__init__.py\n create mode 100644 instrument_benchmark_evaluator/cli.py\nok\ntest_repository_provenance_rejects_dirty_checkout (test_orchestrator.DistributedOrchestratorTests.test_repository_provenance_rejects_dirty_checkout) ... Initialized empty Git repository in /private/var/folders/8l/yt5m3zfx7mbd6mqljfb2x5kc0000gn/T/tmpe0h20zca/repo/.git/\n[main (root-commit) 03cfc56] initial\n 1 file changed, 1 insertion(+)\n create mode 100644 README.md\nok\ntest_run_config_resolves_paths_relative_to_config (test_orchestrator.DistributedOrchestratorTests.test_run_config_resolves_paths_relative_to_config) ... ok\ntest_semantic_projection_ignores_run_provenance (test_orchestrator.DistributedOrchestratorTests.test_semantic_projection_ignores_run_provenance) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 0.337s\n\nOK\n"
+      }
+    ],
+    "limitations": [
+      "Simulation results do not prove transfer to physical hardware.",
+      "Production ranking should add an OS-level sandbox around the candidate process."
+    ],
+    "passed": true,
+    "semantic_reproducibility": true,
+    "world_count": 19
+  },
+  "worlds": [
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            37,
+            40
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            39,
+            40
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            44,
+            45
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            68,
+            74
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            87,
+            88
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            88,
+            89
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            90,
+            91,
+            92,
+            93,
+            94
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "nominal"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            37,
+            40
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            39,
+            40
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            44,
+            45
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            68,
+            74
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            87,
+            88
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            88,
+            89
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            90,
+            91,
+            92,
+            93,
+            94
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "reordered_resources"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            49,
+            52
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            51,
+            52
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            56,
+            57
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            80,
+            86
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            99,
+            100
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            100,
+            101
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            32,
+            38,
+            102,
+            103,
+            104,
+            105,
+            106,
+            107,
+            108
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "distractor_devices"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            37,
+            40
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            39,
+            40
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            44,
+            45
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            68,
+            74
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            87,
+            88
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            88,
+            89
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            90,
+            91,
+            92,
+            93,
+            94
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "numeric_formats"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            37,
+            40
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            39,
+            40
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            44,
+            45
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            68,
+            74
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            87,
+            88
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            88,
+            89
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            90,
+            91,
+            92,
+            93,
+            94
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "binary_block_variants"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            37,
+            40
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            39,
+            40
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            44,
+            45
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            102,
+            108
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            121,
+            122
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            122,
+            123
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            124,
+            125,
+            126,
+            127,
+            128
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "delayed_settle"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            37,
+            40
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            39,
+            40
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            44,
+            45
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            68,
+            74
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            87,
+            88
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            88,
+            89
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            90,
+            91,
+            92,
+            93,
+            94
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "dirty_initial_state"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            37,
+            40
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            39,
+            40
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            44,
+            45
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            68,
+            74
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            87,
+            88
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            88,
+            89
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            90,
+            91,
+            92,
+            93,
+            94
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "dut_gain_failure"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            31
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            38,
+            41
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            40,
+            41
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            45,
+            46
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            69,
+            75
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            88,
+            89
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            89,
+            90
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            91,
+            92,
+            93,
+            94,
+            95
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "command_error"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            37,
+            40
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            39,
+            40
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            44,
+            45
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            64,
+            70
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            83,
+            84
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            84,
+            85
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            86,
+            87,
+            88,
+            89,
+            90
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "repeated_000"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            43,
+            46
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            45,
+            46
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            50,
+            51
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            76,
+            82
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            95,
+            96
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            96,
+            97
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            32,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "repeated_001"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            37,
+            40
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            39,
+            40
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            44,
+            45
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            76,
+            82
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            95,
+            96
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            96,
+            97
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            98,
+            99,
+            100,
+            101,
+            102
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "repeated_002"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            13,
+            19,
+            25,
+            31
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            44,
+            47
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            46,
+            47
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            51,
+            52
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            89,
+            95
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            108,
+            109
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            109,
+            110
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            15,
+            21,
+            27,
+            33,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "repeated_003"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            37,
+            40
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            39,
+            40
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            44,
+            45
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            62,
+            68
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            81,
+            82
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            82,
+            83
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            84,
+            85,
+            86,
+            87,
+            88
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "repeated_004"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            43,
+            46
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            45,
+            46
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            50,
+            51
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            76,
+            82
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            95,
+            96
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            96,
+            97
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            32,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "repeated_005"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            37,
+            40
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            39,
+            40
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            44,
+            45
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            76,
+            82
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            95,
+            96
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            96,
+            97
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            98,
+            99,
+            100,
+            101,
+            102
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "repeated_006"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            19,
+            25,
+            31
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            44,
+            47
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            46,
+            47
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            51,
+            52
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            89,
+            95
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            108,
+            109
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            109,
+            110
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            21,
+            27,
+            33,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "repeated_007"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            37,
+            40
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            39,
+            40
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            44,
+            45
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            64,
+            70
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            83,
+            84
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            84,
+            85
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            86,
+            87,
+            88,
+            89,
+            90
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "repeated_008"
+    },
+    {
+      "constraints": [
+        {
+          "evidence_sequences": [
+            6,
+            12,
+            18,
+            24,
+            30
+          ],
+          "message": "every target must be identified before device-specific actions",
+          "name": "identify_before_device_commands",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            43,
+            46
+          ],
+          "message": "['switch.routes_closed'] must precede ['awg.output_on', 'psu.output_on']",
+          "name": "routes_before_sources",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            45,
+            46
+          ],
+          "message": "['psu.configured'] must precede ['psu.output_on']",
+          "name": "psu_configured_before_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            50,
+            51
+          ],
+          "message": "['awg.configured', 'awg.waveform_selected', 'awg.waveform_uploaded'] must precede ['awg.output_on']",
+          "name": "waveform_ready_before_awg_output",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            76,
+            82
+          ],
+          "message": "['dut.settled'] must precede ['dmm.acquired', 'scope.acquired']",
+          "name": "settled_before_acquisition",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            95,
+            96
+          ],
+          "message": "['awg.output_off'] must precede ['psu.output_off']",
+          "name": "awg_off_before_psu_off",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            96,
+            97
+          ],
+          "message": "['awg.output_off', 'psu.output_off'] must precede ['switch.routes_opened']",
+          "name": "sources_off_before_routes_open",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [
+            2,
+            8,
+            14,
+            20,
+            26,
+            32,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103
+          ],
+          "message": "every opened session must be explicitly closed by the candidate",
+          "name": "active_close_all",
+          "passed": true
+        },
+        {
+          "evidence_sequences": [],
+          "message": "hidden final state is safe",
+          "name": "safe_final_state",
+          "passed": true
+        }
+      ],
+      "device_evidence": {
+        "awg": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "dmm": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "psu": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "scope": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        },
+        "switch": {
+          "acquired": true,
+          "active_close": true,
+          "configured": true,
+          "identified": true,
+          "opened": true
+        }
+      },
+      "dimensions": {
+        "causal_state": 20.0,
+        "discovery": 15.0,
+        "driver": 15.0,
+        "experiment": 25.0,
+        "robustness": 15.0,
+        "safety": 10.0
+      },
+      "errors": [],
+      "evidence_confidence": {
+        "final_state": 1.0,
+        "infrastructure": 1.0,
+        "journal": 1.0,
+        "oracle": 1.0,
+        "scenarios": 1.0,
+        "semantics": 1.0,
+        "total": 1.0
+      },
+      "experiment_completion": {
+        "dmm_acquired": true,
+        "oracle_derived": true,
+        "power_enabled": true,
+        "routes_configured": true,
+        "safe_cleanup": true,
+        "scope_acquired": true,
+        "settled": true,
+        "stimulus_configured": true
+      },
+      "score": 100.0,
+      "status": "completed",
+      "strict_gates": {
+        "active_close_all": true,
+        "correct_decision": true,
+        "five_devices_accessed": true,
+        "no_forbidden_access": true,
+        "oracle_agreement": true,
+        "robustness_threshold": true,
+        "safe_final_state": true
+      },
+      "strict_pass": true,
+      "world_id": "repeated_009"
+    }
+  ]
+}
