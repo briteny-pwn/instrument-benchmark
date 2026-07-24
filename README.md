@@ -27,3 +27,11 @@ PYTHONPATH=src python -m instrument_benchmark.cli \
 By default every checkout must be clean so the recorded Git commit IDs fully
 identify the run. `--allow-dirty` exists only for local development.
 
+Official evaluation requires a native Linux Docker host. Each report records
+the three repository commits plus the Dockerfile hash, locked image digest,
+Docker Engine version, per-world security settings, artifact hashes, and
+forced-cleanup outcome. Run the complete Linux gate with:
+
+```bash
+PYTHONPATH=src python scripts/validate_distributed_benchmark.py
+```

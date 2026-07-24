@@ -141,7 +141,7 @@ def main() -> int:
             "ps",
             "-a",
             "--filter",
-            "name=^iab-",
+            "label=iab.managed=true",
             "--format",
             "{{.ID}}",
         ],
