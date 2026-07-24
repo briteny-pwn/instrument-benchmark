@@ -39,7 +39,13 @@ def semantic_projection(value: Any) -> Any:
         return {
             key: semantic_projection(item)
             for key, item in value.items()
-            if key not in {"evidence_sequences", "validation"}
+            if key
+            not in {
+                "evidence_sequences",
+                "validation",
+                "provenance",
+                "orchestration",
+            }
         }
     if isinstance(value, list):
         return [semantic_projection(item) for item in value]

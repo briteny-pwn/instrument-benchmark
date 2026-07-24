@@ -19,6 +19,7 @@ from instrument_benchmark.contracts import (  # noqa: E402
     validate_dependencies,
 )
 from instrument_benchmark.orchestrator import run_benchmark  # noqa: E402
+from scripts.validate_distributed_benchmark import semantic_projection  # noqa: E402
 
 
 class DistributedOrchestratorTests(unittest.TestCase):
@@ -184,6 +185,24 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 {"instrument", "instance", "evaluator"},
             )
             self.assertTrue(report.is_file())
+
+    def test_semantic_projection_ignores_run_provenance(self) -> None:
+        first = {
+            "score": 100,
+            "worlds": [{"constraints": [{"evidence_sequences": [1, 2]}]}],
+            "provenance": {"instrument": {"dirty": False}},
+            "orchestration": {"evaluator_exit_code": 0},
+        }
+        second = {
+            "score": 100,
+            "worlds": [{"constraints": [{"evidence_sequences": [99, 100]}]}],
+            "provenance": {"instrument": {"dirty": True}},
+            "orchestration": {"evaluator_exit_code": 0},
+        }
+        self.assertEqual(
+            semantic_projection(first),
+            semantic_projection(second),
+        )
 
 
 if __name__ == "__main__":
