@@ -30,6 +30,8 @@ jobs:
       - run: docker info
       - name: Distributed validation
         working-directory: instrument
+        env:
+          IAB_CONTAINER_OWNER: distributed-${{ github.run_id }}-${{ github.run_attempt }}
         run: PYTHONPATH=src python scripts/validate_distributed_benchmark.py
       - name: Capture Docker evidence
         if: always()
@@ -46,6 +48,6 @@ jobs:
       - name: Cleanup benchmark containers and image
         if: always()
         run: |
-          ids="$(docker ps -aq --filter 'label=iab.managed=true')"
+          ids="$(docker ps -aq --filter 'label=iab.owner=distributed-${{ github.run_id }}-${{ github.run_attempt }}')"
           if [ -n "$ids" ]; then docker rm -f $ids; fi
           docker image rm iab/pyvisa-dut-validation:v1 2>/dev/null || true

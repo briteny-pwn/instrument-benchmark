@@ -141,7 +141,11 @@ def main() -> int:
             "ps",
             "-a",
             "--filter",
-            "label=iab.managed=true",
+            (
+                f"label=iab.owner={os.environ['IAB_CONTAINER_OWNER']}"
+                if os.environ.get("IAB_CONTAINER_OWNER")
+                else "label=iab.managed=true"
+            ),
             "--format",
             "{{.ID}}",
         ],

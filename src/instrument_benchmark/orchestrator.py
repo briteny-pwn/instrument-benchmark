@@ -161,6 +161,8 @@ def _invoke_evaluator(
         "PATH": os.environ.get("PATH", ""),
         "PYTHONHASHSEED": "0",
     }
+    if os.environ.get("IAB_CONTAINER_OWNER"):
+        environment["IAB_CONTAINER_OWNER"] = os.environ["IAB_CONTAINER_OWNER"]
     return subprocess.run(
         [
             sys.executable,
