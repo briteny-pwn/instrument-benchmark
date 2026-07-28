@@ -313,6 +313,38 @@ class EvaluatorRuntimeTests(unittest.TestCase):
             any("remove denied" in note for note in getattr(caught.exception, "__notes__", []))
         )
 
+    def test_rejects_additional_tmpfs_mount(self) -> None:
+        def execute(arguments: list[str]) -> RuntimeCommandResult:
+            if arguments[:2] == ["docker", "create"]:
+                return RuntimeCommandResult(0, "outer-id\n", "")
+            if arguments[:2] == ["docker", "inspect"]:
+                value = json.loads(self.inspect_payload())
+                value[0]["HostConfig"]["Tmpfs"]["/extra"] = "rw,size=1m"
+                return RuntimeCommandResult(0, json.dumps(value), "")
+            return RuntimeCommandResult(0, "", "")
+
+        def attach(*args, **kwargs) -> AttachedEvaluatorResult:
+            self.report.write_text("{}")
+            return AttachedEvaluatorResult(0, "", "", False, False)
+
+        with self.assertRaisesRegex(EvaluatorInfrastructureError, "runtime policy"):
+            EvaluatorContainerRunner(
+                docker_socket=self.socket_path,
+                executor=execute,
+                attach_executor=attach,
+            ).run(
+                image=self.image,
+                request_path=self.request,
+                report_path=self.report,
+                instance_path=self.instance,
+                candidate_path=self.candidate,
+                shared_run_root=self.shared,
+                run_id="run-1",
+                timeout=1,
+                stdout_limit=1,
+                stderr_limit=1,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

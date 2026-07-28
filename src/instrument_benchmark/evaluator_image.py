@@ -292,14 +292,19 @@ def _sha256(payload: bytes) -> str:
 
 
 def _execute_image_command(arguments: list[str]) -> ImageCommandResult:
-    completed = subprocess.run(
-        arguments,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            arguments,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise EvaluatorImageError(
+            f"cannot launch Docker image command: {exc}"
+        ) from exc
     return ImageCommandResult(completed.returncode, completed.stdout, completed.stderr)
 
 

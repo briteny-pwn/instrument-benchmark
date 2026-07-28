@@ -406,8 +406,12 @@ def _validate_runtime_policy(
         evidence.nano_cpus == 2_000_000_000,
         str(socket_gid) in evidence.group_add,
         mounts == expected_mounts,
-        {"rw", "noexec", "nosuid", "nodev"}.issubset(tmpfs_options),
-        bool({"size=268435456", "size=256m"} & tmpfs_options),
+        set(tmpfs) == {"/tmp"},
+        tmpfs_options
+        in (
+            {"rw", "noexec", "nosuid", "nodev", "size=268435456"},
+            {"rw", "noexec", "nosuid", "nodev", "size=256m"},
+        ),
     )
     if not all(checks):
         raise EvaluatorInfrastructureError(

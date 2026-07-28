@@ -146,7 +146,9 @@ def run_benchmark(
                         f"failed to remove evaluator image tag: {cleanup_error}"
                     )
                 else:
-                    raise
+                    raise EvaluatorInfrastructureError(
+                        f"failed to remove evaluator image tag: {cleanup_error}"
+                    ) from cleanup_error
 
     report["run_id"] = config.run_id
     report["provenance"] = {
