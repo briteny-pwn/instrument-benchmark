@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import json
 import os
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .contracts import (
     ContractError,
@@ -18,6 +16,12 @@ from .contracts import (
     validate_evaluator_report,
     validate_visible_hashes,
 )
+from .evaluator_image import EvaluatorImageBuilder
+from .evaluator_runtime import EvaluatorContainerRunner
+
+
+ImageBuilderFactory = Callable[[], EvaluatorImageBuilder]
+RunnerFactory = Callable[[], EvaluatorContainerRunner]
 
 
 def run_benchmark(
@@ -25,6 +29,8 @@ def run_benchmark(
     *,
     instrument_checkout: Path,
     allow_dirty: bool = False,
+    image_builder_factory: ImageBuilderFactory | None = None,
+    runner_factory: RunnerFactory | None = None,
 ) -> dict[str, Any]:
     config = load_run_config(config_path)
     provenance = {
@@ -58,8 +64,26 @@ def run_benchmark(
     validate_dependencies(instance_manifest, evaluator_manifest)
     validate_visible_hashes(instance_root, instance_manifest)
 
-    with tempfile.TemporaryDirectory(prefix="instrument-orchestrator-") as directory:
+    assets_root = Path(__file__).resolve().parents[2] / "container"
+    image_builder = (
+        image_builder_factory()
+        if image_builder_factory is not None
+        else EvaluatorImageBuilder(assets_root=assets_root)
+    )
+    runner = (
+        runner_factory()
+        if runner_factory is not None
+        else EvaluatorContainerRunner()
+    )
+    evaluator_image = image_builder.build(
+        config.evaluator_checkout, run_id=config.run_id
+    )
+
+    with tempfile.TemporaryDirectory(prefix="iab-", dir="/tmp") as directory:
         run_root = Path(directory)
+        # The outer evaluator runs as an unprivileged, fixed UID. This directory is
+        # unique and short-lived, but must be writable through the bind mount.
+        os.chmod(run_root, 0o777)
         request_path = run_root / "request.json"
         evaluator_report_path = run_root / "evaluator-report.json"
         request = {
@@ -68,6 +92,7 @@ def run_benchmark(
             "instance_id": config.instance_id,
             "instance_path": str(instance_root),
             "candidate_path": str(config.candidate_path),
+            "shared_run_root": str(run_root),
             "timeout_seconds": config.timeout_seconds,
             "max_output_bytes": config.max_output_bytes,
             "repeated_worlds": config.repeated_worlds,
@@ -76,30 +101,21 @@ def run_benchmark(
             "image_mode": config.image_mode,
         }
         dump_json(request_path, request)
-        completed = _invoke_evaluator(
-            config.evaluator_checkout,
-            request_path,
-            evaluator_report_path,
+        container_result = runner.run(
+            image=evaluator_image,
+            request_path=request_path,
+            report_path=evaluator_report_path,
+            instance_path=instance_root,
+            candidate_path=config.candidate_path,
+            shared_run_root=run_root,
+            run_id=config.run_id,
             timeout=config.timeout_seconds
             * (len(evaluator_manifest.get("fixed_worlds", [])) + config.repeated_worlds)
-            + 30,
+            + 60,
+            stdout_limit=max(config.max_output_bytes, 64 * 1024),
+            stderr_limit=max(config.max_output_bytes, 64 * 1024),
         )
-        if completed.returncode == 2:
-            raise ContractError(
-                f"evaluator rejected request: {completed.stderr.strip()}"
-            )
-        if completed.returncode != 0:
-            raise RuntimeError(
-                f"evaluator infrastructure failure ({completed.returncode}): "
-                f"{completed.stderr.strip()}"
-            )
-        try:
-            raw_report = json.loads(
-                evaluator_report_path.read_text(encoding="utf-8")
-            )
-        except (OSError, json.JSONDecodeError) as exc:
-            raise ContractError(f"cannot load evaluator report: {exc}") from exc
-        report = dict(validate_evaluator_report(raw_report))
+        report = dict(validate_evaluator_report(container_result.report))
 
     report["run_id"] = config.run_id
     report["provenance"] = {
@@ -107,7 +123,8 @@ def run_benchmark(
     }
     report["orchestration"] = {
         "schema_version": 1,
-        "evaluator_exit_code": 0,
+        "evaluator_exit_code": container_result.evidence.exit_code,
+        "evaluator_container": container_result.evidence.to_dict(),
         "container_provenance": _container_provenance(
             instance_root, instance_manifest
         ),
@@ -147,38 +164,4 @@ def _container_provenance(
         "dockerfile_sha256": lock.get("dockerfile_sha256"),
         "image_digest": built.get("digest"),
         "docker_engine_version": completed.stdout.strip(),
-    }
-
-
-def _invoke_evaluator(
-    evaluator_checkout: Path,
-    request_path: Path,
-    report_path: Path,
-    *,
-    timeout: float,
-) -> subprocess.CompletedProcess[str]:
-    environment = {
-        "PATH": os.environ.get("PATH", ""),
-        "PYTHONHASHSEED": "0",
-    }
-    if os.environ.get("IAB_CONTAINER_OWNER"):
-        environment["IAB_CONTAINER_OWNER"] = os.environ["IAB_CONTAINER_OWNER"]
-    return subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "instrument_benchmark_evaluator.cli",
-            "run",
-            "--request",
-            str(request_path),
-            "--report",
-            str(report_path),
-        ],
-        cwd=evaluator_checkout,
-        env=environment,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=timeout,
-        check=False,
-    )
+}
