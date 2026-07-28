@@ -18,6 +18,7 @@ from instrument_benchmark.contracts import (  # noqa: E402
     repository_provenance,
     validate_dependencies,
     validate_evaluator_report,
+    validate_evaluator_container_evidence,
 )
 from instrument_benchmark.orchestrator import run_benchmark  # noqa: E402
 from instrument_benchmark.evaluator_image import EvaluatorImageEvidence  # noqa: E402
@@ -220,7 +221,13 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 memory_bytes=2 * 1024**3,
                 memory_swap_bytes=2 * 1024**3,
                 nano_cpus=2_000_000_000,
-                mounts=(),
+                mounts=(
+                    {
+                        "Source": "/host/docker.sock",
+                        "Destination": "/var/run/docker.sock",
+                        "RW": True,
+                    },
+                ),
                 stdout_bytes=0,
                 stderr_bytes=0,
                 stdout_sha256="e" * 64,
@@ -261,6 +268,9 @@ class DistributedOrchestratorTests(unittest.TestCase):
             class FakeRunner:
                 def run(self, **kwargs):
                     request_value = json.loads(kwargs["request_path"].read_text())
+                    assert kwargs["shared_run_root"] == kwargs[
+                        "shared_run_root"
+                    ].resolve()
                     assert request_value["shared_run_root"] == str(
                         kwargs["shared_run_root"]
                     )
@@ -320,16 +330,53 @@ class DistributedOrchestratorTests(unittest.TestCase):
         with self.assertRaisesRegex(ContractError, "image digest"):
             validate_evaluator_report(base)
 
+    def test_outer_evidence_requires_hardened_runtime_and_socket_mount(self) -> None:
+        evidence = {
+            "container_id": "outer",
+            "image_id": "sha256:" + "a" * 64,
+            "dockerfile_sha256": "b" * 64,
+            "build_manifest_sha256": "c" * 64,
+            "network_mode": "none",
+            "readonly_rootfs": True,
+            "user": "11001:11001",
+            "cap_drop": ["ALL"],
+            "security_options": ["no-new-privileges"],
+            "mounts": [
+                {
+                    "Source": "/host/docker.sock",
+                    "Destination": "/var/run/docker.sock",
+                }
+            ],
+            "cleanup_succeeded": True,
+        }
+        self.assertIs(validate_evaluator_container_evidence(evidence), evidence)
+        evidence["network_mode"] = "bridge"
+        with self.assertRaisesRegex(ContractError, "security"):
+            validate_evaluator_container_evidence(evidence)
     def test_semantic_projection_ignores_run_provenance(self) -> None:
         first = {
             "score": 100,
-            "worlds": [{"constraints": [{"evidence_sequences": [1, 2]}]}],
+            "worlds": [{
+                "constraints": [{"evidence_sequences": [1, 2]}],
+                "container_evidence": {
+                    "container_id": "first",
+                    "created_at": "time-1",
+                    "cleanup_succeeded": True,
+                },
+            }],
             "provenance": {"instrument": {"dirty": False}},
             "orchestration": {"evaluator_exit_code": 0},
         }
         second = {
             "score": 100,
-            "worlds": [{"constraints": [{"evidence_sequences": [99, 100]}]}],
+            "worlds": [{
+                "constraints": [{"evidence_sequences": [99, 100]}],
+                "container_evidence": {
+                    "container_id": "second",
+                    "created_at": "time-2",
+                    "cleanup_succeeded": True,
+                },
+            }],
             "provenance": {"instrument": {"dirty": True}},
             "orchestration": {"evaluator_exit_code": 0},
         }

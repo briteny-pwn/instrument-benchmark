@@ -14,6 +14,7 @@ from .contracts import (
     repository_provenance,
     validate_dependencies,
     validate_evaluator_report,
+    validate_evaluator_container_evidence,
     validate_visible_hashes,
 )
 from .evaluator_image import EvaluatorImageBuilder
@@ -80,7 +81,7 @@ def run_benchmark(
     )
 
     with tempfile.TemporaryDirectory(prefix="iab-", dir="/tmp") as directory:
-        run_root = Path(directory)
+        run_root = Path(directory).resolve()
         # The outer evaluator runs as an unprivileged, fixed UID. This directory is
         # unique and short-lived, but must be writable through the bind mount.
         os.chmod(run_root, 0o777)
@@ -121,10 +122,13 @@ def run_benchmark(
     report["provenance"] = {
         name: value.to_dict() for name, value in provenance.items()
     }
+    outer_evidence = validate_evaluator_container_evidence(
+        container_result.evidence.to_dict()
+    )
     report["orchestration"] = {
         "schema_version": 1,
         "evaluator_exit_code": container_result.evidence.exit_code,
-        "evaluator_container": container_result.evidence.to_dict(),
+        "evaluator_container": outer_evidence,
         "container_provenance": _container_provenance(
             instance_root, instance_manifest
         ),

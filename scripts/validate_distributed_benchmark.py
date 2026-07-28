@@ -53,6 +53,13 @@ def semantic_projection(value: Any) -> Any:
                 "validation",
                 "provenance",
                 "orchestration",
+                "container_id",
+                "created_at",
+                "started_at",
+                "finished_at",
+                "stdout_sha256",
+                "stderr_sha256",
+                "report_sha256",
             }
         }
     if isinstance(value, list):

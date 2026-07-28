@@ -234,6 +234,57 @@ def validate_evaluator_report(value: Any) -> dict[str, Any]:
     return value
 
 
+def validate_evaluator_container_evidence(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ContractError("evaluator container evidence must be an object")
+    required = {
+        "container_id",
+        "image_id",
+        "dockerfile_sha256",
+        "build_manifest_sha256",
+        "network_mode",
+        "readonly_rootfs",
+        "user",
+        "cap_drop",
+        "security_options",
+        "mounts",
+        "cleanup_succeeded",
+    }
+    if not required.issubset(value):
+        raise ContractError("evaluator container evidence is incomplete")
+    for name in ("image_id",):
+        if not isinstance(value[name], str) or not value[name].startswith("sha256:"):
+            raise ContractError(f"evaluator container {name} is invalid")
+    for name in ("dockerfile_sha256", "build_manifest_sha256"):
+        digest = value[name]
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+        ):
+            raise ContractError(f"evaluator container {name} is invalid")
+    mounts = value["mounts"]
+    socket_mounts = (
+        [mount for mount in mounts if mount.get("Destination") == "/var/run/docker.sock"]
+        if isinstance(mounts, (list, tuple))
+        and all(isinstance(mount, dict) for mount in mounts)
+        else []
+    )
+    checks = (
+        bool(value["container_id"]),
+        value["network_mode"] == "none",
+        value["readonly_rootfs"] is True,
+        value["user"] == "11001:11001",
+        "ALL" in value["cap_drop"],
+        "no-new-privileges" in value["security_options"],
+        len(socket_mounts) == 1,
+        value["cleanup_succeeded"] is True,
+    )
+    if not all(checks):
+        raise ContractError("evaluator container security evidence failed")
+    return value
+
+
 def dump_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
