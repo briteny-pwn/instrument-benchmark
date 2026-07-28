@@ -143,6 +143,7 @@ def stage_evaluator_build_context(
     if destination.exists():
         raise EvaluatorImageError(f"build context already exists: {destination}")
     _verify_wheelhouse(assets_root / "wheelhouse")
+    _verify_docker_cli(assets_root / "docker-cli")
     destination.mkdir(parents=True)
     evaluator_target = destination / "evaluator"
     evaluator_target.mkdir()
@@ -160,6 +161,7 @@ def stage_evaluator_build_context(
             raise EvaluatorImageError(f"missing evaluator image input: {name}")
         shutil.copy2(source, destination / name)
     shutil.copytree(assets_root / "wheelhouse", destination / "wheelhouse")
+    shutil.copytree(assets_root / "docker-cli", destination / "docker-cli")
     manifest_path = destination / BUILD_MANIFEST
     manifest = {
         "schema_version": 1,
@@ -206,6 +208,23 @@ def _verify_wheelhouse(wheelhouse: Path) -> None:
         actual[path.name] = {"sha256": _sha256(payload), "bytes": len(payload)}
     if expected != actual:
         raise EvaluatorImageError("wheel manifest does not match wheel files")
+
+
+def _verify_docker_cli(root: Path) -> None:
+    manifest_path = root / "manifest.json"
+    executable = root / "docker"
+    try:
+        value = json.loads(manifest_path.read_text(encoding="utf-8"))
+        payload = executable.read_bytes()
+    except (OSError, json.JSONDecodeError) as exc:
+        raise EvaluatorImageError(f"cannot load Docker CLI asset: {exc}") from exc
+    if (
+        not isinstance(value, dict)
+        or value.get("schema_version") != 1
+        or value.get("platform") != "linux/amd64"
+        or value.get("docker_sha256") != _sha256(payload)
+    ):
+        raise EvaluatorImageError("Docker CLI manifest does not match binary")
 
 
 def _tracked_files(repository: Path) -> tuple[Path, ...]:

@@ -6,12 +6,16 @@ ENV PYTHONHASHSEED=0 \
     SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
 
 COPY wheelhouse /build/wheels
+COPY docker-cli/docker /usr/local/bin/docker
 COPY evaluator-requirements.lock /build/evaluator-requirements.lock
 RUN python -m pip install --no-index --require-hashes \
       --find-links=/build/wheels -r /build/evaluator-requirements.lock
 
 COPY evaluator /build/evaluator
 RUN python -m pip install --no-index --no-deps --no-build-isolation /build/evaluator \
+ && test "$(sha256sum /usr/local/bin/docker | cut -d ' ' -f 1)" = \
+      "242c7a8de606afba2acada7c7af00d77f92c3601678b2f3a60911b49a892c722" \
+ && chmod 0755 /usr/local/bin/docker \
  && groupadd --gid 11001 evaluator \
  && useradd --uid 11001 --gid 11001 --no-create-home evaluator \
  && rm -rf /build /root/.cache

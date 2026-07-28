@@ -38,9 +38,12 @@ class EvaluatorImageLinuxTests(unittest.TestCase):
                     "-c",
                     (
                         "import os,pyvisa,pyvisa_sim; "
+                        "import shutil,subprocess; "
                         "from evaluators.pyvisa_dut_validation_v1 import scoring,worlds; "
                         "assert os.getuid()==11001; "
-                        "assert not os.path.exists('/build/evaluator/.git')"
+                        "assert not os.path.exists('/build/evaluator/.git'); "
+                        "assert shutil.which('docker')=='/usr/local/bin/docker'; "
+                        "assert subprocess.run(['docker','--version']).returncode==0"
                     ),
                 ],
                 text=True,

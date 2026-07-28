@@ -69,6 +69,19 @@ class EvaluatorImageTests(unittest.TestCase):
             },
         }
         (wheels / "manifest.json").write_text(json.dumps(manifest, sort_keys=True))
+        docker_cli = assets / "docker-cli"
+        docker_cli.mkdir()
+        docker = docker_cli / "docker"
+        docker.write_bytes(b"fake-static-docker")
+        (docker_cli / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "platform": "linux/amd64",
+                    "docker_sha256": hashlib.sha256(docker.read_bytes()).hexdigest(),
+                }
+            )
+        )
         return assets
 
     def test_stage_contains_only_tracked_evaluator_and_verified_assets(self) -> None:
@@ -90,6 +103,7 @@ class EvaluatorImageTests(unittest.TestCase):
                 (destination / "evaluator" / "instrument_benchmark_evaluator" / "__pycache__").exists()
             )
             self.assertFalse((destination / "evaluator" / "reports").exists())
+            self.assertTrue((destination / "docker-cli" / "docker").is_file())
             self.assertEqual(len(context.evaluator_commit), 40)
             verify_build_manifest(context.root, context.manifest_path)
 
@@ -115,6 +129,16 @@ class EvaluatorImageTests(unittest.TestCase):
             (assets / "wheelhouse" / "fake-1-py3-none-any.whl").write_bytes(b"changed")
 
             with self.assertRaisesRegex(EvaluatorImageError, "wheel"):
+                stage_evaluator_build_context(evaluator, assets, root / "context")
+
+    def test_docker_cli_manifest_rejects_digest_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evaluator = self.make_evaluator(root)
+            assets = self.make_assets(root)
+            (assets / "docker-cli" / "docker").write_bytes(b"changed")
+
+            with self.assertRaisesRegex(EvaluatorImageError, "Docker CLI"):
                 stage_evaluator_build_context(evaluator, assets, root / "context")
 
     def test_builder_uses_offline_linux_build_and_validates_image(self) -> None:
