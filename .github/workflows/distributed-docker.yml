@@ -1,0 +1,57 @@
+name: distributed-docker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [distributed-model]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: instrument
+      - uses: actions/checkout@v4
+        with:
+          repository: briteny-pwn/instrument-benchmark-instances
+          path: instance
+      - uses: actions/checkout@v4
+        with:
+          repository: briteny-pwn/instrument-benchmark-evaluator
+          path: evaluator
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          python -m pip install -e instrument
+      - run: docker info
+      - name: Distributed validation
+        working-directory: instrument
+        env:
+          IAB_CONTAINER_OWNER: distributed-${{ github.run_id }}-${{ github.run_attempt }}
+        run: PYTHONPATH=src python scripts/validate_distributed_benchmark.py
+      - name: Capture Docker evidence
+        if: always()
+        run: |
+          mkdir -p artifacts
+          cp instrument/reports/distributed_validation.json artifacts/ 2>/dev/null || true
+          cp instrument/reports/evaluator-build-manifest.json artifacts/ 2>/dev/null || true
+          docker version > artifacts/docker-version.txt 2>&1 || true
+          docker ps -a --no-trunc > artifacts/docker-containers.txt 2>&1 || true
+          image_ids="$(docker image ls -q --filter label=iab.kind=evaluator-image | sort -u)"
+          if [ -n "$image_ids" ]; then
+            docker image inspect $image_ids > artifacts/evaluator-images.json 2>&1 || true
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: distributed-validation
+          path: artifacts
+      - name: Cleanup exact run-owned containers and candidate image
+        if: always()
+        run: |
+          ids="$(docker ps -aq --filter 'label=iab.owner=distributed-${{ github.run_id }}-${{ github.run_attempt }}')"
+          if [ -n "$ids" ]; then docker rm -f $ids; fi
+          docker image rm iab/pyvisa-dut-validation:v1 2>/dev/null || true

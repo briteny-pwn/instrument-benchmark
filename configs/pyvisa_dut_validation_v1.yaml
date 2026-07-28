@@ -10,4 +10,5 @@ timeout_seconds: 30
 max_output_bytes: 1048576
 repeated_worlds: 10
 repeated_base_seed: 40000
-
+container_protocol_version: 1
+image_mode: locked

@@ -15,7 +15,9 @@
     "timeout_seconds",
     "max_output_bytes",
     "repeated_worlds",
-    "repeated_base_seed"
+    "repeated_base_seed",
+    "container_protocol_version",
+    "image_mode"
   ],
   "properties": {
     "schema_version": {"const": 1},
@@ -29,6 +31,8 @@
     "timeout_seconds": {"type": "number", "exclusiveMinimum": 0},
     "max_output_bytes": {"type": "integer", "minimum": 1},
     "repeated_worlds": {"type": "integer", "minimum": 1},
-    "repeated_base_seed": {"type": "integer", "minimum": 1}
+    "repeated_base_seed": {"type": "integer", "minimum": 1},
+    "container_protocol_version": {"const": 1},
+    "image_mode": {"const": "locked"}
   }
 }

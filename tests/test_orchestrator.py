@@ -17,8 +17,15 @@ from instrument_benchmark.contracts import (  # noqa: E402
     load_run_config,
     repository_provenance,
     validate_dependencies,
+    validate_evaluator_report,
+    validate_evaluator_container_evidence,
 )
 from instrument_benchmark.orchestrator import run_benchmark  # noqa: E402
+from instrument_benchmark.evaluator_image import EvaluatorImageEvidence  # noqa: E402
+from instrument_benchmark.evaluator_runtime import (  # noqa: E402
+    EvaluatorContainerEvidence,
+    EvaluatorContainerResult,
+)
 from scripts.validate_distributed_benchmark import semantic_projection  # noqa: E402
 
 
@@ -63,11 +70,15 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 "id": "pyvisa_dut_validation_v1",
                 "protocol_version": 1,
             },
+            "container": {"protocol_version": 1},
         }
         evaluator = {
             "evaluator_id": "pyvisa_dut_validation_v1",
             "protocol_version": 1,
             "supported_instances": ["pyvisa_dut_validation_v1"],
+            "container_protocol_version": 1,
+            "candidate_execution": "docker",
+            "image_mode": "locked",
         }
         validate_dependencies(instance, evaluator)
         evaluator["protocol_version"] = 2
@@ -96,6 +107,8 @@ class DistributedOrchestratorTests(unittest.TestCase):
                         "max_output_bytes: 65536",
                         "repeated_worlds: 10",
                         "repeated_base_seed: 40000",
+                        "container_protocol_version: 1",
+                        "image_mode: locked",
                     )
                 )
             )
@@ -103,7 +116,7 @@ class DistributedOrchestratorTests(unittest.TestCase):
             self.assertEqual(loaded.instance_checkout, (root / "instance").resolve())
             self.assertEqual(loaded.report_path, (root / "report.json").resolve())
 
-    def test_fake_evaluator_is_invoked_through_json_cli(self) -> None:
+    def test_fake_evaluator_is_invoked_through_outer_container_runner(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             instrument = self.make_repo(root, "instrument")
@@ -125,8 +138,16 @@ class DistributedOrchestratorTests(unittest.TestCase):
                         "  protocol_version: 1",
                         "visible_files:",
                         f"  task.txt: {digest}",
+                        "container:",
+                        "  protocol_version: 1",
+                        "  lock_file: image.lock.yaml",
                     )
                 )
+            )
+            (instance / "image.lock.yaml").write_text(
+                "dockerfile_sha256: " + "1" * 64 + "\n"
+                "built_image:\n"
+                "  digest: sha256:" + "2" * 64 + "\n"
             )
             (evaluator / "evaluator.yaml").write_text(
                 "\n".join(
@@ -134,21 +155,13 @@ class DistributedOrchestratorTests(unittest.TestCase):
                         "schema_version: 1",
                         "evaluator_id: pyvisa_dut_validation_v1",
                         "protocol_version: 1",
+                        "container_protocol_version: 1",
+                        "candidate_execution: docker",
+                        "image_mode: locked",
                         "supported_instances:",
                         "  - pyvisa_dut_validation_v1",
                     )
                 )
-            )
-            package = evaluator / "instrument_benchmark_evaluator"
-            package.mkdir()
-            (package / "__init__.py").write_text("")
-            (package / "cli.py").write_text(
-                "import argparse,json\n"
-                "p=argparse.ArgumentParser();s=p.add_subparsers(dest='c');r=s.add_parser('run');"
-                "r.add_argument('--request');r.add_argument('--report');a=p.parse_args();"
-                "q=json.load(open(a.request));json.dump({'schema_version':1,'status':'completed',"
-                "'strict_pass':True,'score':100,'dimensions':{},'strict_gates':{},"
-                "'evidence_confidence':{},'worlds':[]},open(a.report,'w'))\n"
             )
             for repo in (instance, evaluator):
                 subprocess.run(["git", "add", "."], cwd=repo, check=True)
@@ -171,13 +184,110 @@ class DistributedOrchestratorTests(unittest.TestCase):
                         "max_output_bytes: 65536",
                         "repeated_worlds: 1",
                         "repeated_base_seed: 40000",
+                        "container_protocol_version: 1",
+                        "image_mode: locked",
                     )
                 )
             )
+            image = EvaluatorImageEvidence(
+                reference="iab/evaluator:test",
+                image_id="sha256:" + "a" * 64,
+                repo_digest=None,
+                dockerfile_sha256="b" * 64,
+                build_manifest_sha256="c" * 64,
+                evaluator_commit="d" * 40,
+                platform="linux/amd64",
+                user="11001:11001",
+            )
+            outer = EvaluatorContainerEvidence(
+                container_id="outer",
+                image_id=image.image_id,
+                image_reference=image.reference,
+                dockerfile_sha256=image.dockerfile_sha256,
+                build_manifest_sha256=image.build_manifest_sha256,
+                evaluator_commit=image.evaluator_commit,
+                created_at="created",
+                started_at="started",
+                finished_at="finished",
+                exit_code=0,
+                oom_killed=False,
+                network_mode="none",
+                readonly_rootfs=True,
+                user="11001:11001",
+                group_add=("999",),
+                cap_drop=("ALL",),
+                security_options=("no-new-privileges",),
+                pids_limit=256,
+                memory_bytes=2 * 1024**3,
+                memory_swap_bytes=2 * 1024**3,
+                nano_cpus=2_000_000_000,
+                mounts=(
+                    {
+                        "Source": "/host/docker.sock",
+                        "Destination": "/var/run/docker.sock",
+                        "RW": True,
+                    },
+                ),
+                stdout_bytes=0,
+                stderr_bytes=0,
+                stdout_sha256="e" * 64,
+                stderr_sha256="f" * 64,
+                report_sha256="1" * 64,
+                cleanup_succeeded=True,
+            )
+            evaluator_report = {
+                "schema_version": 1,
+                "status": "completed",
+                "strict_pass": True,
+                "score": 100,
+                "dimensions": {},
+                "strict_gates": {},
+                "evidence_confidence": {},
+                "infrastructure_valid": True,
+                "retry_eligible": False,
+                "worlds": [
+                    {
+                        "container_evidence": {
+                            "container_id": "candidate",
+                            "image_digest": "sha256:" + "2" * 64,
+                            "network_mode": "none",
+                            "readonly_rootfs": True,
+                            "user": "10001:10001",
+                            "cleanup_succeeded": True,
+                        }
+                    }
+                ],
+            }
+
+            class FakeBuilder:
+                def build(self, checkout, *, run_id):
+                    self.checkout = checkout
+                    self.run_id = run_id
+                    return image
+
+            class FakeRunner:
+                def run(self, **kwargs):
+                    request_value = json.loads(kwargs["request_path"].read_text())
+                    assert kwargs["shared_run_root"] == kwargs[
+                        "shared_run_root"
+                    ].resolve()
+                    assert request_value["shared_run_root"] == str(
+                        kwargs["shared_run_root"]
+                    )
+                    kwargs["report_path"].write_text(json.dumps(evaluator_report))
+                    return EvaluatorContainerResult(
+                        report=evaluator_report,
+                        evidence=outer,
+                        stdout="",
+                        stderr="",
+                    )
+
             result = run_benchmark(
                 config,
                 instrument_checkout=instrument,
                 allow_dirty=False,
+                image_builder_factory=FakeBuilder,
+                runner_factory=FakeRunner,
             )
             self.assertEqual(result["score"], 100)
             self.assertEqual(
@@ -185,17 +295,88 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 {"instrument", "instance", "evaluator"},
             )
             self.assertTrue(report.is_file())
+            self.assertEqual(
+                result["orchestration"]["evaluator_container"]["container_id"],
+                "outer",
+            )
+            self.assertEqual(
+                result["worlds"][0]["container_evidence"]["container_id"],
+                "candidate",
+            )
 
+    def test_report_requires_per_world_docker_security_evidence(self) -> None:
+        base = {
+            "schema_version": 1,
+            "status": "completed",
+            "strict_pass": True,
+            "score": 100,
+            "dimensions": {},
+            "strict_gates": {},
+            "evidence_confidence": {},
+            "infrastructure_valid": True,
+            "retry_eligible": False,
+            "worlds": [{"container_evidence": None}],
+        }
+        with self.assertRaisesRegex(ContractError, "container evidence"):
+            validate_evaluator_report(base)
+        base["worlds"][0]["container_evidence"] = {
+            "container_id": "c1",
+            "image_digest": "",
+            "network_mode": "none",
+            "readonly_rootfs": True,
+            "user": "10001:10001",
+            "cleanup_succeeded": True,
+        }
+        with self.assertRaisesRegex(ContractError, "image digest"):
+            validate_evaluator_report(base)
+
+    def test_outer_evidence_requires_hardened_runtime_and_socket_mount(self) -> None:
+        evidence = {
+            "container_id": "outer",
+            "image_id": "sha256:" + "a" * 64,
+            "dockerfile_sha256": "b" * 64,
+            "build_manifest_sha256": "c" * 64,
+            "network_mode": "none",
+            "readonly_rootfs": True,
+            "user": "11001:11001",
+            "cap_drop": ["ALL"],
+            "security_options": ["no-new-privileges"],
+            "mounts": [
+                {
+                    "Source": "/host/docker.sock",
+                    "Destination": "/var/run/docker.sock",
+                }
+            ],
+            "cleanup_succeeded": True,
+        }
+        self.assertIs(validate_evaluator_container_evidence(evidence), evidence)
+        evidence["network_mode"] = "bridge"
+        with self.assertRaisesRegex(ContractError, "security"):
+            validate_evaluator_container_evidence(evidence)
     def test_semantic_projection_ignores_run_provenance(self) -> None:
         first = {
             "score": 100,
-            "worlds": [{"constraints": [{"evidence_sequences": [1, 2]}]}],
+            "worlds": [{
+                "constraints": [{"evidence_sequences": [1, 2]}],
+                "container_evidence": {
+                    "container_id": "first",
+                    "created_at": "time-1",
+                    "cleanup_succeeded": True,
+                },
+            }],
             "provenance": {"instrument": {"dirty": False}},
             "orchestration": {"evaluator_exit_code": 0},
         }
         second = {
             "score": 100,
-            "worlds": [{"constraints": [{"evidence_sequences": [99, 100]}]}],
+            "worlds": [{
+                "constraints": [{"evidence_sequences": [99, 100]}],
+                "container_evidence": {
+                    "container_id": "second",
+                    "created_at": "time-2",
+                    "cleanup_succeeded": True,
+                },
+            }],
             "provenance": {"instrument": {"dirty": True}},
             "orchestration": {"evaluator_exit_code": 0},
         }
