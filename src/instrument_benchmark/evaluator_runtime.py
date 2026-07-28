@@ -8,6 +8,7 @@ import selectors
 import socket
 import stat
 import subprocess
+import sys
 import time
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -167,13 +168,18 @@ class EvaluatorContainerRunner:
             raise EvaluatorInfrastructureError("Docker returned no evaluator container ID")
         removed = False
         try:
-            attached = self.attach_executor(
-                self.docker_executable,
-                container_id,
-                timeout=timeout,
-                stdout_limit=stdout_limit,
-                stderr_limit=stderr_limit,
-            )
+            try:
+                attached = self.attach_executor(
+                    self.docker_executable,
+                    container_id,
+                    timeout=timeout,
+                    stdout_limit=stdout_limit,
+                    stderr_limit=stderr_limit,
+                )
+            except (OSError, subprocess.SubprocessError) as exc:
+                raise EvaluatorInfrastructureError(
+                    f"cannot start evaluator container: {exc}"
+                ) from exc
             inspected = self.executor(
                 [self.docker_executable, "inspect", container_id]
             )
@@ -203,7 +209,11 @@ class EvaluatorContainerRunner:
             )
             _validate_runtime_policy(
                 evidence,
-                shared_run_root=paths["shared_run_root"],
+                inspect=inspect,
+                image=image,
+                paths=paths,
+                run_id=run_id,
+                owner=owner,
                 socket_gid=socket_gid,
             )
             removal = self.executor(
@@ -219,14 +229,18 @@ class EvaluatorContainerRunner:
             )
         finally:
             if not removed:
+                primary_error = sys.exception()
                 removal = self.executor(
                     [self.docker_executable, "rm", "--force", container_id]
                 )
                 if removal.returncode != 0:
-                    raise EvaluatorInfrastructureError(
-                        "failed to remove evaluator container: "
-                        + (removal.stderr.strip() or removal.stdout.strip())
+                    message = "failed to remove evaluator container: " + (
+                        removal.stderr.strip() or removal.stdout.strip()
                     )
+                    if primary_error is not None:
+                        primary_error.add_note(message)
+                    else:
+                        raise EvaluatorInfrastructureError(message)
 
 
 def _validate_paths(**raw: Path) -> dict[str, Path]:
@@ -348,14 +362,39 @@ def _one_inspect(payload: str) -> dict:
 def _validate_runtime_policy(
     evidence: EvaluatorContainerEvidence,
     *,
-    shared_run_root: Path,
+    inspect: dict,
+    image: EvaluatorImageEvidence,
+    paths: dict[str, Path],
+    run_id: str,
+    owner: str,
     socket_gid: int,
 ) -> None:
-    mount_pairs = {
-        (str(value.get("Source", "")), str(value.get("Destination", "")))
+    mounts = {
+        (
+            str(value.get("Type", "")),
+            str(value.get("Source", "")),
+            str(value.get("Destination", "")),
+            bool(value.get("RW")),
+        )
         for value in evidence.mounts
     }
+    expected_mounts = {
+        ("bind", str(paths["shared_run_root"]), str(paths["shared_run_root"]), True),
+        ("bind", str(paths["instance_path"]), str(paths["instance_path"]), False),
+        ("bind", str(paths["candidate_path"]), str(paths["candidate_path"]), False),
+        ("bind", str(paths["docker_socket"]), "/var/run/docker.sock", True),
+    }
+    config = inspect.get("Config", {})
+    labels = config.get("Labels", {}) if isinstance(config, dict) else {}
+    host = inspect.get("HostConfig", {})
+    tmpfs = host.get("Tmpfs", {}) if isinstance(host, dict) else {}
+    tmpfs_options = set(str(tmpfs.get("/tmp", "")).split(","))
     checks = (
+        inspect.get("Image") == image.image_id,
+        labels.get("iab.managed") == "true",
+        labels.get("iab.kind") == "evaluator",
+        labels.get("iab.owner") == owner,
+        labels.get("iab.run_id") == run_id,
         evidence.network_mode == "none",
         evidence.readonly_rootfs,
         evidence.user == "11001:11001",
@@ -366,8 +405,9 @@ def _validate_runtime_policy(
         evidence.memory_swap_bytes == 2 * 1024**3,
         evidence.nano_cpus == 2_000_000_000,
         str(socket_gid) in evidence.group_add,
-        (str(shared_run_root), str(shared_run_root)) in mount_pairs,
-        any(destination == "/var/run/docker.sock" for _, destination in mount_pairs),
+        mounts == expected_mounts,
+        {"rw", "noexec", "nosuid", "nodev"}.issubset(tmpfs_options),
+        bool({"size=268435456", "size=256m"} & tmpfs_options),
     )
     if not all(checks):
         raise EvaluatorInfrastructureError(

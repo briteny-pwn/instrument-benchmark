@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Callable
@@ -17,8 +18,11 @@ from .contracts import (
     validate_evaluator_container_evidence,
     validate_visible_hashes,
 )
-from .evaluator_image import EvaluatorImageBuilder
-from .evaluator_runtime import EvaluatorContainerRunner
+from .evaluator_image import EvaluatorImageBuilder, EvaluatorImageError
+from .evaluator_runtime import (
+    EvaluatorContainerRunner,
+    EvaluatorInfrastructureError,
+)
 
 
 ImageBuilderFactory = Callable[[], EvaluatorImageBuilder]
@@ -76,47 +80,73 @@ def run_benchmark(
         if runner_factory is not None
         else EvaluatorContainerRunner()
     )
-    evaluator_image = image_builder.build(
-        config.evaluator_checkout, run_id=config.run_id
-    )
-
-    with tempfile.TemporaryDirectory(prefix="iab-", dir="/tmp") as directory:
-        run_root = Path(directory).resolve()
-        # The outer evaluator runs as an unprivileged, fixed UID. This directory is
-        # unique and short-lived, but must be writable through the bind mount.
-        os.chmod(run_root, 0o777)
-        request_path = run_root / "request.json"
-        evaluator_report_path = run_root / "evaluator-report.json"
-        request = {
-            "protocol_version": evaluator_manifest["protocol_version"],
-            "run_id": config.run_id,
-            "instance_id": config.instance_id,
-            "instance_path": str(instance_root),
-            "candidate_path": str(config.candidate_path),
-            "shared_run_root": str(run_root),
-            "timeout_seconds": config.timeout_seconds,
-            "max_output_bytes": config.max_output_bytes,
-            "repeated_worlds": config.repeated_worlds,
-            "repeated_base_seed": config.repeated_base_seed,
-            "container_protocol_version": config.container_protocol_version,
-            "image_mode": config.image_mode,
-        }
-        dump_json(request_path, request)
-        container_result = runner.run(
-            image=evaluator_image,
-            request_path=request_path,
-            report_path=evaluator_report_path,
-            instance_path=instance_root,
-            candidate_path=config.candidate_path,
-            shared_run_root=run_root,
-            run_id=config.run_id,
-            timeout=config.timeout_seconds
-            * (len(evaluator_manifest.get("fixed_worlds", [])) + config.repeated_worlds)
-            + 60,
-            stdout_limit=max(config.max_output_bytes, 64 * 1024),
-            stderr_limit=max(config.max_output_bytes, 64 * 1024),
+    try:
+        evaluator_image = image_builder.build(
+            config.evaluator_checkout, run_id=config.run_id
         )
-        report = dict(validate_evaluator_report(container_result.report))
+    except EvaluatorImageError as exc:
+        raise EvaluatorInfrastructureError(
+            f"cannot build evaluator image: {exc}"
+        ) from exc
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="iab-", dir="/tmp") as directory:
+            run_root = Path(directory).resolve()
+            # The outer evaluator runs as a fixed unprivileged UID.
+            os.chmod(run_root, 0o777)
+            request_path = run_root / "request.json"
+            evaluator_report_path = run_root / "evaluator-report.json"
+            request = {
+                "protocol_version": evaluator_manifest["protocol_version"],
+                "run_id": config.run_id,
+                "instance_id": config.instance_id,
+                "instance_path": str(instance_root),
+                "candidate_path": str(config.candidate_path),
+                "shared_run_root": str(run_root),
+                "timeout_seconds": config.timeout_seconds,
+                "max_output_bytes": config.max_output_bytes,
+                "repeated_worlds": config.repeated_worlds,
+                "repeated_base_seed": config.repeated_base_seed,
+                "container_protocol_version": config.container_protocol_version,
+                "image_mode": config.image_mode,
+            }
+            dump_json(request_path, request)
+            container_result = runner.run(
+                image=evaluator_image,
+                request_path=request_path,
+                report_path=evaluator_report_path,
+                instance_path=instance_root,
+                candidate_path=config.candidate_path,
+                shared_run_root=run_root,
+                run_id=config.run_id,
+                timeout=config.timeout_seconds
+                * (
+                    len(evaluator_manifest.get("fixed_worlds", []))
+                    + config.repeated_worlds
+                )
+                + 60,
+                stdout_limit=max(config.max_output_bytes, 64 * 1024),
+                stderr_limit=max(config.max_output_bytes, 64 * 1024),
+            )
+            try:
+                report = dict(validate_evaluator_report(container_result.report))
+            except ContractError as exc:
+                raise EvaluatorInfrastructureError(
+                    f"evaluator produced an invalid report: {exc}"
+                ) from exc
+    finally:
+        primary_error = sys.exception()
+        remove = getattr(image_builder, "remove", None)
+        if callable(remove):
+            try:
+                remove(evaluator_image)
+            except Exception as cleanup_error:
+                if primary_error is not None:
+                    primary_error.add_note(
+                        f"failed to remove evaluator image tag: {cleanup_error}"
+                    )
+                else:
+                    raise
 
     report["run_id"] = config.run_id
     report["provenance"] = {

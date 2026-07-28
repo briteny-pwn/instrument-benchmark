@@ -69,6 +69,7 @@ class EvaluatorImageBuilder:
                 self.assets_root,
                 Path(directory) / "context",
             )
+            verify_build_manifest(context.root, context.manifest_path)
             safe_run = _safe_tag(run_id)
             reference = (
                 f"iab/evaluator:{safe_run}-{context.evaluator_commit[:12]}"
@@ -130,6 +131,12 @@ class EvaluatorImageBuilder:
                 platform=platform,
                 user=user,
             )
+
+    def remove(self, image: EvaluatorImageEvidence) -> None:
+        removed = self.executor(
+            [self.docker_executable, "image", "rm", image.reference]
+        )
+        _require_success(removed, "evaluator image tag removal")
 
 
 def stage_evaluator_build_context(

@@ -168,6 +168,8 @@ class EvaluatorImageTests(unittest.TestCase):
                         ),
                         "",
                     )
+                if arguments[:3] == ["docker", "image", "rm"]:
+                    return ImageCommandResult(0, "removed", "")
                 raise AssertionError(arguments)
 
             evidence = EvaluatorImageBuilder(
@@ -182,6 +184,11 @@ class EvaluatorImageTests(unittest.TestCase):
             self.assertTrue(evidence.reference.startswith("iab/evaluator:run-1-"))
             self.assertEqual(evidence.image_id, "sha256:" + "a" * 64)
             self.assertEqual(evidence.user, "11001:11001")
+            EvaluatorImageBuilder(
+                assets_root=assets,
+                executor=execute,
+            ).remove(evidence)
+            self.assertIn(["docker", "image", "rm", evidence.reference], calls)
 
     def test_builder_rejects_wrong_platform_or_user(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

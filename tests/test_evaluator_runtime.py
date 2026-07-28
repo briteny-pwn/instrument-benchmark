@@ -67,7 +67,12 @@ class EvaluatorRuntimeTests(unittest.TestCase):
                     },
                     "Config": {
                         "User": "11001:11001",
-                        "Labels": {"iab.kind": "evaluator"},
+                        "Labels": {
+                            "iab.managed": "true",
+                            "iab.kind": "evaluator",
+                            "iab.owner": "run-1",
+                            "iab.run_id": "run-1",
+                        },
                     },
                     "HostConfig": {
                         "NetworkMode": "none",
@@ -79,6 +84,9 @@ class EvaluatorRuntimeTests(unittest.TestCase):
                         "MemorySwap": 2147483648,
                         "NanoCpus": 2000000000,
                         "GroupAdd": [str(self.socket_path.stat().st_gid)],
+                        "Tmpfs": {
+                            "/tmp": "rw,noexec,nosuid,nodev,size=268435456"
+                        },
                         "Binds": [],
                     },
                     "Mounts": [
@@ -87,6 +95,18 @@ class EvaluatorRuntimeTests(unittest.TestCase):
                             "Source": str(self.shared),
                             "Destination": str(self.shared),
                             "RW": True,
+                        },
+                        {
+                            "Type": "bind",
+                            "Source": str(self.instance),
+                            "Destination": str(self.instance),
+                            "RW": False,
+                        },
+                        {
+                            "Type": "bind",
+                            "Source": str(self.candidate),
+                            "Destination": str(self.candidate),
+                            "RW": False,
                         },
                         {
                             "Type": "bind",
@@ -259,6 +279,39 @@ class EvaluatorRuntimeTests(unittest.TestCase):
                 stdout_limit=65536,
                 stderr_limit=65536,
             )
+
+    def test_cleanup_failure_does_not_replace_primary_runtime_error(self) -> None:
+        def execute(arguments: list[str]) -> RuntimeCommandResult:
+            if arguments[:2] == ["docker", "create"]:
+                return RuntimeCommandResult(0, "outer-id\n", "")
+            if arguments[:2] == ["docker", "inspect"]:
+                return RuntimeCommandResult(0, self.inspect_payload(), "")
+            if arguments[:2] == ["docker", "rm"]:
+                return RuntimeCommandResult(1, "", "remove denied")
+            raise AssertionError(arguments)
+
+        with self.assertRaisesRegex(EvaluatorInfrastructureError, "timed out") as caught:
+            EvaluatorContainerRunner(
+                docker_socket=self.socket_path,
+                executor=execute,
+                attach_executor=lambda *a, **k: AttachedEvaluatorResult(
+                    137, "", "", True, False
+                ),
+            ).run(
+                image=self.image,
+                request_path=self.request,
+                report_path=self.report,
+                instance_path=self.instance,
+                candidate_path=self.candidate,
+                shared_run_root=self.shared,
+                run_id="run-1",
+                timeout=1,
+                stdout_limit=1,
+                stderr_limit=1,
+            )
+        self.assertTrue(
+            any("remove denied" in note for note in getattr(caught.exception, "__notes__", []))
+        )
 
 
 if __name__ == "__main__":
