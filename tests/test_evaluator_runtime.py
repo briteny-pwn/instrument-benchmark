@@ -147,6 +147,7 @@ class EvaluatorRuntimeTests(unittest.TestCase):
         ):
             self.assertIn(expected, create)
         self.assertIn(f"--group-add={self.socket_path.stat().st_gid}", create)
+        self.assertIn("--label=iab.run_id=run-1", create)
         self.assertTrue(any(f"src={self.shared},dst={self.shared}" in x for x in create))
         self.assertFalse(any(str(ROOT / ".git") in x for x in create))
         self.assertEqual(result.report["score"], 100)

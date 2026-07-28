@@ -4,8 +4,10 @@ from __future__ import annotations
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +19,7 @@ if str(SOURCE) not in sys.path:
 
 from instrument_benchmark.contracts import dump_json, load_run_config
 from instrument_benchmark.orchestrator import run_benchmark
+from instrument_benchmark.evaluator_image import stage_evaluator_build_context
 
 
 def run_command(
@@ -68,12 +71,19 @@ def semantic_projection(value: Any) -> Any:
 
 
 def main() -> int:
-    instance = ROOT.parent / "instance"
-    evaluator = ROOT.parent / "evaluator"
-    config_path = ROOT / "configs" / "pyvisa_dut_validation_v1.yaml"
+    instance = Path(os.environ.get("IAB_INSTANCE_CHECKOUT", ROOT.parent / "instance"))
+    evaluator = Path(os.environ.get("IAB_EVALUATOR_CHECKOUT", ROOT.parent / "evaluator"))
+    config_path = Path(
+        os.environ.get(
+            "IAB_RUN_CONFIG", ROOT / "configs" / "pyvisa_dut_validation_v1.yaml"
+        )
+    )
     config = load_run_config(config_path)
-    docker_environment = dict(os.environ)
-    docker_environment["IAB_RUN_DOCKER_TESTS"] = "1"
+    instance_root = instance / "pyvisa_dut_validation_v1"
+    instance_lock = __import__("yaml").safe_load(
+        (instance_root / "image.lock.yaml").read_text(encoding="utf-8")
+    )
+    built_image = instance_lock["built_image"]
     commands = [
         run_command(
             ROOT,
@@ -84,32 +94,22 @@ def main() -> int:
             [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
         ),
         run_command(
-            evaluator,
-            [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
-        ),
-        run_command(
-            evaluator,
+            instance_root,
             [
-                sys.executable,
-                "-m",
-                "unittest",
-                "tests.integration.test_container_image_linux",
-                "tests.integration.test_container_isolation_linux",
-                "tests.integration.test_docker_full_suite_linux",
-                "-v",
+                "docker", "buildx", "build", "--load", "--provenance=false",
+                "--build-arg=SOURCE_DATE_EPOCH=0", "--network=none",
+                "--platform=linux/amd64", "--label",
+                "iab.instance=pyvisa_dut_validation_v1", "--label",
+                f"iab.dockerfile-sha256={instance_lock['dockerfile_sha256']}",
+                "--tag", built_image["reference"], "--file",
+                str(instance_root / "Dockerfile"), str(instance_root),
             ],
-            environment=docker_environment,
         ),
         run_command(
-            evaluator,
+            ROOT,
             [
-                sys.executable,
-                "-m",
-                "unittest",
-                "discover",
-                "-s",
-                "evaluators/pyvisa_dut_validation_v1/tests",
-                "-v",
+                "docker", "image", "inspect", built_image["reference"],
+                "--format", "{{.Id}}",
             ],
         ),
         run_command(
@@ -117,6 +117,13 @@ def main() -> int:
             [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
         ),
     ]
+    manifest_output = ROOT / "reports" / "evaluator-build-manifest.json"
+    manifest_output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="iab-manifest-") as directory:
+        context = stage_evaluator_build_context(
+            evaluator, ROOT / "container", Path(directory) / "context"
+        )
+        shutil.copy2(context.manifest_path, manifest_output)
     first = run_benchmark(
         config_path,
         instrument_checkout=ROOT,
@@ -164,10 +171,15 @@ def main() -> int:
         and commands[0]["output"].strip().startswith("linux ")
     )
     no_stale_containers = not stale["output"].strip()
+    candidate_image_matches_lock = (
+        commands[3]["exit_code"] == 0
+        and commands[3]["output"].strip() == built_image["digest"]
+    )
     passed = (
         native_linux
         and docker_linux
         and no_stale_containers
+        and candidate_image_matches_lock
         and all(command["exit_code"] == 0 for command in commands)
         and first["strict_pass"]
         and first["score"] == 100
@@ -193,6 +205,7 @@ def main() -> int:
         "native_linux": native_linux,
         "docker_linux": docker_linux,
         "no_stale_containers": no_stale_containers,
+        "candidate_image_matches_lock": candidate_image_matches_lock,
         "limitations": [
             "Simulation results do not prove transfer to physical hardware.",
             "Container isolation proves the benchmark boundary, not transfer "

@@ -135,7 +135,7 @@ class EvaluatorContainerRunner:
                 "--label=iab.managed=true",
                 "--label=iab.kind=evaluator",
                 f"--label=iab.owner={owner}",
-                f"--label=iab.run={run_id}",
+                f"--label=iab.run_id={run_id}",
                 "--network=none",
                 "--read-only",
                 "--cap-drop=ALL",
