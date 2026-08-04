@@ -23,9 +23,13 @@
     "schema_version": {"const": 1},
     "run_id": {"type": "string", "minLength": 1},
     "instance_checkout": {"type": "string", "minLength": 1},
-    "instance_id": {"type": "string", "minLength": 1},
+    "instance_id": {
+      "enum": ["pyvisa_dut_validation_v1", "pyvisa_dut_validation_v2"]
+    },
     "evaluator_checkout": {"type": "string", "minLength": 1},
-    "evaluator_id": {"type": "string", "minLength": 1},
+    "evaluator_id": {
+      "enum": ["pyvisa_dut_validation_v1", "pyvisa_dut_validation_v2"]
+    },
     "candidate_path": {"type": "string", "minLength": 1},
     "report_path": {"type": "string", "minLength": 1},
     "timeout_seconds": {"type": "number", "exclusiveMinimum": 0},

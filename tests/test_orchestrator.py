@@ -7,6 +7,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +16,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from instrument_benchmark.contracts import (  # noqa: E402
     ContractError,
+    RunConfig,
     load_run_config,
     repository_provenance,
     validate_dependencies,
@@ -30,6 +33,233 @@ from scripts.validate_distributed_benchmark import semantic_projection  # noqa: 
 
 
 class DistributedOrchestratorTests(unittest.TestCase):
+    def test_manifest_resolver_and_v2_request_image_id_are_schema_dispatched(
+        self,
+    ) -> None:
+        from instrument_benchmark.orchestrator import (
+            _build_evaluator_request,
+            evaluator_manifest_path,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evaluator = root / "evaluator"
+            packaged = (
+                evaluator
+                / "evaluators"
+                / "pyvisa_dut_validation_v2"
+                / "evaluator.yaml"
+            )
+            packaged.parent.mkdir(parents=True)
+            packaged.write_text("evaluator_id: pyvisa_dut_validation_v2\n")
+            legacy = evaluator / "evaluator.yaml"
+            legacy.write_text("evaluator_id: pyvisa_dut_validation_v1\n")
+            self.assertEqual(
+                evaluator_manifest_path(
+                    evaluator, "pyvisa_dut_validation_v2"
+                ),
+                packaged,
+            )
+            self.assertEqual(
+                evaluator_manifest_path(
+                    evaluator, "pyvisa_dut_validation_v1"
+                ),
+                legacy,
+            )
+
+            common = dict(
+                schema_version=1,
+                run_id="run",
+                instance_checkout=root,
+                instance_id="pyvisa_dut_validation_v1",
+                evaluator_checkout=evaluator,
+                evaluator_id="pyvisa_dut_validation_v1",
+                candidate_path=legacy,
+                report_path=root / "report.json",
+                timeout_seconds=30.0,
+                max_output_bytes=65536,
+                repeated_worlds=10,
+                repeated_base_seed=40000,
+                container_protocol_version=1,
+                image_mode="locked",
+            )
+            config = RunConfig(**common)
+            manifest = {"protocol_version": 1}
+            request = _build_evaluator_request(
+                config,
+                instance_root=root,
+                shared_run_root=root,
+                evaluator_manifest=manifest,
+                evaluator_image_id="sha256:" + "a" * 64,
+            )
+            self.assertNotIn("evaluator_image_id", request)
+
+            common.update(
+                instance_id="pyvisa_dut_validation_v2",
+                evaluator_id="pyvisa_dut_validation_v2",
+            )
+            request = _build_evaluator_request(
+                RunConfig(**common),
+                instance_root=root,
+                shared_run_root=root,
+                evaluator_manifest=manifest,
+                evaluator_image_id="sha256:" + "b" * 64,
+            )
+            self.assertEqual(
+                request["evaluator_image_id"], "sha256:" + "b" * 64
+            )
+
+    def test_v2_run_forwards_the_builder_image_id_to_the_evaluator(self) -> None:
+        from tests.test_v2_contracts import v2_report
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            instrument = root / "instrument"
+            instance = root / "instance"
+            evaluator = root / "evaluator"
+            for path in (instrument, instance, evaluator):
+                path.mkdir()
+            candidate = root / "solution.py"
+            candidate.write_text("pass\n")
+            visible = instance / "task.txt"
+            visible.write_text("visible\n")
+            visible_digest = hashlib.sha256(visible.read_bytes()).hexdigest()
+            (instance / "instance.yaml").write_text(
+                "\n".join(
+                    (
+                        "schema_version: 1",
+                        "instance_id: pyvisa_dut_validation_v2",
+                        "evaluator:",
+                        "  id: pyvisa_dut_validation_v2",
+                        "  protocol_version: 1",
+                        "visible_files:",
+                        f"  task.txt: {visible_digest}",
+                        "container:",
+                        "  protocol_version: 1",
+                        "  lock_file: image.lock.yaml",
+                    )
+                )
+            )
+            manifest = (
+                evaluator
+                / "evaluators"
+                / "pyvisa_dut_validation_v2"
+                / "evaluator.yaml"
+            )
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text(
+                "\n".join(
+                    (
+                        "schema_version: 2",
+                        "evaluator_id: pyvisa_dut_validation_v2",
+                        "protocol_version: 1",
+                        "container_protocol_version: 1",
+                        "candidate_execution: docker",
+                        "image_mode: locked",
+                        "supported_instances:",
+                        "  - pyvisa_dut_validation_v2",
+                        "fixed_worlds:",
+                        "  - nominal",
+                    )
+                )
+            )
+            report_path = root / "report.json"
+            config = root / "run.yaml"
+            config.write_text(
+                "\n".join(
+                    (
+                        "schema_version: 1",
+                        "run_id: run-v2",
+                        f"instance_checkout: {instance}",
+                        "instance_id: pyvisa_dut_validation_v2",
+                        f"evaluator_checkout: {evaluator}",
+                        "evaluator_id: pyvisa_dut_validation_v2",
+                        f"candidate_path: {candidate}",
+                        f"report_path: {report_path}",
+                        "timeout_seconds: 30",
+                        "max_output_bytes: 65536",
+                        "repeated_worlds: 10",
+                        "repeated_base_seed: 40000",
+                        "container_protocol_version: 1",
+                        "image_mode: locked",
+                    )
+                )
+            )
+            image_id = "sha256:" + "a" * 64
+            image = SimpleNamespace(
+                reference="iab/evaluator:test",
+                image_id=image_id,
+                repo_digest="iab/evaluator@" + image_id,
+                dockerfile_sha256="b" * 64,
+                build_manifest_sha256="c" * 64,
+                evaluator_commit="d" * 40,
+            )
+            outer = SimpleNamespace(
+                exit_code=0,
+                to_dict=lambda: {
+                    "container_id": "outer",
+                    "image_id": image_id,
+                    "dockerfile_sha256": "b" * 64,
+                    "build_manifest_sha256": "c" * 64,
+                    "network_mode": "none",
+                    "readonly_rootfs": True,
+                    "user": "11001:11001",
+                    "cap_drop": ["ALL"],
+                    "security_options": ["no-new-privileges"],
+                    "mounts": [
+                        {"Destination": "/var/run/docker.sock"}
+                    ],
+                    "cleanup_succeeded": True,
+                },
+            )
+            seen: dict = {}
+
+            class FakeBuilder:
+                def build(self, checkout, *, run_id):
+                    return image
+
+            class FakeRunner:
+                def run(self, **kwargs):
+                    seen.update(json.loads(kwargs["request_path"].read_text()))
+                    return SimpleNamespace(
+                        report=v2_report(), evidence=outer
+                    )
+
+            provenance = SimpleNamespace(
+                to_dict=lambda: {
+                    "path": "fixture",
+                    "commit": "e" * 40,
+                    "branch": "main",
+                    "remote": None,
+                    "dirty": False,
+                }
+            )
+            with (
+                patch(
+                    "instrument_benchmark.orchestrator.repository_provenance",
+                    return_value=provenance,
+                ),
+                patch(
+                    "instrument_benchmark.orchestrator._container_provenance",
+                    return_value={
+                        "image_digest": "sha256:" + "f" * 64,
+                        "docker_engine_version": "fixture",
+                    },
+                ),
+            ):
+                result = run_benchmark(
+                    config,
+                    instrument_checkout=instrument,
+                    image_builder_factory=FakeBuilder,
+                    runner_factory=FakeRunner,
+                )
+
+            self.assertEqual(seen["evaluator_image_id"], image_id)
+            self.assertEqual(
+                result["orchestration"]["evaluator_image"]["image_id"],
+                image_id,
+            )
+
     def make_repo(self, root: Path, name: str) -> Path:
         path = root / name
         path.mkdir()
@@ -268,6 +498,7 @@ class DistributedOrchestratorTests(unittest.TestCase):
             class FakeRunner:
                 def run(self, **kwargs):
                     request_value = json.loads(kwargs["request_path"].read_text())
+                    assert "evaluator_image_id" not in request_value
                     assert kwargs["shared_run_root"] == kwargs[
                         "shared_run_root"
                     ].resolve()
@@ -298,6 +529,10 @@ class DistributedOrchestratorTests(unittest.TestCase):
             self.assertEqual(
                 result["orchestration"]["evaluator_container"]["container_id"],
                 "outer",
+            )
+            self.assertEqual(
+                result["orchestration"]["evaluator_image"]["image_id"],
+                image.image_id,
             )
             self.assertEqual(
                 result["worlds"][0]["container_evidence"]["container_id"],

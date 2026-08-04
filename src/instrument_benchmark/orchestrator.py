@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 from .contracts import (
     ContractError,
+    RunConfig,
     dump_json,
     load_run_config,
     load_yaml_mapping,
@@ -60,7 +61,7 @@ def run_benchmark(
         else config.instance_checkout
     )
     evaluator_manifest = load_yaml_mapping(
-        config.evaluator_checkout / "evaluator.yaml"
+        evaluator_manifest_path(config.evaluator_checkout, config.evaluator_id)
     )
     if instance_manifest.get("instance_id") != config.instance_id:
         raise ContractError("configured instance_id does not match manifest")
@@ -96,20 +97,13 @@ def run_benchmark(
             os.chmod(run_root, 0o777)
             request_path = run_root / "request.json"
             evaluator_report_path = run_root / "evaluator-report.json"
-            request = {
-                "protocol_version": evaluator_manifest["protocol_version"],
-                "run_id": config.run_id,
-                "instance_id": config.instance_id,
-                "instance_path": str(instance_root),
-                "candidate_path": str(config.candidate_path),
-                "shared_run_root": str(run_root),
-                "timeout_seconds": config.timeout_seconds,
-                "max_output_bytes": config.max_output_bytes,
-                "repeated_worlds": config.repeated_worlds,
-                "repeated_base_seed": config.repeated_base_seed,
-                "container_protocol_version": config.container_protocol_version,
-                "image_mode": config.image_mode,
-            }
+            request = _build_evaluator_request(
+                config,
+                instance_root=instance_root,
+                shared_run_root=run_root,
+                evaluator_manifest=evaluator_manifest,
+                evaluator_image_id=evaluator_image.image_id,
+            )
             dump_json(request_path, request)
             container_result = runner.run(
                 image=evaluator_image,
@@ -129,7 +123,13 @@ def run_benchmark(
                 stderr_limit=max(config.max_output_bytes, 64 * 1024),
             )
             try:
-                report = dict(validate_evaluator_report(container_result.report))
+                report = dict(
+                    validate_evaluator_report(
+                        container_result.report,
+                        config.evaluator_id,
+                        expected_run_id=config.run_id,
+                    )
+                )
             except ContractError as exc:
                 raise EvaluatorInfrastructureError(
                     f"evaluator produced an invalid report: {exc}"
@@ -161,12 +161,62 @@ def run_benchmark(
         "schema_version": 1,
         "evaluator_exit_code": container_result.evidence.exit_code,
         "evaluator_container": outer_evidence,
+        "evaluator_image": {
+            "reference": evaluator_image.reference,
+            "image_id": evaluator_image.image_id,
+            "repo_digest": evaluator_image.repo_digest,
+            "dockerfile_sha256": evaluator_image.dockerfile_sha256,
+            "build_manifest_sha256": evaluator_image.build_manifest_sha256,
+            "evaluator_commit": evaluator_image.evaluator_commit,
+        },
         "container_provenance": _container_provenance(
             instance_root, instance_manifest
         ),
     }
     dump_json(config.report_path, report)
     return report
+
+
+def evaluator_manifest_path(checkout: Path, evaluator_id: str) -> Path:
+    """Resolve a packaged evaluator manifest, retaining the v1 root fallback."""
+    packaged = checkout / "evaluators" / evaluator_id / "evaluator.yaml"
+    if packaged.is_file():
+        return packaged
+    return checkout / "evaluator.yaml"
+
+
+def _build_evaluator_request(
+    config: RunConfig,
+    *,
+    instance_root: Path,
+    shared_run_root: Path,
+    evaluator_manifest: dict[str, Any],
+    evaluator_image_id: str,
+) -> dict[str, Any]:
+    request = {
+        "protocol_version": evaluator_manifest["protocol_version"],
+        "run_id": config.run_id,
+        "instance_id": config.instance_id,
+        "instance_path": str(instance_root),
+        "candidate_path": str(config.candidate_path),
+        "shared_run_root": str(shared_run_root),
+        "timeout_seconds": config.timeout_seconds,
+        "max_output_bytes": config.max_output_bytes,
+        "repeated_worlds": config.repeated_worlds,
+        "repeated_base_seed": config.repeated_base_seed,
+        "container_protocol_version": config.container_protocol_version,
+        "image_mode": config.image_mode,
+    }
+    if config.evaluator_id == "pyvisa_dut_validation_v2":
+        digest = evaluator_image_id.removeprefix("sha256:")
+        if (
+            not evaluator_image_id.startswith("sha256:")
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+        ):
+            raise ContractError("v2 evaluator image ID must be exact")
+        request["evaluator_image_id"] = evaluator_image_id
+    return request
 
 
 def _container_provenance(

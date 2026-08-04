@@ -154,6 +154,8 @@ class EvaluatorRuntimeTests(unittest.TestCase):
         )
 
         create = next(call for call in calls if call[:2] == ["docker", "create"])
+        self.assertIn(self.image.image_id, create)
+        self.assertNotIn(self.image.reference, create)
         for expected in (
             "--network=none",
             "--read-only",
