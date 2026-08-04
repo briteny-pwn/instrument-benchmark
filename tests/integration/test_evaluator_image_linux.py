@@ -33,17 +33,35 @@ class EvaluatorImageLinuxTests(unittest.TestCase):
                     "run",
                     "--rm",
                     "--network=none",
+                    "--mount",
+                    f"type=bind,src={evaluator},dst=/review/evaluator,readonly",
+                    "--mount",
+                    f"type=bind,src={ROOT},dst=/review/instrument,readonly",
                     "--entrypoint=python",
                     evidence.reference,
                     "-c",
                     (
                         "import os,pyvisa,pyvisa_sim; "
                         "import shutil,subprocess; "
+                        "from pathlib import Path; from zipfile import ZipFile; "
+                        "from pyvisa_sim.hooks import CommandContext; "
                         "from evaluators.pyvisa_dut_validation_v1 import scoring,worlds; "
                         "assert os.getuid()==11001; "
+                        "assert pyvisa_sim.__version__=='0.7.1+iab1'; "
+                        "assert CommandContext.__module__=='pyvisa_sim.hooks'; "
                         "assert not os.path.exists('/build/evaluator/.git'); "
                         "assert shutil.which('docker')=='/usr/local/bin/docker'; "
-                        "assert subprocess.run(['docker','--version']).returncode==0"
+                        "assert subprocess.run(['docker','--version']).returncode==0; "
+                        "v=Path('/review/evaluator/vendor/pyvisa-sim-iab/pyvisa_sim'); "
+                        "w=Path('/review/instrument/container/wheelhouse/"
+                        "pyvisa_sim-0.7.1-py3-none-any.whl'); "
+                        "changed=set(); "
+                        "z=ZipFile(w); "
+                        "[(changed.add(str(p.relative_to(v))) if "
+                        "('pyvisa_sim/'+str(p.relative_to(v))) not in z.namelist() "
+                        "or p.read_bytes()!=z.read('pyvisa_sim/'+str(p.relative_to(v))) "
+                        "else None) for p in v.rglob('*.py')]; "
+                        "z.close(); assert changed=={'devices.py','hooks.py'}"
                     ),
                 ],
                 text=True,

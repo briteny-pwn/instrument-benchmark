@@ -12,7 +12,10 @@ RUN python -m pip install --no-index --require-hashes \
       --find-links=/build/wheels -r /build/evaluator-requirements.lock
 
 COPY evaluator /build/evaluator
-RUN python -m pip install --no-index --no-deps --no-build-isolation /build/evaluator \
+RUN python -m pip install --no-index --no-deps --no-build-isolation \
+      /build/evaluator/vendor/pyvisa-sim-iab \
+ && python -m pip install --no-index --no-deps --no-build-isolation \
+      /build/evaluator \
  && test "$(sha256sum /usr/local/bin/docker | cut -d ' ' -f 1)" = \
       "242c7a8de606afba2acada7c7af00d77f92c3601678b2f3a60911b49a892c722" \
  && chmod 0755 /usr/local/bin/docker \

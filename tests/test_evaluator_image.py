@@ -22,6 +22,36 @@ from instrument_benchmark.evaluator_image import (  # noqa: E402
 
 
 class EvaluatorImageTests(unittest.TestCase):
+    def test_real_context_installs_hooked_sim_fork_before_evaluator(self) -> None:
+        evaluator = (ROOT.parent / "evaluator").resolve()
+        with tempfile.TemporaryDirectory() as directory:
+            context = stage_evaluator_build_context(
+                evaluator,
+                ROOT / "container",
+                Path(directory) / "context",
+            )
+            vendor = context.root / "evaluator" / "vendor" / "pyvisa-sim-iab"
+            self.assertTrue((vendor / "pyproject.toml").is_file())
+            self.assertTrue((vendor / "pyvisa_sim" / "hooks.py").is_file())
+
+        dockerfile = (ROOT / "container" / "evaluator.Dockerfile").read_text()
+        normalized = " ".join(dockerfile.replace("\\", "").split())
+        fork_install = (
+            "python -m pip install --no-index --no-deps --no-build-isolation "
+            "/build/evaluator/vendor/pyvisa-sim-iab"
+        )
+        evaluator_install = (
+            "python -m pip install --no-index --no-deps --no-build-isolation "
+            "/build/evaluator"
+        )
+        self.assertIn(fork_install, normalized)
+        self.assertIn(evaluator_install, normalized)
+        fork_index = normalized.index(fork_install)
+        evaluator_index = normalized.index(
+            evaluator_install, fork_index + len(fork_install)
+        )
+        self.assertLess(fork_index, evaluator_index)
+
     def make_evaluator(self, root: Path) -> Path:
         evaluator = root / "evaluator"
         evaluator.mkdir()
