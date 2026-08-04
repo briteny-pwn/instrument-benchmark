@@ -31,8 +31,11 @@ class FormalValidationScriptTests(unittest.TestCase):
                     "image_digest": "sha256:evaluator",
                 },
                 "sim_journal_evidence": {
-                    "event_count": 1,
-                    "events": [{"kind": "lifecycle.finalized"}],
+                    "event_count": 2,
+                    "events": [
+                        {"kind": "lifecycle.finalized"},
+                        {"kind": "lifecycle.exit"},
+                    ],
                 },
             }
             report = {

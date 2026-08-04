@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +13,27 @@ import yaml
 
 class ContractError(ValueError):
     """A distributed repository or run contract is invalid."""
+
+
+V2_COUNTED_EVENTS = {
+    "connection.open": "connections_opened",
+    "connection.close": "connections_closed",
+    "connection.reject": "connections_rejected",
+    "rpc.request": "rpc_requests",
+    "rpc.result": "rpc_results",
+    "rpc.reject": "rpc_rejections",
+    "resource_query.request": "resource_queries",
+    "resource_query.result": "resource_query_results",
+    "resource_query.reject": "resource_query_rejections",
+    "session.open": "sessions_opened",
+    "session.close": "sessions_explicitly_closed",
+    "session.forced_cleanup": "sessions_forced_closed",
+    "session.invalid_access": "session_invalid_accesses",
+    "scpi.write": "scpi_writes",
+    "scpi.write_result": "scpi_write_results",
+    "scpi.read": "scpi_reads",
+    "scpi.read_result": "scpi_read_results",
+}
 
 
 @dataclass(frozen=True)
@@ -466,6 +488,11 @@ def _validate_v2_journal(
         "final_hash",
         "pre_cleanup_snapshot",
         "post_cleanup_snapshot",
+        "counts",
+        "broker",
+        "open_sessions",
+        "leaked_sessions",
+        "safe",
         "fatal",
     }
     if set(value) != required:
@@ -537,17 +564,17 @@ def _validate_v2_journal(
         raise ContractError(f"world {index} sim journal terminal hash mismatch")
     fatal = value["fatal"]
     if fatal is None:
-        if (
-            not events
-            or events[0]["kind"] != "lifecycle.start"
-            or events[-1]["kind"] != "lifecycle.finalized"
-            or not isinstance(value["pre_cleanup_snapshot"], dict)
-            or not isinstance(value["post_cleanup_snapshot"], dict)
-            or value["post_cleanup_snapshot"].get("safe") is not True
-        ):
-            raise ContractError(
-                f"world {index} sim journal lifecycle is incomplete"
-            )
+        _validate_v2_normal_lifecycle(
+            events,
+            pre_cleanup=value["pre_cleanup_snapshot"],
+            post_cleanup=value["post_cleanup_snapshot"],
+            counts=value["counts"],
+            broker=value["broker"],
+            open_sessions=value["open_sessions"],
+            leaked_sessions=value["leaked_sessions"],
+            safe=value["safe"],
+            index=index,
+        )
         return
     if not allow_fatal:
         raise ContractError(f"world {index} valid infrastructure has fatal evidence")
@@ -559,6 +586,278 @@ def _validate_v2_journal(
         run_id=run_id,
         pre_cleanup=value["pre_cleanup_snapshot"],
         post_cleanup=value["post_cleanup_snapshot"],
+        counts=value["counts"],
+        broker=value["broker"],
+        open_sessions=value["open_sessions"],
+        leaked_sessions=value["leaked_sessions"],
+        safe=value["safe"],
+    )
+
+
+def _validate_v2_normal_lifecycle(
+    events: list[dict[str, Any]],
+    *,
+    pre_cleanup: Any,
+    post_cleanup: Any,
+    counts: Any,
+    broker: Any,
+    open_sessions: Any,
+    leaked_sessions: Any,
+    safe: Any,
+    index: int,
+) -> None:
+    required = (
+        "lifecycle.start",
+        "lifecycle.configuration",
+        "lifecycle.socket_bound",
+        "broker.ready",
+        "lifecycle.signal",
+        "broker.cancellation_requested",
+        "broker.frozen",
+        "cleanup.pre_snapshot",
+        "state.force_safe",
+        "cleanup.post_snapshot",
+        "lifecycle.summary",
+        "lifecycle.finalized",
+        "lifecycle.exit",
+    )
+    kinds = [event["kind"] for event in events]
+    if (
+        not events
+        or events[0]["kind"] != "lifecycle.start"
+        or events[-1]["kind"] != "lifecycle.exit"
+        or any(kinds.count(kind) != 1 for kind in required)
+        or [kinds.index(kind) for kind in required]
+        != sorted(kinds.index(kind) for kind in required)
+        or not _valid_v2_snapshot(pre_cleanup)
+        or not _valid_v2_snapshot(post_cleanup)
+        or post_cleanup["safe"] is not True
+        or any(
+            kind
+            in {
+                "trusted.failure_detected",
+                "trusted.fatal",
+                "cleanup.failure",
+            }
+            for kind in kinds
+        )
+    ):
+        raise ContractError(
+            f"world {index} sim journal lifecycle is incomplete"
+        )
+    fields = {kind: events[kinds.index(kind)]["fields"] for kind in required}
+    configuration = fields["lifecycle.configuration"]
+    broker_frozen = fields["broker.frozen"]
+    cancellation = fields["broker.cancellation_requested"]
+    derived_broker = {
+        "connections": broker_frozen.get("connections"),
+        "leaked_sessions": broker_frozen.get("leaked_sessions"),
+        "frozen": True,
+    }
+    derived_counts = {name: 0 for name in V2_COUNTED_EVENTS.values()}
+    for raw_event in events:
+        name = V2_COUNTED_EVENTS.get(raw_event["kind"])
+        if name is not None:
+            derived_counts[name] += 1
+    derived_open = (
+        derived_counts["sessions_opened"]
+        - derived_counts["sessions_explicitly_closed"]
+        - derived_counts["sessions_forced_closed"]
+    )
+    force_safe = fields["state.force_safe"]
+    safe_state = force_safe.get("state_after")
+    psu = safe_state.get("psu") if isinstance(safe_state, dict) else None
+    awg = safe_state.get("awg") if isinstance(safe_state, dict) else None
+    switch = safe_state.get("switch") if isinstance(safe_state, dict) else None
+    terminal_fields = {
+        "broker": derived_broker,
+        "counts": derived_counts,
+        "open_sessions": 0,
+        "leaked_sessions": derived_counts["sessions_forced_closed"],
+        "safe": True,
+        "fatal": None,
+    }
+    if (
+        set(configuration) != {"world_sha256", "simulator_sha256"}
+        or not all(_is_raw_sha256(configuration[name]) for name in configuration)
+        or fields["lifecycle.socket_bound"]
+        != {"endpoint_name": "visa.sock", "mode": "0666"}
+        or fields["lifecycle.signal"] != {"signal": "SIGTERM"}
+        or set(cancellation) != {"active_workers", "active_connections"}
+        or not all(
+            isinstance(cancellation[name], int)
+            and not isinstance(cancellation[name], bool)
+            and cancellation[name] >= 0
+            for name in cancellation
+        )
+        or set(broker_frozen) != {"connections", "leaked_sessions"}
+        or not all(
+            isinstance(broker_frozen[name], int)
+            and not isinstance(broker_frozen[name], bool)
+            and broker_frozen[name] >= 0
+            for name in broker_frozen
+        )
+        or fields["cleanup.pre_snapshot"] != {"snapshot": pre_cleanup}
+        or fields["cleanup.post_snapshot"] != {"snapshot": post_cleanup}
+        or not isinstance(safe_state, dict)
+        or not isinstance(psu, dict)
+        or psu.get("output") is not False
+        or not isinstance(awg, dict)
+        or awg.get("output") is not False
+        or not isinstance(switch, dict)
+        or switch.get("closed_routes") != []
+        or counts != derived_counts
+        or broker != derived_broker
+        or open_sessions != derived_open
+        or isinstance(open_sessions, bool)
+        or open_sessions != 0
+        or leaked_sessions != derived_counts["sessions_forced_closed"]
+        or leaked_sessions != derived_broker["leaked_sessions"]
+        or derived_counts["connections_opened"] != derived_broker["connections"]
+        or derived_counts["connections_closed"]
+        != derived_counts["connections_opened"]
+        or derived_counts["rpc_requests"]
+        != derived_counts["rpc_results"] + derived_counts["rpc_rejections"]
+        or derived_counts["resource_queries"]
+        != derived_counts["resource_query_results"]
+        + derived_counts["resource_query_rejections"]
+        or safe is not True
+        or fields["lifecycle.summary"] != terminal_fields
+        or fields["lifecycle.finalized"]
+        != {
+            "pre_cleanup_snapshot": pre_cleanup,
+            "post_cleanup_snapshot": post_cleanup,
+            **terminal_fields,
+        }
+        or fields["lifecycle.exit"] != {"code": 0, "safe": True}
+        or not _valid_v2_rpc_boundaries(events)
+    ):
+        raise ContractError(
+            f"world {index} sim journal lifecycle evidence is invalid"
+        )
+
+
+def _valid_v2_snapshot(value: Any) -> bool:
+    if not isinstance(value, dict) or set(value) != {
+        "clock_ms",
+        "closed_routes",
+        "psu_voltage_v",
+        "psu_output",
+        "awg_waveform_name",
+        "awg_points",
+        "awg_amplitude_vpp",
+        "awg_output",
+        "stimulus_started_ms",
+        "safe",
+    }:
+        return False
+    if (
+        isinstance(value["clock_ms"], bool)
+        or not isinstance(value["clock_ms"], int)
+        or value["clock_ms"] < 0
+    ):
+        return False
+    started = value["stimulus_started_ms"]
+    if started is not None and (
+        isinstance(started, bool)
+        or not isinstance(started, int)
+        or started < 0
+    ):
+        return False
+    if not all(
+        isinstance(value[name], bool)
+        for name in ("psu_output", "awg_output", "safe")
+    ):
+        return False
+    waveform = value["awg_waveform_name"]
+    if waveform is not None and not isinstance(waveform, str):
+        return False
+    routes = value["closed_routes"]
+    points = value["awg_points"]
+    return (
+        isinstance(routes, list)
+        and all(isinstance(route, str) and route for route in routes)
+        and isinstance(points, list)
+        and len(points) <= 64
+        and all(_finite_v2_number(point) for point in points)
+        and _finite_v2_number(value["psu_voltage_v"])
+        and _finite_v2_number(value["awg_amplitude_vpp"])
+        and value["safe"]
+        is (
+            not value["psu_output"]
+            and not value["awg_output"]
+            and not routes
+        )
+    )
+
+
+def _valid_v2_rpc_boundaries(events: list[dict[str, Any]]) -> bool:
+    tracked = {
+        "rpc.request",
+        "rpc.result",
+        "rpc.reject",
+        "scpi.write",
+        "scpi.write_result",
+        "scpi.read",
+        "scpi.read_result",
+    }
+    per_connection: dict[str, list[dict[str, Any]]] = {}
+    for event in events:
+        if event["kind"] not in tracked:
+            continue
+        connection = event["fields"].get("connection_id")
+        if not isinstance(connection, str) or not connection:
+            return False
+        per_connection.setdefault(connection, []).append(event)
+    for stream in per_connection.values():
+        operation: Any = None
+        scpi: list[str] = []
+        for event in stream:
+            kind = event["kind"]
+            if kind == "rpc.request":
+                if operation is not None:
+                    return False
+                operation = event["fields"].get("operation")
+                scpi = []
+                continue
+            if kind.startswith("scpi."):
+                if operation is None:
+                    return False
+                scpi.append(kind)
+                continue
+            if operation is None:
+                return False
+            if event["fields"].get("operation") != operation:
+                return False
+            if isinstance(operation, str) and operation in {"read", "write"}:
+                attempt = f"scpi.{operation}"
+                result = f"{attempt}_result"
+                if kind == "rpc.result":
+                    if scpi != [attempt, result]:
+                        return False
+                elif scpi not in ([], [attempt]):
+                    return False
+            elif scpi:
+                return False
+            operation = None
+            scpi = []
+        if operation is not None:
+            return False
+    return True
+
+
+def _finite_v2_number(value: Any) -> bool:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
+def _is_raw_sha256(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(
+        character in "0123456789abcdef" for character in value
     )
 
 
@@ -571,6 +870,11 @@ def _validate_v2_fatal(
     run_id: str,
     pre_cleanup: Any,
     post_cleanup: Any,
+    counts: Any,
+    broker: Any,
+    open_sessions: Any,
+    leaked_sessions: Any,
+    safe: Any,
 ) -> None:
     required = {
         "schema_version",
@@ -593,6 +897,11 @@ def _validate_v2_fatal(
         or not fatal["message"]
         or pre_cleanup is not None
         or post_cleanup is not None
+        or counts is not None
+        or broker is not None
+        or open_sessions is not None
+        or leaked_sessions is not None
+        or safe is not None
     ):
         raise ContractError(f"world {index} sim fatal evidence is invalid")
     if events and (

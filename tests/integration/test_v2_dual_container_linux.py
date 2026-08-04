@@ -168,7 +168,11 @@ class V2FormalDualContainerLinuxTests(unittest.TestCase):
                         journal["events"][0]["kind"], "lifecycle.start"
                     )
                     self.assertEqual(
-                        journal["events"][-1]["kind"], "lifecycle.finalized"
+                        journal["events"][-1]["kind"], "lifecycle.exit"
+                    )
+                    self.assertIn(
+                        "lifecycle.finalized",
+                        {event["kind"] for event in journal["events"]},
                     )
                     self.assertTrue(journal["post_cleanup_snapshot"]["safe"])
                 self.assertEqual(len(all_ids), 39)

@@ -305,7 +305,12 @@ def _complete_v2_world(world: Any, evaluator_image_id: Any) -> bool:
         and bool(events)
         and journal.get("event_count") == len(events)
         and isinstance(events[-1], dict)
-        and events[-1].get("kind") == "lifecycle.finalized"
+        and events[-1].get("kind") == "lifecycle.exit"
+        and any(
+            isinstance(event, dict)
+            and event.get("kind") == "lifecycle.finalized"
+            for event in events
+        )
     )
 
 

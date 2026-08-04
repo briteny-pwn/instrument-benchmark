@@ -31,6 +31,25 @@ FIXED_WORLD_IDS = (
 WORLD_IDS = FIXED_WORLD_IDS + tuple(
     f"repeated_{index:03d}" for index in range(10)
 )
+COUNTS = {
+    "connections_opened": 1,
+    "connections_closed": 1,
+    "connections_rejected": 0,
+    "rpc_requests": 4,
+    "rpc_results": 4,
+    "rpc_rejections": 0,
+    "resource_queries": 0,
+    "resource_query_results": 0,
+    "resource_query_rejections": 0,
+    "sessions_opened": 1,
+    "sessions_explicitly_closed": 1,
+    "sessions_forced_closed": 0,
+    "session_invalid_accesses": 0,
+    "scpi_writes": 1,
+    "scpi_write_results": 1,
+    "scpi_reads": 1,
+    "scpi_read_results": 1,
+}
 
 
 def event(
@@ -104,16 +123,112 @@ def container(role: str) -> dict:
 
 
 def journal(world_id: str = "nominal") -> dict:
-    first = event(1, "0" * 64, "lifecycle.start", world_id=world_id)
-    last = event(
-        2, first["event_hash"], "lifecycle.finalized", world_id=world_id
+    snapshot = {
+        "clock_ms": 0,
+        "closed_routes": [],
+        "psu_voltage_v": 0.0,
+        "psu_output": False,
+        "awg_waveform_name": None,
+        "awg_points": [],
+        "awg_amplitude_vpp": 1.0,
+        "awg_output": False,
+        "stimulus_started_ms": None,
+        "safe": True,
+    }
+    broker = {"connections": 1, "leaked_sessions": 0, "frozen": True}
+    safe_state = {
+        "psu": {"output": False},
+        "awg": {"output": False},
+        "switch": {"closed_routes": []},
+    }
+    terminal = {
+        "broker": broker,
+        "counts": COUNTS,
+        "open_sessions": 0,
+        "leaked_sessions": 0,
+        "safe": True,
+        "fatal": None,
+    }
+    definitions = (
+        ("lifecycle.start", {}),
+        (
+            "lifecycle.configuration",
+            {"world_sha256": "1" * 64, "simulator_sha256": "2" * 64},
+        ),
+        ("lifecycle.socket_bound", {"endpoint_name": "visa.sock", "mode": "0666"}),
+        ("broker.ready", {"endpoint_name": "visa.sock"}),
+        ("connection.open", {}),
+        (
+            "rpc.request",
+            {"connection_id": "c", "operation": "open_default_resource_manager"},
+        ),
+        ("session.open", {}),
+        (
+            "rpc.result",
+            {"connection_id": "c", "operation": "open_default_resource_manager"},
+        ),
+        ("rpc.request", {"connection_id": "c", "operation": "write"}),
+        ("scpi.write", {"connection_id": "c"}),
+        ("scpi.write_result", {"connection_id": "c"}),
+        ("rpc.result", {"connection_id": "c", "operation": "write"}),
+        ("rpc.request", {"connection_id": "c", "operation": "read"}),
+        ("scpi.read", {"connection_id": "c"}),
+        ("scpi.read_result", {"connection_id": "c"}),
+        ("rpc.result", {"connection_id": "c", "operation": "read"}),
+        ("rpc.request", {"connection_id": "c", "operation": "close"}),
+        ("session.close", {}),
+        ("rpc.result", {"connection_id": "c", "operation": "close"}),
+        ("connection.close", {}),
+        ("lifecycle.signal", {"signal": "SIGTERM"}),
+        (
+            "broker.cancellation_requested",
+            {"active_workers": 0, "active_connections": 0},
+        ),
+        ("broker.frozen", {"connections": 1, "leaked_sessions": 0}),
+        ("cleanup.pre_snapshot", {"snapshot": snapshot}),
+        (
+            "state.force_safe",
+            {
+                "state_before": safe_state,
+                "state_after": safe_state,
+                "state_changed": False,
+            },
+        ),
+        ("cleanup.post_snapshot", {"snapshot": snapshot}),
+        ("lifecycle.summary", terminal),
+        (
+            "lifecycle.finalized",
+            {
+                "pre_cleanup_snapshot": snapshot,
+                "post_cleanup_snapshot": snapshot,
+                **terminal,
+            },
+        ),
+        ("lifecycle.exit", {"code": 0, "safe": True}),
     )
+    events = []
+    previous = "0" * 64
+    for sequence, (kind, fields) in enumerate(definitions, 1):
+        item = event(
+            sequence,
+            previous,
+            kind,
+            world_id=world_id,
+            fields=fields,
+        )
+        events.append(item)
+        previous = item["event_hash"]
     return {
-        "events": [first, last],
-        "event_count": 2,
-        "final_hash": last["event_hash"],
-        "pre_cleanup_snapshot": {"safe": True},
-        "post_cleanup_snapshot": {"safe": True},
+        "events": events,
+        "event_count": len(events),
+        "final_hash": events[-1]["event_hash"],
+        "pre_cleanup_snapshot": snapshot,
+        "post_cleanup_snapshot": snapshot,
+        "counts": COUNTS,
+        "broker": broker,
+        "open_sessions": 0,
+        "leaked_sessions": 0,
+        "safe": True,
         "fatal": None,
     }
 
@@ -149,6 +264,26 @@ def v2_report() -> dict:
             "run_id": "run-v2",
         },
     }
+
+
+def rehash(journal_value: dict) -> None:
+    previous = "0" * 64
+    for item in journal_value["events"]:
+        item["previous_hash"] = previous
+        unsigned = {
+            key: value for key, value in item.items() if key != "event_hash"
+        }
+        item["event_hash"] = hashlib.sha256(
+            json.dumps(
+                unsigned,
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        previous = item["event_hash"]
+    journal_value["final_hash"] = previous
 
 
 class V2ReportContractTests(unittest.TestCase):
@@ -210,6 +345,85 @@ class V2ReportContractTests(unittest.TestCase):
                         report, "pyvisa_dut_validation_v2"
                     )
 
+    def test_normal_lifecycle_requires_actual_sigterm(self) -> None:
+        report = v2_report()
+        journal_value = report["worlds"][0]["sim_journal_evidence"]
+        signal_event = next(
+            item
+            for item in journal_value["events"]
+            if item["kind"] == "lifecycle.signal"
+        )
+        signal_event["fields"] = {"signal": "EVENT"}
+        rehash(journal_value)
+        with self.assertRaisesRegex(ContractError, "lifecycle"):
+            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+
+    def test_journal_recomputes_counts_and_requires_full_safe_state(self) -> None:
+        report = v2_report()
+        journal_value = report["worlds"][0]["sim_journal_evidence"]
+        journal_value["counts"]["scpi_reads"] = 2
+        rehash(journal_value)
+        with self.assertRaisesRegex(ContractError, "lifecycle"):
+            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+
+        report = v2_report()
+        journal_value = report["worlds"][0]["sim_journal_evidence"]
+        journal_value["events"] = [
+            item
+            for item in journal_value["events"]
+            if item["kind"] != "scpi.read_result"
+        ]
+        journal_value["event_count"] = len(journal_value["events"])
+        journal_value["counts"]["scpi_read_results"] = 0
+        for sequence, item in enumerate(journal_value["events"], 1):
+            item["sequence"] = sequence
+            item["monotonic_ns"] = sequence
+        rehash(journal_value)
+        with self.assertRaisesRegex(ContractError, "lifecycle"):
+            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+
+        report = v2_report()
+        journal_value = report["worlds"][0]["sim_journal_evidence"]
+        journal_value["events"] = [
+            item
+            for item in journal_value["events"]
+            if item["kind"] != "connection.close"
+        ]
+        journal_value["event_count"] = len(journal_value["events"])
+        journal_value["counts"]["connections_closed"] = 0
+        for sequence, item in enumerate(journal_value["events"], 1):
+            item["sequence"] = sequence
+            item["monotonic_ns"] = sequence
+        rehash(journal_value)
+        with self.assertRaisesRegex(ContractError, "lifecycle"):
+            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+
+        report = v2_report()
+        journal_value = report["worlds"][0]["sim_journal_evidence"]
+        journal_value["post_cleanup_snapshot"].pop("awg_points")
+        rehash(journal_value)
+        with self.assertRaisesRegex(ContractError, "lifecycle"):
+            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+
+        report = v2_report()
+        journal_value = report["worlds"][0]["sim_journal_evidence"]
+        forced = next(
+            item
+            for item in journal_value["events"]
+            if item["kind"] == "state.force_safe"
+        )
+        forced["fields"]["state_after"]["awg"]["output"] = True
+        rehash(journal_value)
+        with self.assertRaisesRegex(ContractError, "lifecycle"):
+            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+
+        report = v2_report()
+        journal_value = report["worlds"][0]["sim_journal_evidence"]
+        journal_value["post_cleanup_snapshot"]["psu_output"] = True
+        rehash(journal_value)
+        with self.assertRaisesRegex(ContractError, "lifecycle"):
+            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+
     def test_evaluator_id_and_missing_valid_sibling_are_rejected(self) -> None:
         report = v2_report()
         report["evaluator"]["id"] = "pyvisa_dut_validation_v1"
@@ -267,6 +481,11 @@ class V2ReportContractTests(unittest.TestCase):
             "final_hash": fatal_event["event_hash"],
             "pre_cleanup_snapshot": None,
             "post_cleanup_snapshot": None,
+            "counts": None,
+            "broker": None,
+            "open_sessions": None,
+            "leaked_sessions": None,
+            "safe": None,
             "fatal": {
                 **fatal_fields,
                 "final_hash": "0" * 64,
