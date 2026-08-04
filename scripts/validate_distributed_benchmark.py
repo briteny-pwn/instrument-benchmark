@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import platform
@@ -70,16 +71,28 @@ def semantic_projection(value: Any) -> Any:
     return value
 
 
-def main() -> int:
-    instance = Path(os.environ.get("IAB_INSTANCE_CHECKOUT", ROOT.parent / "instance"))
-    evaluator = Path(os.environ.get("IAB_EVALUATOR_CHECKOUT", ROOT.parent / "evaluator"))
-    config_path = Path(
-        os.environ.get(
-            "IAB_RUN_CONFIG", ROOT / "configs" / "pyvisa_dut_validation_v1.yaml"
-        )
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="validate-distributed-benchmark")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path(
+            os.environ.get(
+                "IAB_RUN_CONFIG",
+                ROOT / "configs" / "pyvisa_dut_validation_v1.yaml",
+            )
+        ),
     )
+    arguments = parser.parse_args(argv)
+    config_path = arguments.config.resolve()
     config = load_run_config(config_path)
-    instance_root = instance / "pyvisa_dut_validation_v1"
+    instance = config.instance_checkout
+    evaluator = config.evaluator_checkout
+    instance_root = (
+        instance / config.instance_id
+        if (instance / config.instance_id).is_dir()
+        else instance
+    )
     instance_lock = __import__("yaml").safe_load(
         (instance_root / "image.lock.yaml").read_text(encoding="utf-8")
     )
@@ -99,7 +112,7 @@ def main() -> int:
                 "docker", "buildx", "build", "--load", "--provenance=false",
                 "--build-arg=SOURCE_DATE_EPOCH=0", "--network=none",
                 "--platform=linux/amd64", "--label",
-                "iab.instance=pyvisa_dut_validation_v1", "--label",
+                f"iab.instance={config.instance_id}", "--label",
                 f"iab.dockerfile-sha256={instance_lock['dockerfile_sha256']}",
                 "--tag", built_image["reference"], "--file",
                 str(instance_root / "Dockerfile"), str(instance_root),
@@ -117,6 +130,11 @@ def main() -> int:
             [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
         ),
     ]
+    first = run_benchmark(
+        config_path,
+        instrument_checkout=ROOT,
+        allow_dirty=False,
+    )
     manifest_output = ROOT / "reports" / "evaluator-build-manifest.json"
     manifest_output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="iab-manifest-") as directory:
@@ -124,30 +142,19 @@ def main() -> int:
             evaluator, ROOT / "container", Path(directory) / "context"
         )
         shutil.copy2(context.manifest_path, manifest_output)
-    first = run_benchmark(
-        config_path,
-        instrument_checkout=ROOT,
-        allow_dirty=False,
-    )
-    second = run_benchmark(
-        config_path,
-        instrument_checkout=ROOT,
-        allow_dirty=True,
-    )
-    reproducible = semantic_projection(first) == semantic_projection(second)
-    world_count = len(first["worlds"])
-    adversarial = json.loads(
-        json.dumps(
-            __import__("yaml").safe_load(
-                (
-                    evaluator
-                    / "evaluators"
-                    / "pyvisa_dut_validation_v1"
-                    / "adversarial_matrix.yaml"
-                ).read_text(encoding="utf-8")
-            )["cases"]
+    if config.evaluator_id == "pyvisa_dut_validation_v1":
+        second = run_benchmark(
+            config_path,
+            instrument_checkout=ROOT,
+            allow_dirty=True,
         )
-    )
+        reproducible: bool | None = (
+            semantic_projection(first) == semantic_projection(second)
+        )
+    else:
+        reproducible = None
+    world_count = len(first["worlds"])
+    adversarial = _adversarial_cases(evaluator, config.evaluator_id)
     stale = run_command(
         ROOT,
         [
@@ -175,6 +182,7 @@ def main() -> int:
         commands[3]["exit_code"] == 0
         and commands[3]["output"].strip() == built_image["digest"]
     )
+    v2_invariants = _v2_invariants(first, config)
     passed = (
         native_linux
         and docker_linux
@@ -186,7 +194,8 @@ def main() -> int:
         and first["fixed_world_pass_rate"] == 1.0
         and first["repeated_world_pass_rate"] == 1.0
         and world_count == 19
-        and reproducible
+        and (reproducible is True or config.evaluator_id == "pyvisa_dut_validation_v2")
+        and v2_invariants
     )
     first["validation"] = {
         "passed": passed,
@@ -206,6 +215,7 @@ def main() -> int:
         "docker_linux": docker_linux,
         "no_stale_containers": no_stale_containers,
         "candidate_image_matches_lock": candidate_image_matches_lock,
+        "v2_formal_invariants": v2_invariants,
         "limitations": [
             "Simulation results do not prove transfer to physical hardware.",
             "Container isolation proves the benchmark boundary, not transfer "
@@ -227,6 +237,76 @@ def main() -> int:
         )
     )
     return 0 if passed else 1
+
+
+def _adversarial_cases(evaluator: Path, evaluator_id: str) -> list[dict[str, Any]]:
+    if evaluator_id == "pyvisa_dut_validation_v1":
+        value = __import__("yaml").safe_load(
+            (
+                evaluator
+                / "evaluators"
+                / evaluator_id
+                / "adversarial_matrix.yaml"
+            ).read_text(encoding="utf-8")
+        )
+        return json.loads(json.dumps(value["cases"]))
+    return [
+        {
+            "submission": "negatives/bad_protocol.py",
+            "world": "nominal",
+            "expected_status": "completed",
+            "failed_gates": ["no_forbidden_access"],
+        },
+        {
+            "submission": "negatives/leaked_sessions.py",
+            "world": "nominal",
+            "expected_status": "invalid_result",
+            "failed_gates": ["active_close_all"],
+        },
+    ]
+
+
+def _v2_invariants(first: dict[str, Any], config: Any) -> bool:
+    if config.evaluator_id != "pyvisa_dut_validation_v2":
+        return True
+    reference = config.candidate_path.read_text(encoding="utf-8")
+    worlds = first.get("worlds", [])
+    evaluator_image = first.get("orchestration", {}).get("evaluator_image", {})
+    outer = first.get("orchestration", {}).get("evaluator_container", {})
+    return (
+        first.get("schema_version") == 2
+        and first.get("evaluator", {}).get("id") == config.evaluator_id
+        and first.get("infrastructure_valid") is True
+        and first.get("retry_eligible") is False
+        and len(worlds) == 19
+        and 'pyvisa.ResourceManager("@iab")' in reference
+        and outer.get("image_id") == evaluator_image.get("image_id")
+        and all(
+            _complete_v2_world(world, evaluator_image.get("image_id"))
+            for world in worlds
+        )
+    )
+
+
+def _complete_v2_world(world: Any, evaluator_image_id: Any) -> bool:
+    if not isinstance(world, dict):
+        return False
+    candidate = world.get("candidate_container_evidence")
+    sim = world.get("sim_container_evidence")
+    journal = world.get("sim_journal_evidence")
+    if not all(isinstance(value, dict) for value in (candidate, sim, journal)):
+        return False
+    events = journal.get("events")
+    return (
+        candidate.get("cleanup_succeeded") is True
+        and sim.get("cleanup_succeeded") is True
+        and sim.get("image_digest") == evaluator_image_id
+        and isinstance(events, list)
+        and bool(events)
+        and journal.get("event_count") == len(events)
+        and isinstance(events[-1], dict)
+        and events[-1].get("kind") == "lifecycle.finalized"
+    )
 
 
 if __name__ == "__main__":

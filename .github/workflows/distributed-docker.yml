@@ -9,6 +9,10 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [v1, v2]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,18 +29,35 @@ jobs:
         with:
           python-version: "3.11"
       - run: |
-          python -m pip install -e instrument
+          python -m pip install -e instrument -e instance
       - run: docker info
+      - name: Native-Linux v2 outer/sibling integration
+        if: matrix.version == 'v2'
+        working-directory: instrument
+        env:
+          IAB_RUN_DOCKER_TESTS: "1"
+          IAB_CONTAINER_OWNER: distributed-${{ matrix.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          IAB_INSTANCE_CHECKOUT: ${{ github.workspace }}/instance
+          IAB_EVALUATOR_CHECKOUT: ${{ github.workspace }}/evaluator
+        run: >-
+          PYTHONPATH=src python -m unittest
+          tests.integration.test_v2_dual_container_linux -v
       - name: Distributed validation
         working-directory: instrument
         env:
-          IAB_CONTAINER_OWNER: distributed-${{ github.run_id }}-${{ github.run_attempt }}
-        run: PYTHONPATH=src python scripts/validate_distributed_benchmark.py
+          IAB_CONTAINER_OWNER: distributed-${{ matrix.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+        run: >-
+          PYTHONPATH=src python scripts/validate_distributed_benchmark.py
+          --config configs/pyvisa_dut_validation_${{ matrix.version }}.yaml
       - name: Capture Docker evidence
         if: always()
         run: |
           mkdir -p artifacts
-          cp instrument/reports/distributed_validation.json artifacts/ 2>/dev/null || true
+          if [ "${{ matrix.version }}" = "v2" ]; then
+            cp instrument/reports/distributed_validation_v2.json artifacts/ 2>/dev/null || true
+          else
+            cp instrument/reports/distributed_validation.json artifacts/ 2>/dev/null || true
+          fi
           cp instrument/reports/evaluator-build-manifest.json artifacts/ 2>/dev/null || true
           docker version > artifacts/docker-version.txt 2>&1 || true
           docker ps -a --no-trunc > artifacts/docker-containers.txt 2>&1 || true
@@ -47,11 +68,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: distributed-validation
+          name: distributed-validation-${{ matrix.version }}
           path: artifacts
       - name: Cleanup exact run-owned containers and candidate image
         if: always()
         run: |
-          ids="$(docker ps -aq --filter 'label=iab.owner=distributed-${{ github.run_id }}-${{ github.run_attempt }}')"
+          ids="$(docker ps -aq --filter 'label=iab.owner=distributed-${{ matrix.version }}-${{ github.run_id }}-${{ github.run_attempt }}')"
           if [ -n "$ids" ]; then docker rm -f $ids; fi
-          docker image rm iab/pyvisa-dut-validation:v1 2>/dev/null || true
+          docker image rm iab/pyvisa-dut-validation:${{ matrix.version }} 2>/dev/null || true

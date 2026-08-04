@@ -67,6 +67,7 @@ class EvaluatorRuntimeTests(unittest.TestCase):
                     },
                     "Config": {
                         "User": "11001:11001",
+                        "Env": ["IAB_CONTAINER_OWNER=run-1"],
                         "Labels": {
                             "iab.managed": "true",
                             "iab.kind": "evaluator",
@@ -156,6 +157,7 @@ class EvaluatorRuntimeTests(unittest.TestCase):
         create = next(call for call in calls if call[:2] == ["docker", "create"])
         self.assertIn(self.image.image_id, create)
         self.assertNotIn(self.image.reference, create)
+        self.assertIn("--env=IAB_CONTAINER_OWNER=run-1", create)
         for expected in (
             "--network=none",
             "--read-only",

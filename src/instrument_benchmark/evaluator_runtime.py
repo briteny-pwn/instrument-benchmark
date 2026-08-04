@@ -137,6 +137,7 @@ class EvaluatorContainerRunner:
                 "--label=iab.kind=evaluator",
                 f"--label=iab.owner={owner}",
                 f"--label=iab.run_id={run_id}",
+                f"--env=IAB_CONTAINER_OWNER={owner}",
                 "--network=none",
                 "--read-only",
                 "--cap-drop=ALL",
@@ -386,6 +387,7 @@ def _validate_runtime_policy(
     }
     config = inspect.get("Config", {})
     labels = config.get("Labels", {}) if isinstance(config, dict) else {}
+    environment = config.get("Env", []) if isinstance(config, dict) else []
     host = inspect.get("HostConfig", {})
     tmpfs = host.get("Tmpfs", {}) if isinstance(host, dict) else {}
     tmpfs_options = set(str(tmpfs.get("/tmp", "")).split(","))
@@ -395,6 +397,7 @@ def _validate_runtime_policy(
         labels.get("iab.kind") == "evaluator",
         labels.get("iab.owner") == owner,
         labels.get("iab.run_id") == run_id,
+        f"IAB_CONTAINER_OWNER={owner}" in environment,
         evidence.network_mode == "none",
         evidence.readonly_rootfs,
         evidence.user == "11001:11001",

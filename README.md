@@ -24,6 +24,14 @@ PYTHONPATH=src python -m instrument_benchmark.cli \
   configs/pyvisa_dut_validation_v1.yaml
 ```
 
+The formal v2 configuration is selected independently, so v1 remains
+available without gaining v2-only request fields:
+
+```bash
+PYTHONPATH=src python -m instrument_benchmark.cli \
+  configs/pyvisa_dut_validation_v2.yaml
+```
+
 By default every checkout must be clean so the recorded Git commit IDs fully
 identify the run. `--allow-dirty` exists only for local development.
 
@@ -53,3 +61,21 @@ failures, while candidate outcomes remain evaluator results. Final
 each world's `container_evidence` independently describes its untrusted sibling.
 Docker Desktop is intentionally unsupported because its VM can rewrite bind
 mount and Docker-socket ownership semantics.
+
+For v2, each world has separate candidate and sim evidence. Candidate code
+uses the literal `pyvisa.ResourceManager("@iab")`; both workload siblings have
+networking disabled and communicate only through a shared Unix socket whose
+parent is read-only in the candidate. The sim sibling owns the hidden world,
+PyVISA-sim state, complete event journal, forced-safe cleanup, and no candidate
+workspace mount. The outer evaluator passes its label-scoped cleanup owner to
+both siblings, and infrastructure failures are retryable only when trusted
+errors are recorded.
+
+Run the native-Linux formal v2 gate with:
+
+```bash
+IAB_RUN_DOCKER_TESTS=1 PYTHONPATH=src python -m unittest \
+  tests.integration.test_v2_dual_container_linux -v
+PYTHONPATH=src python scripts/validate_distributed_benchmark.py \
+  --config configs/pyvisa_dut_validation_v2.yaml
+```
