@@ -20,19 +20,39 @@ test -d "$checkout_parent/evaluator/.git"
 test -d "$checkout_parent/fibsem/.git"
 
 socket_gid=$(stat -c '%g' /var/run/docker.sock)
+git_bin=$(command -v git)
+git_exec_path=$(git --exec-path)
+test -x "$git_bin"
+test -d "$git_exec_path"
+git_libraries=$(
+    ldd "$git_bin" | awk \
+        '$2 == "=>" && $3 ~ /^\// { print $3 } $1 ~ /^\// { print $1 }'
+)
+test -n "$git_libraries"
+set -- \
+    --mount type=bind,src="$git_bin",dst="$git_bin",readonly \
+    --mount type=bind,src="$git_exec_path",dst="$git_exec_path",readonly
+for git_library in $git_libraries; do
+    test -f "$git_library"
+    set -- "$@" \
+        --mount type=bind,src="$git_library",dst="$git_library",readonly
+done
 runner_image=iab/fibsem-validation-runner:v1
 
 docker build \
     --platform linux/amd64 \
+    --network=none \
     --file "$instrument_root/container/fibsem-validation-runner.Dockerfile" \
     --tag "$runner_image" \
     "$instrument_root/container"
 
 docker run --rm \
     --platform linux/amd64 \
+    --network=none \
     --user "$(id -u):$(id -g)" \
     --group-add "$socket_gid" \
     --env HOME=/tmp \
+    "$@" \
     --mount type=bind,src="$checkout_parent",dst="$checkout_parent" \
     --mount type=bind,src=/tmp,dst=/tmp \
     --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \

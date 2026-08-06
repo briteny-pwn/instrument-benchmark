@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 
@@ -18,8 +17,8 @@ def test_validation_runner_has_a_pinned_python_and_bounded_tools() -> None:
         "2856e6af199e8128161abd320575eb9b341f3b76f017b5d0c9cd364f60d8a050"
         in text
     )
-    assert "apt-get install -y --no-install-recommends" in text
-    assert re.search(r"\bgit\b", text)
+    assert "apt-get" not in text
+    assert "COPY git" not in text
     assert "COPY wheelhouse/pyyaml-6.0.3-" in text
     assert "python -m pip install --no-index" in text
     assert "COPY docker-cli/docker /usr/local/bin/docker" in text
@@ -40,6 +39,12 @@ def test_native_linux_runner_preserves_daemon_visible_paths_and_identity() -> No
     assert 'test "$(uname -m)" = "x86_64"' in text
     assert "docker build" in text
     assert "--platform linux/amd64" in text
+    assert "--network=none" in text
+    assert "git_bin=$(command -v git)" in text
+    assert "git_exec_path=$(git --exec-path)" in text
+    assert 'ldd "$git_bin"' in text
+    assert 'src="$git_bin",dst="$git_bin",readonly' in text
+    assert 'src="$git_exec_path",dst="$git_exec_path",readonly' in text
     assert '--user "$(id -u):$(id -g)"' in text
     assert '--group-add "$socket_gid"' in text
     assert "src=/var/run/docker.sock,dst=/var/run/docker.sock" in text

@@ -4,10 +4,6 @@ ENV HOME=/tmp \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONHASHSEED=0
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates git \
- && rm -rf /var/lib/apt/lists/*
-
 COPY wheelhouse/pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl /build/pyyaml.whl
 RUN echo "b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d  /build/pyyaml.whl" \
       | sha256sum --check --strict \

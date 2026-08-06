@@ -58,10 +58,10 @@ scripts/run_fibsem_linux_acceptance.sh configs/fibsem_liftout_v1.yaml
 The driver runs as the invoking UID/GID, adds only the Docker socket group,
 and mounts the checkout parent and `/tmp` at an identical absolute path. This
 is necessary because the driver and its sibling evaluator/candidate/simulator
-containers share one native daemon. Network access is used only while adding
-Git to the driver image; the trusted evaluator image still builds with
-`--network=none`, and all evaluator, candidate, and simulator runs have no
-network.
+containers share one native daemon. The driver mounts the native host Git
+binary, exec path, and resolved dynamic libraries read-only; its image builds
+with `--network=none`. The trusted evaluator also builds with `--network=none`,
+and the driver, evaluator, candidate, and simulator runs have no network.
 
 On success, the schema-version-3 report is
 `reports/fibsem_liftout_v1.json`. Forty read-only checkpoint bundles are under
