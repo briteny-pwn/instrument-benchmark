@@ -33,6 +33,28 @@ sys.path.remove(EVALUATOR_ROOT)
 OPENFIBSEM_COMMIT = "2ebccb8b9721234ca66bb94de36d0f7cfe047af9"
 
 
+def test_three_repository_readmes_publish_fibsem_operator_contract() -> None:
+    readmes = {
+        "instance": (ROOT.parent / "instance" / "README.md").read_text(),
+        "evaluator": (ROOT.parent / "evaluator" / "README.md").read_text(),
+        "instrument": (ROOT / "README.md").read_text(),
+    }
+
+    assert all("fibsem_liftout_v1" in text for text in readmes.values())
+    combined = "\n".join(readmes.values())
+    assert (
+        "run_experiment(microscope, scenario, checkpoint, output_dir) -> dict"
+        in combined
+    )
+    assert all(step in combined for step in ("step_1", "step_2", "step_3", "step_4"))
+    assert "native Linux Docker" in combined
+    assert "reports/fibsem_liftout_v1.artifacts" in combined
+    assert (
+        "python scripts/validate_fibsem_benchmark.py --config "
+        "configs/fibsem_liftout_v1.yaml"
+    ) in readmes["instrument"]
+
+
 def test_real_fibsem_config_pins_all_three_repos_and_openfibsem_source() -> None:
     config = load_run_config(ROOT / "configs" / "fibsem_liftout_v1.yaml")
 

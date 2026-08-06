@@ -4,6 +4,11 @@ This branch contains the generic orchestration layer for the distributed
 instrument benchmark. Concrete model-visible instances and private evaluators
 live in separate sibling repositories.
 
+The orchestrator accepts independently sourced instance/evaluator pairs. A
+runtime profile is selected by the versioned manifests; one instance is never
+treated as the base class or dependency template for another. In particular,
+`fibsem_liftout_v1` uses OpenFIBSEM and has no runtime dependency on PyVISA.
+
 Expected checkout layout:
 
 ```text
@@ -31,6 +36,24 @@ available without gaining v2-only request fields:
 PYTHONPATH=src python -m instrument_benchmark.cli \
   configs/pyvisa_dut_validation_v2.yaml
 ```
+
+The FIBSEM reference configuration uses the same three-repository contract
+plus a separately pinned OpenFIBSEM source input. Candidate code implements
+`run_experiment(microscope, scenario, checkpoint, output_dir) -> dict` and
+crosses `step_1`, `step_2`, `step_3`, and `step_4`. Run the complete native
+Linux Docker acceptance with:
+
+```bash
+python scripts/validate_fibsem_benchmark.py --config configs/fibsem_liftout_v1.yaml
+```
+
+On success, the schema-version-3 report is
+`reports/fibsem_liftout_v1.json`. Forty read-only checkpoint bundles are under
+`reports/fibsem_liftout_v1.artifacts/<world>/<step>/`; each contains
+`scene.glb`, merged `scene.stl`, SEM/FIB PNG, `checkpoint.json`, and component
+STL files. The validator parses every artifact, checks trusted geometry and
+image hashes, runs all ten worlds twice, compares deterministic evidence, and
+requires zero surviving managed containers.
 
 By default every checkout must be clean so the recorded Git commit IDs fully
 identify the run. `--allow-dirty` exists only for local development.
@@ -61,6 +84,16 @@ failures, while candidate outcomes remain evaluator results. Final
 each world's `container_evidence` independently describes its untrusted sibling.
 Docker Desktop is intentionally unsupported because its VM can rewrite bind
 mount and Docker-socket ownership semantics.
+
+For FIBSEM, the candidate sees only its public scenario, public client,
+workspace, output, and read-only socket parent. The sim sibling sees the
+hidden world, transport, and evidence directory but no candidate workspace or
+outer request. `step_1` retains the source bridge; `step_2` proves needle
+connection before source separation; `step_3` proves positioning before target
+deposition; `step_4` proves target retention and needle separation/retraction.
+Candidate-generated artifacts are for display only; trusted simulator
+snapshots are scored. Passing is evidence for simulation, not physical FIB-SEM
+safety.
 
 For v2, each world has separate candidate and sim evidence. Candidate code
 uses the literal `pyvisa.ResourceManager("@iab")`; both workload siblings have
