@@ -1,0 +1,16 @@
+schema_version: 1
+run_id: fibsem-liftout-v1-reference
+instance_checkout: ../../instance
+instance_id: fibsem_liftout_v1
+evaluator_checkout: ../../evaluator
+evaluator_id: fibsem_liftout_v1
+candidate_path: ../../evaluator/evaluators/fibsem_liftout_v1/reference/solution.py
+report_path: ../reports/fibsem_liftout_v1.json
+timeout_seconds: 180
+max_output_bytes: 1048576
+repeated_worlds: 5
+repeated_base_seed: 47000
+container_protocol_version: 1
+image_mode: locked
+openfibsem_checkout: ../../fibsem
+openfibsem_commit: 2ebccb8b9721234ca66bb94de36d0f7cfe047af9

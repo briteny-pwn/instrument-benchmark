@@ -24,6 +24,8 @@ class EvaluatorBuildContext:
     manifest_sha256: str
     dockerfile_sha256: str
     evaluator_commit: str
+    openfibsem_commit: str | None = None
+    openfibsem_source_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -43,6 +45,8 @@ class EvaluatorImageEvidence:
     evaluator_commit: str
     platform: str
     user: str
+    openfibsem_commit: str | None = None
+    openfibsem_source_sha256: str | None = None
 
 
 ImageExecutor = Callable[[list[str]], ImageCommandResult]
@@ -60,7 +64,14 @@ class EvaluatorImageBuilder:
         self.docker_executable = docker_executable
         self.executor = executor or _execute_image_command
 
-    def build(self, evaluator_checkout: Path, *, run_id: str) -> EvaluatorImageEvidence:
+    def build(
+        self,
+        evaluator_checkout: Path,
+        *,
+        run_id: str,
+        openfibsem_checkout: Path | None = None,
+        openfibsem_commit: str | None = None,
+    ) -> EvaluatorImageEvidence:
         evaluator_checkout = evaluator_checkout.resolve()
         commit_time = _git(evaluator_checkout, "show", "-s", "--format=%ct", "HEAD")
         with tempfile.TemporaryDirectory(prefix="iab-evaluator-build-") as directory:
@@ -68,6 +79,8 @@ class EvaluatorImageBuilder:
                 evaluator_checkout,
                 self.assets_root,
                 Path(directory) / "context",
+                openfibsem_checkout=openfibsem_checkout,
+                openfibsem_commit=openfibsem_commit,
             )
             verify_build_manifest(context.root, context.manifest_path)
             safe_run = _safe_tag(run_id)
@@ -130,6 +143,8 @@ class EvaluatorImageBuilder:
                 evaluator_commit=context.evaluator_commit,
                 platform=platform,
                 user=user,
+                openfibsem_commit=context.openfibsem_commit,
+                openfibsem_source_sha256=context.openfibsem_source_sha256,
             )
 
     def remove(self, image: EvaluatorImageEvidence) -> None:
@@ -143,6 +158,9 @@ def stage_evaluator_build_context(
     evaluator_checkout: Path,
     assets_root: Path,
     destination: Path,
+    *,
+    openfibsem_checkout: Path | None = None,
+    openfibsem_commit: str | None = None,
 ) -> EvaluatorBuildContext:
     evaluator_checkout = evaluator_checkout.resolve()
     assets_root = assets_root.resolve()
@@ -169,6 +187,25 @@ def stage_evaluator_build_context(
         shutil.copy2(source, destination / name)
     shutil.copytree(assets_root / "wheelhouse", destination / "wheelhouse")
     shutil.copytree(assets_root / "docker-cli", destination / "docker-cli")
+    if (openfibsem_checkout is None) != (openfibsem_commit is None):
+        raise EvaluatorImageError(
+            "OpenFIBSEM checkout and commit must be supplied together"
+        )
+    source_digest: str | None = None
+    if openfibsem_checkout is not None and openfibsem_commit is not None:
+        source_digest = _stage_openfibsem_source(
+            openfibsem_checkout,
+            destination / "openfibsem",
+            expected_commit=openfibsem_commit,
+        )
+    optional_runtime = {
+        "schema_version": 1,
+        "openfibsem_commit": openfibsem_commit,
+        "openfibsem_source_sha256": source_digest,
+    }
+    (destination / "optional-runtime.json").write_bytes(
+        _canonical_json(optional_runtime)
+    )
     manifest_path = destination / BUILD_MANIFEST
     manifest = {
         "schema_version": 1,
@@ -182,6 +219,8 @@ def stage_evaluator_build_context(
         manifest_sha256=_sha256(payload),
         dockerfile_sha256=_sha256((destination / "evaluator.Dockerfile").read_bytes()),
         evaluator_commit=commit,
+        openfibsem_commit=openfibsem_commit,
+        openfibsem_source_sha256=source_digest,
     )
 
 
@@ -232,6 +271,61 @@ def _verify_docker_cli(root: Path) -> None:
         or value.get("docker_sha256") != _sha256(payload)
     ):
         raise EvaluatorImageError("Docker CLI manifest does not match binary")
+
+
+def _stage_openfibsem_source(
+    checkout: Path,
+    destination: Path,
+    *,
+    expected_commit: str,
+) -> str:
+    checkout = checkout.resolve()
+    if _git(checkout, "rev-parse", "--show-toplevel") != str(checkout):
+        raise EvaluatorImageError("OpenFIBSEM checkout is not a repository root")
+    if _git(checkout, "rev-parse", "HEAD") != expected_commit:
+        raise EvaluatorImageError("OpenFIBSEM checkout commit mismatch")
+    _require_tracked_clean(checkout, "OpenFIBSEM")
+    allowed_root = {"pyproject.toml", "setup.py", "LICENSE", "MANIFEST.in"}
+    selected = tuple(
+        relative
+        for relative in _tracked_files(checkout)
+        if relative.parts[0] == "fibsem" or relative.as_posix() in allowed_root
+    )
+    required = {"pyproject.toml", "setup.py", "LICENSE"}
+    if not required.issubset(relative.as_posix() for relative in selected):
+        raise EvaluatorImageError("OpenFIBSEM packaging inputs are incomplete")
+    destination.mkdir()
+    for relative in selected:
+        source = checkout / relative
+        if source.is_symlink() or not source.is_file():
+            raise EvaluatorImageError(
+                f"OpenFIBSEM input is not a regular file: {relative}"
+            )
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+    records = _file_records(destination, exclude=set())
+    if not records:
+        raise EvaluatorImageError("OpenFIBSEM source selection is empty")
+    return _sha256(_canonical_json(records))
+
+
+def _require_tracked_clean(repository: Path, label: str) -> None:
+    for arguments in (("diff", "--quiet"), ("diff", "--cached", "--quiet")):
+        completed = subprocess.run(
+            ["git", *arguments],
+            cwd=repository,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        if completed.returncode == 1:
+            raise EvaluatorImageError(f"{label} checkout has tracked modifications")
+        if completed.returncode != 0:
+            raise EvaluatorImageError(
+                completed.stderr.strip() or f"cannot verify {label} checkout"
+            )
 
 
 def _tracked_files(repository: Path) -> tuple[Path, ...]:

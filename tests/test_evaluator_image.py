@@ -22,6 +22,89 @@ from instrument_benchmark.evaluator_image import (  # noqa: E402
 
 
 class EvaluatorImageTests(unittest.TestCase):
+    def make_openfibsem(self, root: Path) -> tuple[Path, str]:
+        checkout = root / "openfibsem"
+        checkout.mkdir()
+        subprocess.run(["git", "init", "-b", "main"], cwd=checkout, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.invalid"],
+            cwd=checkout,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=checkout,
+            check=True,
+        )
+        package = checkout / "fibsem" / "model3d"
+        package.mkdir(parents=True)
+        (checkout / "fibsem" / "__init__.py").write_text("")
+        (package / "simulator.py").write_text("PINNED = True\n")
+        (package / "sample.stl").write_bytes(b"solid sample\nendsolid sample\n")
+        (checkout / "pyproject.toml").write_text("[project]\nname='fibsem'\nversion='1'\n")
+        (checkout / "setup.py").write_text("from setuptools import setup\nsetup()\n")
+        (checkout / "LICENSE").write_text("fixture")
+        (checkout / "README.md").write_text("not staged")
+        subprocess.run(["git", "add", "."], cwd=checkout, check=True)
+        subprocess.run(["git", "commit", "-m", "fixture"], cwd=checkout, check=True)
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=checkout,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+        ).stdout.strip()
+        return checkout, commit
+
+    def test_fibsem_context_stages_only_pinned_tracked_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkout, commit = self.make_openfibsem(root)
+            context = stage_evaluator_build_context(
+                self.make_evaluator(root),
+                self.make_assets(root),
+                root / "context",
+                openfibsem_checkout=checkout,
+                openfibsem_commit=commit,
+            )
+
+            staged = context.root / "openfibsem"
+            self.assertTrue((staged / "fibsem/model3d/simulator.py").is_file())
+            self.assertTrue((staged / "fibsem/model3d/sample.stl").is_file())
+            self.assertFalse((staged / "README.md").exists())
+            self.assertEqual(context.openfibsem_commit, commit)
+            self.assertEqual(len(context.openfibsem_source_sha256), 64)
+            optional = json.loads(
+                (context.root / "optional-runtime.json").read_text()
+            )
+            self.assertEqual(optional["openfibsem_commit"], commit)
+            verify_build_manifest(context.root, context.manifest_path)
+
+    def test_fibsem_context_rejects_commit_mismatch_and_tracked_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkout, commit = self.make_openfibsem(root)
+            evaluator = self.make_evaluator(root)
+            assets = self.make_assets(root)
+
+            with self.assertRaisesRegex(EvaluatorImageError, "commit"):
+                stage_evaluator_build_context(
+                    evaluator,
+                    assets,
+                    root / "wrong-context",
+                    openfibsem_checkout=checkout,
+                    openfibsem_commit="0" * 40,
+                )
+
+            (checkout / "fibsem/model3d/simulator.py").write_text("changed\n")
+            with self.assertRaisesRegex(EvaluatorImageError, "tracked"):
+                stage_evaluator_build_context(
+                    evaluator,
+                    assets,
+                    root / "dirty-context",
+                    openfibsem_checkout=checkout,
+                    openfibsem_commit=commit,
+                )
     def test_real_context_installs_hooked_sim_fork_before_evaluator(self) -> None:
         evaluator = (ROOT.parent / "evaluator").resolve()
         with tempfile.TemporaryDirectory() as directory:

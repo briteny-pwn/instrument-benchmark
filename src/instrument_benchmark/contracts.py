@@ -52,6 +52,8 @@ class RunConfig:
     repeated_base_seed: int
     container_protocol_version: int
     image_mode: str
+    openfibsem_checkout: Path | None = None
+    openfibsem_commit: str | None = None
 
 
 @dataclass(frozen=True)
@@ -94,7 +96,22 @@ def load_run_config(path: Path) -> RunConfig:
         "container_protocol_version",
         "image_mode",
     }
-    if not isinstance(value, dict) or set(value) != required:
+    optional_openfibsem = {"openfibsem_checkout", "openfibsem_commit"}
+    if not isinstance(value, dict):
+        raise ContractError("run config fields do not match schema version 1")
+    is_fibsem = (
+        value.get("instance_id") == "fibsem_liftout_v1"
+        or value.get("evaluator_id") == "fibsem_liftout_v1"
+    )
+    present_openfibsem = set(value) & optional_openfibsem
+    if is_fibsem and present_openfibsem != optional_openfibsem:
+        raise ContractError(
+            "OpenFIBSEM checkout and commit are both required for FIBSEM"
+        )
+    if not is_fibsem and present_openfibsem:
+        raise ContractError("OpenFIBSEM fields are only valid for FIBSEM")
+    expected = required | (optional_openfibsem if is_fibsem else set())
+    if set(value) != expected:
         raise ContractError("run config fields do not match schema version 1")
     if value["schema_version"] != 1:
         raise ContractError("unsupported run config schema_version")
@@ -107,6 +124,18 @@ def load_run_config(path: Path) -> RunConfig:
         raise ContractError("instance/evaluator checkout must be a directory")
     if not candidate.is_file():
         raise ContractError("candidate_path must be a file")
+    openfibsem: Path | None = None
+    openfibsem_commit: str | None = None
+    if is_fibsem:
+        openfibsem = _resolve(root, value["openfibsem_checkout"])
+        if not openfibsem.is_dir():
+            raise ContractError("OpenFIBSEM checkout must be a directory")
+        openfibsem_commit = _git_commit(value["openfibsem_commit"], "openfibsem_commit")
+        if _git(openfibsem, "rev-parse", "--show-toplevel") != str(openfibsem):
+            raise ContractError("OpenFIBSEM checkout must be a repository root")
+        if _git(openfibsem, "rev-parse", "HEAD") != openfibsem_commit:
+            raise ContractError("OpenFIBSEM checkout commit does not match the lock")
+        _require_tracked_clean(openfibsem, "OpenFIBSEM")
     return RunConfig(
         schema_version=1,
         run_id=_non_empty(value["run_id"], "run_id"),
@@ -126,6 +155,8 @@ def load_run_config(path: Path) -> RunConfig:
             value["container_protocol_version"], "container_protocol_version"
         ),
         image_mode=_exact(value["image_mode"], "locked", "image_mode"),
+        openfibsem_checkout=openfibsem,
+        openfibsem_commit=openfibsem_commit,
     )
 
 
@@ -140,12 +171,18 @@ def load_yaml_mapping(path: Path) -> dict[str, Any]:
 
 
 def repository_provenance(
-    path: Path, *, allow_dirty: bool = False
+    path: Path,
+    *,
+    allow_dirty: bool = False,
+    include_untracked: bool = True,
 ) -> RepositoryProvenance:
     root = path.resolve()
     if _git(root, "rev-parse", "--show-toplevel") != str(root):
         raise ContractError(f"not a repository root: {root}")
-    status = _git(root, "status", "--porcelain")
+    status_arguments = ["status", "--porcelain"]
+    if not include_untracked:
+        status_arguments.append("--untracked-files=no")
+    status = _git(root, *status_arguments)
     dirty = bool(status)
     if dirty and not allow_dirty:
         raise ContractError(f"repository is dirty: {root}")
@@ -209,6 +246,9 @@ def validate_evaluator_report(
 ) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ContractError("evaluator report must be an object")
+    if evaluator_id == "fibsem_liftout_v1":
+        _validate_fibsem_report(value)
+        return value
     required = {
         "schema_version",
         "status",
@@ -254,6 +294,324 @@ def validate_evaluator_report(
         return value
     _validate_v1_worlds(worlds)
     return value
+
+
+def _validate_fibsem_report(report: dict[str, Any]) -> None:
+    required = {
+        "schema_version",
+        "evaluator_id",
+        "openfibsem_commit",
+        "score",
+        "strict_pass",
+        "retry_eligible",
+        "strict_gates",
+        "dimension_scores",
+        "evidence_confidence",
+        "suite",
+        "worlds",
+    }
+    if set(report) != required:
+        raise ContractError("FIBSEM report fields are invalid")
+    if (
+        report["schema_version"] != 3
+        or report["evaluator_id"] != "fibsem_liftout_v1"
+        or not _is_git_commit(report["openfibsem_commit"])
+        or not isinstance(report["strict_pass"], bool)
+        or not isinstance(report["retry_eligible"], bool)
+        or report["suite"] != {"fixed_worlds": 5, "seeded_worlds": 5}
+    ):
+        raise ContractError("FIBSEM report identity or suite is invalid")
+    _nullable_score(
+        report["score"],
+        "FIBSEM suite score",
+        nullable=report["retry_eligible"],
+    )
+    if not _boolean_mapping(report["strict_gates"]):
+        raise ContractError("FIBSEM strict gates are invalid")
+    dimensions = report["dimension_scores"]
+    if not isinstance(dimensions, dict) or set(dimensions) != {
+        "step_1",
+        "step_2",
+        "step_3",
+        "step_4",
+        "artifacts",
+    }:
+        raise ContractError("FIBSEM dimension scores are invalid")
+    for name, maximum in {
+        "step_1": 20,
+        "step_2": 25,
+        "step_3": 25,
+        "step_4": 20,
+        "artifacts": 10,
+    }.items():
+        _bounded_score(dimensions[name], f"FIBSEM {name}", maximum)
+    confidence = report["evidence_confidence"]
+    if (
+        isinstance(confidence, bool)
+        or not isinstance(confidence, (int, float))
+        or not math.isfinite(float(confidence))
+        or not 0 <= float(confidence) <= 1
+    ):
+        raise ContractError("FIBSEM evidence confidence is invalid")
+    worlds = report["worlds"]
+    expected_ids = (
+        "nominal",
+        "small",
+        "large",
+        "needle_offset",
+        "target_pose",
+        "seeded_01",
+        "seeded_02",
+        "seeded_03",
+        "seeded_04",
+        "seeded_05",
+    )
+    if (
+        not isinstance(worlds, list)
+        or tuple(
+            world.get("world_id") if isinstance(world, dict) else None
+            for world in worlds
+        )
+        != expected_ids
+    ):
+        raise ContractError("FIBSEM report must contain the exact ten worlds")
+    retries: list[bool] = []
+    for index, world in enumerate(worlds):
+        assert isinstance(world, dict)
+        _validate_fibsem_world(world, index)
+        retries.append(world["retry_eligible"])
+    if report["retry_eligible"] != any(retries):
+        raise ContractError("FIBSEM retry eligibility is inconsistent")
+    if report["strict_pass"] and (
+        report["score"] is None
+        or float(report["score"]) < 90
+        or not all(report["strict_gates"].values())
+    ):
+        raise ContractError("FIBSEM strict pass contradicts suite evidence")
+
+
+def _validate_fibsem_world(world: dict[str, Any], index: int) -> None:
+    required = {
+        "world_id",
+        "category",
+        "score",
+        "strict_pass",
+        "retry_eligible",
+        "step_scores",
+        "artifact_score",
+        "strict_gates",
+        "checkpoints",
+        "partial_order",
+        "terminal",
+        "runtime",
+        "evidence_confidence",
+        "candidate_container_evidence",
+        "sim_container_evidence",
+        "trusted_evidence",
+    }
+    world_id = world.get("world_id")
+    if set(world) != required or not isinstance(world_id, str):
+        raise ContractError(f"FIBSEM world {index} fields are invalid")
+    retry = world.get("retry_eligible")
+    if not isinstance(world.get("strict_pass"), bool) or not isinstance(retry, bool):
+        raise ContractError(f"FIBSEM world {world_id} status is invalid")
+    expected_category = (
+        "fixed"
+        if world_id in {"nominal", "small", "large", "needle_offset", "target_pose"}
+        else "seeded"
+    )
+    if world.get("category") != expected_category or not _boolean_mapping(
+        world.get("strict_gates")
+    ):
+        raise ContractError(f"FIBSEM world {world_id} gates or category are invalid")
+    _nullable_score(world.get("score"), f"FIBSEM world {world_id}", nullable=retry)
+    steps = world.get("step_scores")
+    if not isinstance(steps, dict) or set(steps) != {
+        "step_1",
+        "step_2",
+        "step_3",
+        "step_4",
+    }:
+        raise ContractError(f"FIBSEM world {world_id} step scores are invalid")
+    for step, maximum in {
+        "step_1": 20,
+        "step_2": 25,
+        "step_3": 25,
+        "step_4": 20,
+    }.items():
+        _bounded_score(steps[step], f"FIBSEM {world_id}/{step}", maximum)
+    _bounded_score(world.get("artifact_score"), f"FIBSEM {world_id}/artifacts", 10)
+    checkpoints = world.get("checkpoints")
+    checkpoint_order = ["step_1", "step_2", "step_3", "step_4"]
+    if (
+        not isinstance(checkpoints, dict)
+        or list(checkpoints) != checkpoint_order[: len(checkpoints)]
+        or world.get("strict_pass")
+        and len(checkpoints) != 4
+    ):
+        raise ContractError(f"FIBSEM checkpoint evidence is incomplete: {world_id}")
+    for step, checkpoint in checkpoints.items():
+        if (
+            not isinstance(checkpoint, dict)
+            or checkpoint.get("step_id") != step
+            or checkpoint.get("artifact_complete") is not True
+            or not _is_raw_sha256(checkpoint.get("artifact_digest"))
+            or not isinstance(checkpoint.get("geometry"), dict)
+            or not _is_raw_sha256(
+                checkpoint["geometry"].get("canonical_geometry_hash")
+            )
+        ):
+            raise ContractError(f"FIBSEM checkpoint evidence is invalid: {world_id}/{step}")
+    candidate = world.get("candidate_container_evidence")
+    sim = world.get("sim_container_evidence")
+    trusted = world.get("trusted_evidence")
+    if not retry and any(value is None for value in (candidate, sim, trusted)):
+        raise ContractError(f"FIBSEM sibling evidence is incomplete: {world_id}")
+    if candidate is not None:
+        _validate_v2_container(
+            candidate, index=index, role="candidate", require_cleanup=not retry
+        )
+    if sim is not None:
+        _validate_v2_container(sim, index=index, role="sim", require_cleanup=not retry)
+    if trusted is not None:
+        if (
+            not isinstance(trusted, dict)
+            or set(trusted)
+            != {
+                "journal_head_hash",
+                "journal_event_count",
+                "outcome",
+                "forced_cleanup",
+                "scenario_digest",
+            }
+            or not _is_raw_sha256(trusted["journal_head_hash"])
+            or not _is_raw_sha256(trusted["scenario_digest"])
+            or isinstance(trusted["journal_event_count"], bool)
+            or not isinstance(trusted["journal_event_count"], int)
+            or trusted["journal_event_count"] < 1
+            or not isinstance(trusted["forced_cleanup"], bool)
+            or trusted.get("outcome")
+            not in {
+                "completed",
+                "candidate_incomplete",
+                "candidate_failure",
+                "infrastructure_failure",
+                "cleanup_failure",
+            }
+        ):
+            raise ContractError(f"FIBSEM trusted evidence is invalid: {world_id}")
+    runtime = world.get("runtime")
+    terminal = world.get("terminal")
+    partial_order = world.get("partial_order")
+    confidence = world.get("evidence_confidence")
+    runtime_fields = {
+        "candidate_exit_code",
+        "timed_out",
+        "forbidden_access",
+        "infrastructure_failure",
+        "candidate_uid",
+        "simulator_uid",
+        "isolation_verified",
+    }
+    partial_fields = {
+        "preflight",
+        "destructive_roi",
+        "step_1",
+        "needle_joint",
+        "source_separation",
+        "carry",
+        "step_2",
+        "transfer",
+        "target_pose",
+        "target_joint",
+        "step_3",
+        "needle_separation",
+        "needle_retraction",
+        "step_4",
+    }
+    if (
+        not isinstance(runtime, dict)
+        or set(runtime) != runtime_fields
+        or runtime.get("candidate_uid") != 10001
+        or runtime.get("simulator_uid") != 11001
+        or any(
+            not isinstance(runtime.get(name), bool)
+            for name in (
+                "timed_out",
+                "forbidden_access",
+                "infrastructure_failure",
+                "isolation_verified",
+            )
+        )
+        or not isinstance(terminal, dict)
+        or set(terminal) != {"safe", "simulator_idle", "collision", "cleanup_error"}
+        or any(
+            not isinstance(terminal.get(name), bool)
+            for name in ("safe", "simulator_idle", "collision")
+        )
+        or terminal.get("cleanup_error") is not None
+        and not isinstance(terminal.get("cleanup_error"), str)
+        or not isinstance(partial_order, dict)
+        or set(partial_order) != partial_fields
+        or any(
+            value is not None
+            and (isinstance(value, bool) or not isinstance(value, int) or value < 1)
+            for value in partial_order.values()
+        )
+        or isinstance(confidence, bool)
+        or not isinstance(confidence, (int, float))
+        or not math.isfinite(float(confidence))
+        or not 0 <= float(confidence) <= 1
+    ):
+        raise ContractError(f"FIBSEM runtime or terminal evidence is invalid: {world_id}")
+    exit_code = runtime["candidate_exit_code"]
+    if exit_code is not None and (
+        isinstance(exit_code, bool) or not isinstance(exit_code, int)
+    ):
+        raise ContractError(f"FIBSEM candidate exit code is invalid: {world_id}")
+    if world["strict_pass"] and (
+        len(checkpoints) != 4
+        or not all(world["strict_gates"].values())
+        or terminal != {
+            "safe": True,
+            "simulator_idle": True,
+            "collision": False,
+            "cleanup_error": None,
+        }
+        or runtime["candidate_exit_code"] != 0
+        or runtime["timed_out"]
+        or runtime["forbidden_access"]
+        or runtime["infrastructure_failure"]
+        or not runtime["isolation_verified"]
+        or trusted is None
+        or trusted["outcome"] != "completed"
+        or trusted["forced_cleanup"]
+    ):
+        raise ContractError(f"FIBSEM strict world contradicts evidence: {world_id}")
+
+
+def _nullable_score(value: Any, name: str, *, nullable: bool) -> None:
+    if value is None and nullable:
+        return
+    _bounded_score(value, name, 100)
+
+
+def _bounded_score(value: Any, name: str, maximum: float) -> None:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(float(value))
+        or not 0 <= float(value) <= maximum
+    ):
+        raise ContractError(f"{name} score is invalid")
+
+
+def _boolean_mapping(value: Any) -> bool:
+    return (
+        isinstance(value, dict)
+        and bool(value)
+        and all(isinstance(key, str) and isinstance(item, bool) for key, item in value.items())
+    )
 
 
 def _validate_v1_worlds(worlds: list[Any]) -> None:
@@ -1035,3 +1393,33 @@ def _exact(raw: Any, expected: str, name: str) -> str:
     if raw != expected:
         raise ContractError(f"{name} must be {expected}")
     return expected
+
+
+def _is_git_commit(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 40 and all(
+        character in "0123456789abcdef" for character in value
+    )
+
+
+def _git_commit(raw: Any, name: str) -> str:
+    if not _is_git_commit(raw):
+        raise ContractError(f"{name} must be a full lowercase Git commit")
+    return raw
+
+
+def _require_tracked_clean(path: Path, label: str) -> None:
+    for arguments in (("diff", "--quiet"), ("diff", "--cached", "--quiet")):
+        completed = subprocess.run(
+            ["git", *arguments],
+            cwd=path,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        if completed.returncode == 1:
+            raise ContractError(f"{label} checkout has tracked modifications")
+        if completed.returncode != 0:
+            raise ContractError(
+                completed.stderr.strip() or f"cannot verify {label} checkout"
+            )

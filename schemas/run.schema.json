@@ -24,11 +24,11 @@
     "run_id": {"type": "string", "minLength": 1},
     "instance_checkout": {"type": "string", "minLength": 1},
     "instance_id": {
-      "enum": ["pyvisa_dut_validation_v1", "pyvisa_dut_validation_v2"]
+      "enum": ["pyvisa_dut_validation_v1", "pyvisa_dut_validation_v2", "fibsem_liftout_v1"]
     },
     "evaluator_checkout": {"type": "string", "minLength": 1},
     "evaluator_id": {
-      "enum": ["pyvisa_dut_validation_v1", "pyvisa_dut_validation_v2"]
+      "enum": ["pyvisa_dut_validation_v1", "pyvisa_dut_validation_v2", "fibsem_liftout_v1"]
     },
     "candidate_path": {"type": "string", "minLength": 1},
     "report_path": {"type": "string", "minLength": 1},
@@ -37,6 +37,25 @@
     "repeated_worlds": {"type": "integer", "minimum": 1},
     "repeated_base_seed": {"type": "integer", "minimum": 1},
     "container_protocol_version": {"const": 1},
-    "image_mode": {"const": "locked"}
-  }
+    "image_mode": {"const": "locked"},
+    "openfibsem_checkout": {"type": "string", "minLength": 1},
+    "openfibsem_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"evaluator_id": {"const": "fibsem_liftout_v1"}},
+        "required": ["evaluator_id"]
+      },
+      "then": {"required": ["openfibsem_checkout", "openfibsem_commit"]},
+      "else": {
+        "not": {
+          "anyOf": [
+            {"required": ["openfibsem_checkout"]},
+            {"required": ["openfibsem_commit"]}
+          ]
+        }
+      }
+    }
+  ]
 }
