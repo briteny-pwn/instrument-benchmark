@@ -235,7 +235,8 @@ def validate_distributed_report(
     report_path: Path,
 ) -> dict[str, object]:
     if (
-        report.get("schema_version") != 3
+        report.get("schema_version") != 4
+        or report.get("source_id") != "openfibsem"
         or report.get("evaluator_id") != "fibsem_liftout_v1"
         or report.get("openfibsem_commit") != OPENFIBSEM_COMMIT
         or report.get("score") != 100.0
@@ -404,14 +405,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--config",
         type=Path,
-        default=ROOT / "configs" / "fibsem_liftout_v1.yaml",
+        default=ROOT / "configs" / "openfibsem" / "fibsem_liftout_v1.yaml",
     )
     parser.add_argument("--allow-dirty", action="store_true")
     arguments = parser.parse_args(argv)
     config_path = arguments.config.resolve()
     config = load_run_config(config_path)
-    if config.evaluator_id != "fibsem_liftout_v1":
-        raise ValidationError("validator requires fibsem_liftout_v1")
+    if (config.source_id, config.evaluator_id) != (
+        "openfibsem",
+        "fibsem_liftout_v1",
+    ):
+        raise ValidationError(
+            "validator requires the (openfibsem, fibsem_liftout_v1) "
+            "source/evaluator identity"
+        )
     if config.report_path.exists() or config.report_path.with_suffix(".artifacts").exists():
         raise ValidationError("configured FIBSEM report or artifact destination already exists")
     first = run_benchmark(

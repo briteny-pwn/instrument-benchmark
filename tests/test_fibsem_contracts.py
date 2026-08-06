@@ -48,10 +48,10 @@ def test_three_repository_readmes_publish_fibsem_operator_contract() -> None:
     )
     assert all(step in combined for step in ("step_1", "step_2", "step_3", "step_4"))
     assert "native Linux Docker" in combined
-    assert "reports/fibsem_liftout_v1.artifacts" in combined
+    assert "reports/openfibsem/fibsem_liftout_v1.artifacts" in combined
     assert (
-        "python scripts/validate_fibsem_benchmark.py --config "
-        "configs/fibsem_liftout_v1.yaml"
+        "python scripts/validate_fibsem_benchmark.py \\\n"
+        "  --config configs/openfibsem/fibsem_liftout_v1.yaml"
     ) in readmes["instrument"]
 
 

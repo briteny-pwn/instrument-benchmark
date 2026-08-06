@@ -23,6 +23,12 @@ from instrument_benchmark.orchestrator import run_benchmark
 from instrument_benchmark.evaluator_image import stage_evaluator_build_context
 
 
+EXPECTED_IDENTITIES = {
+    ("pyvisa", "pyvisa_dut_validation_v1"): 2,
+    ("pyvisa", "pyvisa_dut_validation_v2"): 3,
+}
+
+
 def run_command(
     cwd: Path,
     arguments: list[str],
@@ -79,19 +85,24 @@ def main(argv: list[str] | None = None) -> int:
         default=Path(
             os.environ.get(
                 "IAB_RUN_CONFIG",
-                ROOT / "configs" / "pyvisa_dut_validation_v1.yaml",
+                ROOT / "configs" / "pyvisa" / "pyvisa_dut_validation_v1.yaml",
             )
         ),
     )
     arguments = parser.parse_args(argv)
     config_path = arguments.config.resolve()
     config = load_run_config(config_path)
+    expected_report_schema = EXPECTED_IDENTITIES.get(
+        (config.source_id, config.evaluator_id)
+    )
+    if expected_report_schema is None:
+        raise RuntimeError(
+            "validator requires a supported (source_id, evaluator_id) identity"
+        )
     instance = config.instance_checkout
     evaluator = config.evaluator_checkout
     instance_root = (
-        instance / config.instance_id
-        if (instance / config.instance_id).is_dir()
-        else instance
+        instance / "sources" / config.source_id / config.instance_id
     )
     instance_lock = __import__("yaml").safe_load(
         (instance_root / "image.lock.yaml").read_text(encoding="utf-8")
@@ -139,7 +150,11 @@ def main(argv: list[str] | None = None) -> int:
     manifest_output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="iab-manifest-") as directory:
         context = stage_evaluator_build_context(
-            evaluator, ROOT / "container", Path(directory) / "context"
+            evaluator,
+            ROOT / "container",
+            Path(directory) / "context",
+            source_id=config.source_id,
+            evaluator_id=config.evaluator_id,
         )
         shutil.copy2(context.manifest_path, manifest_output)
     if config.evaluator_id == "pyvisa_dut_validation_v1":
@@ -154,7 +169,9 @@ def main(argv: list[str] | None = None) -> int:
     else:
         reproducible = None
     world_count = len(first["worlds"])
-    adversarial = _adversarial_cases(evaluator, config.evaluator_id)
+    adversarial = _adversarial_cases(
+        evaluator, config.source_id, config.evaluator_id
+    )
     stale = run_command(
         ROOT,
         [
@@ -188,6 +205,8 @@ def main(argv: list[str] | None = None) -> int:
         and docker_linux
         and no_stale_containers
         and candidate_image_matches_lock
+        and first.get("schema_version") == expected_report_schema
+        and first.get("source_id") == config.source_id
         and all(command["exit_code"] == 0 for command in commands)
         and first["strict_pass"]
         and first["score"] == 100
@@ -239,12 +258,17 @@ def main(argv: list[str] | None = None) -> int:
     return 0 if passed else 1
 
 
-def _adversarial_cases(evaluator: Path, evaluator_id: str) -> list[dict[str, Any]]:
+def _adversarial_cases(
+    evaluator: Path,
+    source_id: str,
+    evaluator_id: str,
+) -> list[dict[str, Any]]:
     if evaluator_id == "pyvisa_dut_validation_v1":
         value = __import__("yaml").safe_load(
             (
                 evaluator
-                / "evaluators"
+                / "sources"
+                / source_id
                 / evaluator_id
                 / "adversarial_matrix.yaml"
             ).read_text(encoding="utf-8")
@@ -274,8 +298,11 @@ def _v2_invariants(first: dict[str, Any], config: Any) -> bool:
     evaluator_image = first.get("orchestration", {}).get("evaluator_image", {})
     outer = first.get("orchestration", {}).get("evaluator_container", {})
     return (
-        first.get("schema_version") == 2
+        first.get("schema_version") == 3
+        and first.get("source_id") == config.source_id
+        and first.get("evaluator", {}).get("source_id") == config.source_id
         and first.get("evaluator", {}).get("id") == config.evaluator_id
+        and first.get("evaluator", {}).get("protocol_version") == 2
         and first.get("infrastructure_valid") is True
         and first.get("retry_eligible") is False
         and len(worlds) == 19

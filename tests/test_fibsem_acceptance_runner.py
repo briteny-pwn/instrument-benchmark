@@ -1,6 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
+
+import pytest
+
+from scripts.validate_fibsem_benchmark import (
+    OPENFIBSEM_COMMIT,
+    ValidationError,
+    main,
+    validate_distributed_report,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,6 +71,52 @@ def test_native_linux_runner_preserves_daemon_visible_paths_and_identity() -> No
     assert 'src="$checkout_parent",dst="$checkout_parent"' in text
     assert 'python scripts/validate_fibsem_benchmark.py' not in text
     assert 'scripts/validate_fibsem_benchmark.py --config "$config_path"' in text
+    assert "config_arg=${1:-configs/openfibsem/fibsem_liftout_v1.yaml}" in text
+
+
+def test_fibsem_validator_defaults_to_source_grouped_config_and_rejects_cross_source(
+    tmp_path: Path,
+) -> None:
+    config = SimpleNamespace(
+        source_id="pyvisa",
+        evaluator_id="fibsem_liftout_v1",
+        report_path=tmp_path / "report.json",
+    )
+    with mock.patch(
+        "scripts.validate_fibsem_benchmark.load_run_config",
+        return_value=config,
+    ) as loader:
+        with pytest.raises(ValidationError, match="source.*evaluator|identity"):
+            main([])
+
+    loader.assert_called_once_with(
+        (ROOT / "configs/openfibsem/fibsem_liftout_v1.yaml").resolve()
+    )
+
+
+def test_fibsem_validator_requires_source_aware_report_v4(tmp_path: Path) -> None:
+    report = {
+        "schema_version": 4,
+        "source_id": "openfibsem",
+        "evaluator_id": "fibsem_liftout_v1",
+        "openfibsem_commit": OPENFIBSEM_COMMIT,
+        "score": 100.0,
+        "strict_pass": True,
+        "retry_eligible": False,
+        "evidence_confidence": 1.0,
+    }
+
+    with pytest.raises(ValidationError, match="provenance"):
+        validate_distributed_report(report, report_path=tmp_path / "report.json")
+
+    report["schema_version"] = 3
+    with pytest.raises(ValidationError, match="strict score-100"):
+        validate_distributed_report(report, report_path=tmp_path / "report.json")
+
+    report["schema_version"] = 4
+    report["source_id"] = "pyvisa"
+    with pytest.raises(ValidationError, match="strict score-100"):
+        validate_distributed_report(report, report_path=tmp_path / "report.json")
 
 
 def test_readme_publishes_the_portable_native_linux_entrypoint() -> None:

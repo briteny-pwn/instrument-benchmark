@@ -22,11 +22,18 @@ The repositories communicate through versioned YAML manifests, evaluator
 request/report JSON, CLI arguments, and exit statuses. Instrument never imports
 evaluator implementation modules on the host.
 
+Every run is bound by `(source_id, instance_id, evaluator_id)`. Instance and
+evaluator leaves resolve strictly at `sources/<source_id>/<leaf_id>/`, while
+configs and reports are grouped beneath their source ID. Source registries and
+schema-v2 leaf manifests must agree before any image build or container start.
+Ungrouped legacy config, leaf, report, and artifact paths are invalid; there is
+no compatibility fallback, alias, scan, or root-manifest lookup.
+
 From `instrument/`, run the reference benchmark with:
 
 ```bash
 PYTHONPATH=src python -m instrument_benchmark.cli \
-  configs/pyvisa_dut_validation_v1.yaml
+  configs/pyvisa/pyvisa_dut_validation_v1.yaml
 ```
 
 The formal v2 configuration is selected independently, so v1 remains
@@ -34,7 +41,7 @@ available without gaining v2-only request fields:
 
 ```bash
 PYTHONPATH=src python -m instrument_benchmark.cli \
-  configs/pyvisa_dut_validation_v2.yaml
+  configs/pyvisa/pyvisa_dut_validation_v2.yaml
 ```
 
 The FIBSEM reference configuration uses the same three-repository contract
@@ -44,7 +51,8 @@ crosses `step_1`, `step_2`, `step_3`, and `step_4`. Run the complete native
 Linux Docker acceptance with:
 
 ```bash
-python scripts/validate_fibsem_benchmark.py --config configs/fibsem_liftout_v1.yaml
+python scripts/validate_fibsem_benchmark.py \
+  --config configs/openfibsem/fibsem_liftout_v1.yaml
 ```
 
 That direct entrypoint requires Python 3.11, PyYAML, Git, and Docker on the
@@ -52,7 +60,8 @@ host. On a native Linux x86_64 Docker host, the portable entrypoint supplies
 the Python/Git/Docker client environment in a pinned driver image:
 
 ```bash
-scripts/run_fibsem_linux_acceptance.sh configs/fibsem_liftout_v1.yaml
+scripts/run_fibsem_linux_acceptance.sh \
+  configs/openfibsem/fibsem_liftout_v1.yaml
 ```
 
 The driver runs as the invoking UID/GID, adds only the Docker socket group,
@@ -63,9 +72,10 @@ binary, exec path, and resolved dynamic libraries read-only; its image builds
 with `--network=none`. The trusted evaluator also builds with `--network=none`,
 and the driver, evaluator, candidate, and simulator runs have no network.
 
-On success, the schema-version-3 report is
-`reports/fibsem_liftout_v1.json`. Forty read-only checkpoint bundles are under
-`reports/fibsem_liftout_v1.artifacts/<world>/<step>/`; each contains
+On success, the schema-version-4 report is
+`reports/openfibsem/fibsem_liftout_v1.json`. Forty read-only checkpoint bundles
+are under
+`reports/openfibsem/fibsem_liftout_v1.artifacts/{world_id}/{step_id}/`; each contains
 `scene.glb`, merged `scene.stl`, SEM/FIB PNG, `checkpoint.json`, and component
 STL files. The validator parses every artifact, checks trusted geometry and
 image hashes, runs all ten worlds twice, compares deterministic evidence, and
@@ -127,5 +137,9 @@ Run the native-Linux formal v2 gate with:
 IAB_RUN_DOCKER_TESTS=1 PYTHONPATH=src python -m unittest \
   tests.integration.test_v2_dual_container_linux -v
 PYTHONPATH=src python scripts/validate_distributed_benchmark.py \
-  --config configs/pyvisa_dut_validation_v2.yaml
+  --config configs/pyvisa/pyvisa_dut_validation_v2.yaml
 ```
+
+The PyVISA v1 and v2 top-level reports are schema versions 2 and 3,
+respectively; the OpenFIBSEM report is schema version 4. All require the
+configured `source_id`.

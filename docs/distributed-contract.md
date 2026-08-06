@@ -1,4 +1,4 @@
-# Distributed Contract Version 1
+# Distributed Contract Version 2
 
 The orchestrator validates the instance and evaluator manifests, hashes every
 candidate-visible instance file, records all three repository commit IDs, and
@@ -10,11 +10,19 @@ python -m instrument_benchmark_evaluator.cli run
   --report <absolute JSON path>
 ```
 
-The request identifies the run, instance, candidate, protocol version, limits,
-and repeated-world seed range. Exit status `0` means an evaluator report was
+The request identifies `source_id`, `instance_id`, `evaluator_id`, the run,
+candidate, protocol version, limits, and repeated-world seed range. The
+composite run binding is `(source_id, instance_id, evaluator_id)`. Exit status
+`0` means an evaluator report was
 produced; candidate failures remain normal report outcomes. Exit status `2`
 means an incompatible or invalid request. Any other status is evaluator
 infrastructure failure.
+
+Instance and evaluator leaves resolve only at
+`sources/<source_id>/<leaf_id>/`, after their source registries and schema-v2
+manifests agree. Source-grouped config and report paths are also mandatory.
+Legacy ungrouped paths are invalid and no compatibility fallback, alias,
+search, or root-manifest lookup exists.
 
 The evaluator owns raw evidence, worlds, oracle, scoring, and safety gates. The
 orchestrator validates but never changes the evaluator score. It adds:
@@ -38,14 +46,22 @@ For `fibsem_liftout_v1`, the request binds the exact evaluator image ID and the
 external source commit. The evaluator runs one public nominal world, four
 hidden fixed worlds, and five deterministic seeded worlds. At each of
 `step_1` through `step_4`, it freezes the simulator before exporting the
-trusted scene. The final schema-version-3 report binds journal heads,
+trusted scene. The final schema-version-4 report binds source identity, journal heads,
 connectivity/pose metrics, artifact hashes, sibling container evidence,
 cleanup state, all three repository commits, and OpenFIBSEM commit/source
 digest. The operator validator is:
 
 ```bash
-python scripts/validate_fibsem_benchmark.py --config configs/fibsem_liftout_v1.yaml
+python scripts/validate_fibsem_benchmark.py \
+  --config configs/openfibsem/fibsem_liftout_v1.yaml
+scripts/run_fibsem_linux_acceptance.sh \
+  configs/openfibsem/fibsem_liftout_v1.yaml
 ```
+
+The validated output is
+`reports/openfibsem/fibsem_liftout_v1.json`, with checkpoint bundles below
+`reports/openfibsem/fibsem_liftout_v1.artifacts/{world_id}/{step_id}/`.
+PyVISA v1 and v2 reports use top-level schema versions 2 and 3, respectively.
 
 Native Linux Docker is required because the non-root outer evaluator receives
 daemon access only through the Docker socket group GID. Docker Desktop socket

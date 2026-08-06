@@ -4,11 +4,18 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 from scripts.validate_distributed_benchmark import (
+    EXPECTED_IDENTITIES,
     _adversarial_cases,
     _v2_invariants,
+    main,
 )
+from instrument_benchmark.contracts import load_run_config
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class FormalValidationScriptTests(unittest.TestCase):
@@ -19,6 +26,7 @@ class FormalValidationScriptTests(unittest.TestCase):
                 'import pyvisa\nrm = pyvisa.ResourceManager("@iab")\n'
             )
             config = SimpleNamespace(
+                source_id="pyvisa",
                 evaluator_id="pyvisa_dut_validation_v2",
                 candidate_path=reference,
             )
@@ -39,8 +47,13 @@ class FormalValidationScriptTests(unittest.TestCase):
                 },
             }
             report = {
-                "schema_version": 2,
-                "evaluator": {"id": "pyvisa_dut_validation_v2"},
+                "schema_version": 3,
+                "source_id": "pyvisa",
+                "evaluator": {
+                    "source_id": "pyvisa",
+                    "id": "pyvisa_dut_validation_v2",
+                    "protocol_version": 2,
+                },
                 "infrastructure_valid": True,
                 "retry_eligible": False,
                 "worlds": [world.copy() for _ in range(19)],
@@ -58,9 +71,54 @@ class FormalValidationScriptTests(unittest.TestCase):
             }
             self.assertFalse(_v2_invariants(report, config))
 
+    def test_validator_defaults_to_source_grouped_v1_config(self) -> None:
+        class StopAfterConfig(RuntimeError):
+            pass
+
+        with mock.patch(
+            "scripts.validate_distributed_benchmark.load_run_config",
+            side_effect=StopAfterConfig,
+        ) as loader:
+            with self.assertRaises(StopAfterConfig):
+                main([])
+
+        loader.assert_called_once_with(
+            (ROOT / "configs/pyvisa/pyvisa_dut_validation_v1.yaml").resolve()
+        )
+
+    def test_source_grouped_pyvisa_configs_bind_exact_report_versions(self) -> None:
+        cases = (
+            ("pyvisa_dut_validation_v1", 2),
+            ("pyvisa_dut_validation_v2", 3),
+        )
+        for evaluator_id, report_version in cases:
+            with self.subTest(evaluator_id=evaluator_id):
+                config = load_run_config(
+                    ROOT / "configs" / "pyvisa" / f"{evaluator_id}.yaml"
+                )
+                self.assertEqual(config.source_id, "pyvisa")
+                self.assertEqual(config.evaluator_id, evaluator_id)
+                self.assertEqual(
+                    EXPECTED_IDENTITIES[(config.source_id, config.evaluator_id)],
+                    report_version,
+                )
+
+    def test_validator_rejects_cross_source_evaluator_identity(self) -> None:
+        config = SimpleNamespace(
+            source_id="openfibsem",
+            evaluator_id="pyvisa_dut_validation_v1",
+            instance_checkout=ROOT.parent / "instance",
+        )
+        with mock.patch(
+            "scripts.validate_distributed_benchmark.load_run_config",
+            return_value=config,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "source.*evaluator|identity"):
+                main([])
+
     def test_v2_adversarial_contract_keeps_protocol_and_leak_cases(self) -> None:
         cases = _adversarial_cases(
-            Path("/unused"), "pyvisa_dut_validation_v2"
+            Path("/unused"), "pyvisa", "pyvisa_dut_validation_v2"
         )
         self.assertEqual(
             [case["submission"] for case in cases],

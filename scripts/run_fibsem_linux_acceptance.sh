@@ -8,7 +8,7 @@ test -S /var/run/docker.sock
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 instrument_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 checkout_parent=$(dirname -- "$instrument_root")
-config_arg=${1:-configs/fibsem_liftout_v1.yaml}
+config_arg=${1:-configs/openfibsem/fibsem_liftout_v1.yaml}
 case "$config_arg" in
     /*) config_path=$config_arg ;;
     *) config_path=$instrument_root/$config_arg ;;
