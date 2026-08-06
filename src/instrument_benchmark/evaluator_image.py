@@ -167,8 +167,18 @@ def stage_evaluator_build_context(
     destination = destination.resolve()
     if destination.exists():
         raise EvaluatorImageError(f"build context already exists: {destination}")
-    _verify_wheelhouse(assets_root / "wheelhouse")
     _verify_docker_cli(assets_root / "docker-cli")
+    if (openfibsem_checkout is None) != (openfibsem_commit is None):
+        raise EvaluatorImageError(
+            "OpenFIBSEM checkout and commit must be supplied together"
+        )
+    fibsem_profile = openfibsem_checkout is not None
+    if fibsem_profile:
+        assert openfibsem_commit is not None
+        _verify_openfibsem_runtime(assets_root, expected_commit=openfibsem_commit)
+        _verify_fibsem_system_packages(assets_root / "fibsem-system-packages")
+    else:
+        _verify_wheelhouse(assets_root / "wheelhouse")
     destination.mkdir(parents=True)
     evaluator_target = destination / "evaluator"
     evaluator_target.mkdir()
@@ -180,17 +190,34 @@ def stage_evaluator_build_context(
         target = evaluator_target / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
-    for name in ("evaluator.Dockerfile", "evaluator-requirements.lock"):
-        source = assets_root / name
-        if not source.is_file() or source.is_symlink():
-            raise EvaluatorImageError(f"missing evaluator image input: {name}")
-        shutil.copy2(source, destination / name)
-    shutil.copytree(assets_root / "wheelhouse", destination / "wheelhouse")
-    shutil.copytree(assets_root / "docker-cli", destination / "docker-cli")
-    if (openfibsem_checkout is None) != (openfibsem_commit is None):
-        raise EvaluatorImageError(
-            "OpenFIBSEM checkout and commit must be supplied together"
+    profile_inputs = (
+        (
+            ("fibsem-evaluator.Dockerfile", "evaluator.Dockerfile"),
+            ("openfibsem-requirements.lock", "openfibsem-requirements.lock"),
         )
+        if fibsem_profile
+        else (
+            ("evaluator.Dockerfile", "evaluator.Dockerfile"),
+            ("evaluator-requirements.lock", "evaluator-requirements.lock"),
+        )
+    )
+    for source_name, target_name in profile_inputs:
+        source = assets_root / source_name
+        if not source.is_file() or source.is_symlink():
+            raise EvaluatorImageError(f"missing evaluator image input: {source_name}")
+        shutil.copy2(source, destination / target_name)
+    if fibsem_profile:
+        _stage_openfibsem_wheelhouse(
+            assets_root / "openfibsem-wheelhouse",
+            destination / "openfibsem-wheelhouse",
+        )
+        shutil.copytree(
+            assets_root / "fibsem-system-packages",
+            destination / "fibsem-system-packages",
+        )
+    else:
+        shutil.copytree(assets_root / "wheelhouse", destination / "wheelhouse")
+    shutil.copytree(assets_root / "docker-cli", destination / "docker-cli")
     source_digest: str | None = None
     if openfibsem_checkout is not None and openfibsem_commit is not None:
         source_digest = _stage_openfibsem_source(
@@ -198,13 +225,14 @@ def stage_evaluator_build_context(
             destination / "openfibsem",
             expected_commit=openfibsem_commit,
         )
-    optional_runtime = {
+    runtime_profile = {
         "schema_version": 1,
+        "profile": "fibsem" if fibsem_profile else "default",
         "openfibsem_commit": openfibsem_commit,
         "openfibsem_source_sha256": source_digest,
     }
-    (destination / "optional-runtime.json").write_bytes(
-        _canonical_json(optional_runtime)
+    (destination / "runtime-profile.json").write_bytes(
+        _canonical_json(runtime_profile)
     )
     manifest_path = destination / BUILD_MANIFEST
     manifest = {
@@ -254,6 +282,240 @@ def _verify_wheelhouse(wheelhouse: Path) -> None:
         actual[path.name] = {"sha256": _sha256(payload), "bytes": len(payload)}
     if expected != actual:
         raise EvaluatorImageError("wheel manifest does not match wheel files")
+
+
+def _verify_openfibsem_runtime(assets_root: Path, *, expected_commit: str) -> None:
+    wheelhouse = assets_root / "openfibsem-wheelhouse"
+    manifest_path = wheelhouse / "manifest.json"
+    lock_path = assets_root / "openfibsem-requirements.lock"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        lock_lines = lock_path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise EvaluatorImageError(
+            f"cannot load OpenFIBSEM wheel manifest: {exc}"
+        ) from exc
+    files = manifest.get("files") if isinstance(manifest, dict) else None
+    if (
+        not isinstance(manifest, dict)
+        or set(manifest)
+        != {
+            "schema_version",
+            "source_commit",
+            "source_requirements_sha256",
+            "platform",
+            "python_version",
+            "files",
+        }
+        or manifest.get("schema_version") != 1
+        or manifest.get("source_commit") != expected_commit
+        or manifest.get("platform") != "manylinux_2_28_x86_64"
+        or manifest.get("python_version") != "311"
+        or not _is_raw_sha256(manifest.get("source_requirements_sha256"))
+        or not isinstance(files, dict)
+        or not files
+    ):
+        raise EvaluatorImageError(
+            "OpenFIBSEM wheel manifest identity or source commit is invalid"
+        )
+    expected_storage_names = {"manifest.json"}
+    expected_lock: dict[str, tuple[str, str]] = {}
+    for filename, record in files.items():
+        parts = record.get("parts") if isinstance(record, dict) else None
+        record_keys = {
+            "normalized_name",
+            "version",
+            "sha256",
+            "bytes",
+            "platform",
+        }
+        if parts is not None:
+            record_keys.add("parts")
+        if (
+            not isinstance(filename, str)
+            or not filename.endswith(".whl")
+            or not isinstance(record, dict)
+            or set(record) != record_keys
+            or not isinstance(record.get("normalized_name"), str)
+            or not record["normalized_name"]
+            or not isinstance(record.get("version"), str)
+            or not record["version"]
+            or not _is_raw_sha256(record.get("sha256"))
+            or isinstance(record.get("bytes"), bool)
+            or not isinstance(record.get("bytes"), int)
+            or record["bytes"] <= 0
+            or record.get("platform") not in {"any", "manylinux_x86_64"}
+        ):
+            raise EvaluatorImageError("OpenFIBSEM wheel record is invalid")
+        paths: list[Path] = []
+        if parts is None:
+            paths.append(wheelhouse / filename)
+            expected_storage_names.add(filename)
+        elif not isinstance(parts, list) or len(parts) < 2:
+            raise EvaluatorImageError("OpenFIBSEM wheel part records are invalid")
+        else:
+            for index, part_record in enumerate(parts):
+                if (
+                    not isinstance(part_record, dict)
+                    or set(part_record) != {"filename", "sha256", "bytes"}
+                    or part_record.get("filename") != f"{filename}.part{index:03d}"
+                    or not _is_raw_sha256(part_record.get("sha256"))
+                    or isinstance(part_record.get("bytes"), bool)
+                    or not isinstance(part_record.get("bytes"), int)
+                    or part_record["bytes"] <= 0
+                ):
+                    raise EvaluatorImageError("OpenFIBSEM wheel part record is invalid")
+                part = wheelhouse / part_record["filename"]
+                if part.is_symlink() or not part.is_file():
+                    raise EvaluatorImageError(
+                        "OpenFIBSEM wheel part is not a regular file"
+                    )
+                payload = part.read_bytes()
+                if (
+                    len(payload) != part_record["bytes"]
+                    or _sha256(payload) != part_record["sha256"]
+                ):
+                    raise EvaluatorImageError("OpenFIBSEM wheel part hash mismatch")
+                paths.append(part)
+                expected_storage_names.add(part.name)
+        digest = hashlib.sha256()
+        size = 0
+        for path in paths:
+            if path.is_symlink() or not path.is_file():
+                raise EvaluatorImageError("OpenFIBSEM wheel is not a regular file")
+            payload = path.read_bytes()
+            digest.update(payload)
+            size += len(payload)
+        if size != record["bytes"] or digest.hexdigest() != record["sha256"]:
+            raise EvaluatorImageError("OpenFIBSEM wheel hash does not match manifest")
+        name = record["normalized_name"]
+        if name in expected_lock:
+            raise EvaluatorImageError("OpenFIBSEM wheel package is duplicated")
+        expected_lock[name] = (record["version"], record["sha256"])
+    if _parse_hash_lock(lock_lines) != expected_lock:
+        raise EvaluatorImageError("OpenFIBSEM requirement lock does not match wheels")
+    actual_storage_names = {path.name for path in wheelhouse.iterdir()}
+    if actual_storage_names != expected_storage_names:
+        raise EvaluatorImageError("OpenFIBSEM wheel manifest file set is invalid")
+
+
+def _stage_openfibsem_wheelhouse(source: Path, destination: Path) -> None:
+    manifest = json.loads((source / "manifest.json").read_text(encoding="utf-8"))
+    destination.mkdir()
+    staged_manifest = dict(manifest)
+    staged_files: dict[str, dict[str, object]] = {}
+    for filename, source_record in manifest["files"].items():
+        record = dict(source_record)
+        parts = record.pop("parts", None)
+        target = destination / filename
+        if parts is None:
+            shutil.copy2(source / filename, target)
+        else:
+            with target.open("wb") as output:
+                for part_record in parts:
+                    with (source / part_record["filename"]).open("rb") as part:
+                        shutil.copyfileobj(part, output)
+        staged_files[filename] = record
+    staged_manifest["files"] = staged_files
+    (destination / "manifest.json").write_bytes(_canonical_json(staged_manifest))
+
+
+def _verify_fibsem_system_packages(root: Path) -> None:
+    expected_packages = {
+        "gcc-12-base",
+        "libatomic1",
+        "libbsd0",
+        "libedit2",
+        "libicu72",
+        "libllvm15",
+        "libxml2",
+        "libz3-4",
+    }
+    try:
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise EvaluatorImageError(
+            f"cannot load FIBSEM system package manifest: {exc}"
+        ) from exc
+    files = manifest.get("files") if isinstance(manifest, dict) else None
+    packages = manifest.get("packages") if isinstance(manifest, dict) else None
+    package_identity = (
+        isinstance(packages, dict)
+        and set(packages) == expected_packages
+        and all(isinstance(value, str) and value for value in packages.values())
+    )
+    if (
+        not isinstance(manifest, dict)
+        or set(manifest)
+        != {"schema_version", "distribution", "architecture", "packages", "files"}
+        or manifest.get("schema_version") != 1
+        or manifest.get("distribution") != "debian-bookworm"
+        or manifest.get("architecture") != "amd64"
+        or not package_identity
+    ):
+        raise EvaluatorImageError("FIBSEM system package manifest identity is invalid")
+    assert isinstance(packages, dict)
+    if not isinstance(files, dict) or not files:
+        raise EvaluatorImageError("FIBSEM system package records are invalid")
+    actual_names = {path.name for path in root.glob("*.deb")}
+    if set(files) != actual_names:
+        raise EvaluatorImageError("FIBSEM system package file set is invalid")
+    seen: dict[str, str] = {}
+    for filename, record in files.items():
+        if (
+            not isinstance(filename, str)
+            or not filename.endswith("_amd64.deb")
+            or not isinstance(record, dict)
+            or set(record) != {"package", "version", "sha256", "bytes"}
+            or not isinstance(record.get("package"), str)
+            or not isinstance(record.get("version"), str)
+            or not _is_raw_sha256(record.get("sha256"))
+            or isinstance(record.get("bytes"), bool)
+            or not isinstance(record.get("bytes"), int)
+            or record["bytes"] <= 0
+        ):
+            raise EvaluatorImageError("FIBSEM system package record is invalid")
+        path = root / filename
+        if path.is_symlink() or not path.is_file():
+            raise EvaluatorImageError("FIBSEM system package is not a regular file")
+        payload = path.read_bytes()
+        if len(payload) != record["bytes"] or _sha256(payload) != record["sha256"]:
+            raise EvaluatorImageError("FIBSEM system package hash mismatch")
+        seen[record["package"]] = record["version"]
+    if seen != packages:
+        raise EvaluatorImageError("FIBSEM system package versions are inconsistent")
+
+
+def _parse_hash_lock(lines: list[str]) -> dict[str, tuple[str, str]]:
+    records: dict[str, tuple[str, str]] = {}
+    pending: tuple[str, str] | None = None
+    for line in lines:
+        if not line or line.startswith("#"):
+            continue
+        if line.endswith(" \\") and pending is None:
+            requirement = line[:-2]
+            if "==" not in requirement:
+                raise EvaluatorImageError("OpenFIBSEM requirement is not pinned")
+            name, version = requirement.split("==", 1)
+            if not name or not version:
+                raise EvaluatorImageError("OpenFIBSEM requirement is invalid")
+            pending = (name, version)
+            continue
+        prefix = "    --hash=sha256:"
+        if line.startswith(prefix) and pending is not None:
+            digest = line.removeprefix(prefix)
+            if not _is_raw_sha256(digest):
+                raise EvaluatorImageError("OpenFIBSEM requirement hash is invalid")
+            name, version = pending
+            if name in records:
+                raise EvaluatorImageError("OpenFIBSEM requirement is duplicated")
+            records[name] = (version, digest)
+            pending = None
+            continue
+        raise EvaluatorImageError("OpenFIBSEM requirement lock is invalid")
+    if pending is not None or not records:
+        raise EvaluatorImageError("OpenFIBSEM requirement lock is incomplete")
+    return records
 
 
 def _verify_docker_cli(root: Path) -> None:
@@ -383,6 +645,12 @@ def _canonical_json(value: object) -> bytes:
 
 def _sha256(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
+
+
+def _is_raw_sha256(value: object) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(
+        character in "0123456789abcdef" for character in value
+    )
 
 
 def _execute_image_command(arguments: list[str]) -> ImageCommandResult:

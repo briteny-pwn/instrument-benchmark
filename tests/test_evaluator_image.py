@@ -62,7 +62,7 @@ class EvaluatorImageTests(unittest.TestCase):
             checkout, commit = self.make_openfibsem(root)
             context = stage_evaluator_build_context(
                 self.make_evaluator(root),
-                self.make_assets(root),
+                self.make_assets(root, source_commit=commit),
                 root / "context",
                 openfibsem_checkout=checkout,
                 openfibsem_commit=commit,
@@ -74,10 +74,20 @@ class EvaluatorImageTests(unittest.TestCase):
             self.assertFalse((staged / "README.md").exists())
             self.assertEqual(context.openfibsem_commit, commit)
             self.assertEqual(len(context.openfibsem_source_sha256), 64)
-            optional = json.loads(
-                (context.root / "optional-runtime.json").read_text()
+            profile = json.loads(
+                (context.root / "runtime-profile.json").read_text()
             )
-            self.assertEqual(optional["openfibsem_commit"], commit)
+            self.assertEqual(profile["profile"], "fibsem")
+            self.assertEqual(profile["openfibsem_commit"], commit)
+            self.assertFalse((context.root / "evaluator-requirements.lock").exists())
+            self.assertFalse((context.root / "wheelhouse").exists())
+            self.assertTrue((context.root / "openfibsem-requirements.lock").is_file())
+            self.assertTrue(
+                (context.root / "openfibsem-wheelhouse" / "manifest.json").is_file()
+            )
+            self.assertTrue(
+                (context.root / "fibsem-system-packages" / "manifest.json").is_file()
+            )
             verify_build_manifest(context.root, context.manifest_path)
 
     def test_fibsem_context_rejects_commit_mismatch_and_tracked_changes(self) -> None:
@@ -85,7 +95,7 @@ class EvaluatorImageTests(unittest.TestCase):
             root = Path(directory)
             checkout, commit = self.make_openfibsem(root)
             evaluator = self.make_evaluator(root)
-            assets = self.make_assets(root)
+            assets = self.make_assets(root, source_commit=commit)
 
             with self.assertRaisesRegex(EvaluatorImageError, "commit"):
                 stage_evaluator_build_context(
@@ -102,6 +112,80 @@ class EvaluatorImageTests(unittest.TestCase):
                     evaluator,
                     assets,
                     root / "dirty-context",
+                    openfibsem_checkout=checkout,
+                    openfibsem_commit=commit,
+                )
+
+    def test_fibsem_context_rejects_tampered_runtime_wheel(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkout, commit = self.make_openfibsem(root)
+            assets = self.make_assets(root, source_commit=commit)
+            wheel = next((assets / "openfibsem-wheelhouse").glob("*.whl"))
+            wheel.write_bytes(wheel.read_bytes() + b"tampered")
+
+            with self.assertRaisesRegex(EvaluatorImageError, "OpenFIBSEM wheel"):
+                stage_evaluator_build_context(
+                    self.make_evaluator(root),
+                    assets,
+                    root / "context",
+                    openfibsem_checkout=checkout,
+                    openfibsem_commit=commit,
+                )
+
+    def test_fibsem_context_reassembles_split_runtime_wheel(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkout, commit = self.make_openfibsem(root)
+            assets = self.make_assets(root, source_commit=commit)
+            wheelhouse = assets / "openfibsem-wheelhouse"
+            wheel = next(wheelhouse.glob("*.whl"))
+            payload = wheel.read_bytes()
+            split_at = len(payload) // 2
+            part_records = []
+            for index, data in enumerate((payload[:split_at], payload[split_at:])):
+                part = wheelhouse / f"{wheel.name}.part{index:03d}"
+                part.write_bytes(data)
+                part_records.append(
+                    {
+                        "filename": part.name,
+                        "sha256": hashlib.sha256(data).hexdigest(),
+                        "bytes": len(data),
+                    }
+                )
+            manifest_path = wheelhouse / "manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["files"][wheel.name]["parts"] = part_records
+            manifest_path.write_text(json.dumps(manifest, sort_keys=True))
+            wheel.unlink()
+
+            context = stage_evaluator_build_context(
+                self.make_evaluator(root),
+                assets,
+                root / "context",
+                openfibsem_checkout=checkout,
+                openfibsem_commit=commit,
+            )
+
+            staged = context.root / "openfibsem-wheelhouse" / wheel.name
+            self.assertEqual(staged.read_bytes(), payload)
+            self.assertFalse(
+                any((context.root / "openfibsem-wheelhouse").glob("*.part*"))
+            )
+
+    def test_fibsem_context_rejects_tampered_system_package(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkout, commit = self.make_openfibsem(root)
+            assets = self.make_assets(root, source_commit=commit)
+            package = next((assets / "fibsem-system-packages").glob("*.deb"))
+            package.write_bytes(package.read_bytes() + b"tampered")
+
+            with self.assertRaisesRegex(EvaluatorImageError, "system package"):
+                stage_evaluator_build_context(
+                    self.make_evaluator(root),
+                    assets,
+                    root / "context",
                     openfibsem_checkout=checkout,
                     openfibsem_commit=commit,
                 )
@@ -162,12 +246,13 @@ class EvaluatorImageTests(unittest.TestCase):
         (evaluator / "reports" / "ignored.json").write_text("{}")
         return evaluator
 
-    def make_assets(self, root: Path) -> Path:
+    def make_assets(self, root: Path, *, source_commit: str = "fixture") -> Path:
         assets = root / "assets"
         wheels = assets / "wheelhouse"
         wheels.mkdir(parents=True)
         dockerfile = assets / "evaluator.Dockerfile"
         dockerfile.write_text("FROM scratch\n")
+        (assets / "fibsem-evaluator.Dockerfile").write_text("FROM scratch\n")
         lock = assets / "evaluator-requirements.lock"
         lock.write_text("fake==1 --hash=sha256:" + "1" * 64 + "\n")
         wheel = wheels / "fake-1-py3-none-any.whl"
@@ -182,6 +267,73 @@ class EvaluatorImageTests(unittest.TestCase):
             },
         }
         (wheels / "manifest.json").write_text(json.dumps(manifest, sort_keys=True))
+        openfibsem_wheels = assets / "openfibsem-wheelhouse"
+        openfibsem_wheels.mkdir()
+        runtime_wheel = openfibsem_wheels / "numpy-1.0-py3-none-any.whl"
+        runtime_wheel.write_bytes(b"runtime-wheel")
+        runtime_digest = hashlib.sha256(runtime_wheel.read_bytes()).hexdigest()
+        (openfibsem_wheels / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "python_version": "311",
+                    "platform": "manylinux_2_28_x86_64",
+                    "source_commit": source_commit,
+                    "source_requirements_sha256": "2" * 64,
+                    "files": {
+                        runtime_wheel.name: {
+                            "normalized_name": "numpy",
+                            "version": "1.0",
+                            "sha256": runtime_digest,
+                            "bytes": len(runtime_wheel.read_bytes()),
+                            "platform": "any",
+                        }
+                    },
+                },
+                sort_keys=True,
+            )
+        )
+        lock_text = (
+            "numpy==1.0 \\\n"
+            f"    --hash=sha256:{runtime_digest}\n"
+        )
+        (assets / "openfibsem-requirements.lock").write_text(lock_text)
+        system_packages = assets / "fibsem-system-packages"
+        system_packages.mkdir()
+        package_records = {}
+        required_system_packages = (
+            "gcc-12-base",
+            "libatomic1",
+            "libbsd0",
+            "libedit2",
+            "libicu72",
+            "libllvm15",
+            "libxml2",
+            "libz3-4",
+        )
+        for package in required_system_packages:
+            deb = system_packages / f"{package}_1.0_amd64.deb"
+            deb.write_bytes(f"system-package:{package}".encode())
+            package_records[deb.name] = {
+                "package": package,
+                "version": "1.0",
+                "sha256": hashlib.sha256(deb.read_bytes()).hexdigest(),
+                "bytes": len(deb.read_bytes()),
+            }
+        (system_packages / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "distribution": "debian-bookworm",
+                    "architecture": "amd64",
+                    "packages": {
+                        package: "1.0" for package in required_system_packages
+                    },
+                    "files": package_records,
+                },
+                sort_keys=True,
+            )
+        )
         docker_cli = assets / "docker-cli"
         docker_cli.mkdir()
         docker = docker_cli / "docker"

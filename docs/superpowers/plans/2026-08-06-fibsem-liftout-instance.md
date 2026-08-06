@@ -4,7 +4,7 @@
 
 **Goal:** Implement the complete `fibsem_liftout_v1` four-step benchmark across the distributed `instance`, `evaluator`, and `instrument` repositories, with an isolated OpenFIBSEM simulator, trusted checkpoint artifacts, hidden scenarios, scoring, and end-to-end evidence.
 
-**Architecture:** The public instance ships a typed, bounded Unix-socket client and concrete scenario input but no simulator internals. A trusted outer evaluator starts a candidate sibling and an OpenFIBSEM sim sibling, journals every allowed operation, freezes four semantic checkpoints, exports trusted mesh/image artifacts, and scores geometry plus necessary partial order. The generic instrument orchestrator validates the three repository contracts, stages the pinned OpenFIBSEM source into the evaluator build, and validates the final schema-version-3 report and provenance.
+**Architecture:** The public instance ships a typed, bounded Unix-socket client and concrete scenario input but no simulator internals. A trusted outer evaluator starts a candidate sibling and an OpenFIBSEM sim sibling, journals every allowed operation, freezes four semantic checkpoints, exports trusted mesh/image artifacts, and scores geometry plus necessary partial order. The generic instrument orchestrator validates the three repository contracts, selects an evaluator-specific locked runtime profile, stages the pinned OpenFIBSEM source into the FIBSEM build, and validates the final schema-version-3 report and provenance. The architecture accepts independently sourced instances; FIBSEM does not inherit another instance's runtime or semantics.
 
 **Tech Stack:** Python 3.11, JSON Schema 2020-12, PyYAML, Unix domain sockets, Docker Engine API/CLI, OpenFIBSEM 0.5.5 at commit `2ebccb8b9721234ca66bb94de36d0f7cfe047af9`, PyVista/VTK, Pillow, NumPy, pytest/unittest.
 
@@ -64,7 +64,7 @@
 - `schemas/run.schema.json`, `src/instrument_benchmark/contracts.py`: optional external-source fields and report v3 validation.
 - `src/instrument_benchmark/evaluator_image.py`: tracked OpenFIBSEM source staging and digest evidence.
 - `src/instrument_benchmark/orchestrator.py`: request/provenance forwarding and artifact publication.
-- `container/evaluator.Dockerfile`, `container/evaluator-requirements.lock`, `container/wheelhouse/*`: offline trusted runtime.
+- `container/fibsem-evaluator.Dockerfile`, `container/openfibsem-requirements.lock`, `container/openfibsem-wheelhouse/*`: independent offline FIBSEM runtime profile.
 - `scripts/vendor_openfibsem_wheels.py`: reproducible Linux/amd64 wheel download and manifest generation.
 - `tests/test_fibsem_contracts.py`, `tests/test_evaluator_image.py`, `tests/integration/test_fibsem_dual_container_linux.py`: orchestration and runtime acceptance.
 
@@ -686,12 +686,12 @@ Run in `instrument`: `git add configs schemas src tests && git commit -m "feat: 
 - Create: `instrument/container/openfibsem-requirements.lock`
 - Create: `instrument/container/openfibsem-wheelhouse/manifest.json`
 - Create: generated Linux/amd64 wheels under `instrument/container/openfibsem-wheelhouse/`
-- Modify: `instrument/container/evaluator.Dockerfile`
+- Create: `instrument/container/fibsem-evaluator.Dockerfile`
 - Modify: `instrument/src/instrument_benchmark/evaluator_image.py`
 - Create: `instrument/tests/test_openfibsem_runtime_lock.py`
 
 **Interfaces:**
-- `vendor_openfibsem_wheels.py --source <checkout> --destination <wheelhouse> --platform manylinux_2_17_x86_64 --python-version 311` resolves only the pinned source lock, verifies wheel tags, writes hashes to both lock and manifest, and never mutates the source checkout.
+- `vendor_openfibsem_wheels.py --source <checkout> --destination <wheelhouse> --platform manylinux_2_28_x86_64 --python-version 311` resolves only the pinned source lock, verifies wheel tags, writes hashes to both lock and manifest, and never mutates the source checkout. The manylinux 2.28 ceiling is required by the first available `meshlib>=3.1` Linux wheel and remains below the Debian bookworm glibc baseline.
 
 - [ ] **Step 1: Write failing wheel-lock and Dockerfile tests**
 
@@ -703,7 +703,7 @@ def test_openfibsem_lock_matches_wheelhouse():
     assert all(record["platform"] == "manylinux_x86_64" for record in manifest["files"].values())
 
 def test_dockerfile_installs_openfibsem_without_network():
-    text = normalize(ROOT / "container/evaluator.Dockerfile")
+    text = normalize(ROOT / "container/fibsem-evaluator.Dockerfile")
     assert "pip install --no-index --require-hashes" in text
     assert "/build/openfibsem" in text
 ```
@@ -717,9 +717,9 @@ Expected: FAIL because the OpenFIBSEM lock and wheelhouse do not exist.
 
 Resolve OpenFIBSEM runtime dependencies for CPython 3.11 Linux/amd64, download wheels only, reject sdists and floating versions, record package/version/filename/SHA-256/size/platform, and sort all output. Run it once with network access into the tracked wheelhouse, then rerun in `--verify` mode without network.
 
-- [ ] **Step 4: Install the optional runtime in the evaluator image**
+- [ ] **Step 4: Install the independent FIBSEM runtime profile**
 
-Always stage an `optional-runtime.json`. For FIBSEM builds, copy verified wheels and source, install dependencies with `--no-index --require-hashes`, then install OpenFIBSEM and evaluator with `--no-deps --no-build-isolation`. For PyVISA builds, assert the optional runtime is absent and preserve the current image contents and user.
+Stage `runtime-profile.json` and select `fibsem-evaluator.Dockerfile` only for FIBSEM builds. Copy verified FIBSEM wheels and source, install dependencies with `--no-index --require-hashes`, then install OpenFIBSEM and evaluator with `--no-deps --no-build-isolation`. Do not stage another instance's Dockerfile, dependency lock, or wheelhouse into the FIBSEM build context. Keep evaluator implementation imports lazy so the FIBSEM CLI does not require another instance's runtime package.
 
 - [ ] **Step 5: Run lock tests and evaluator build-context tests**
 

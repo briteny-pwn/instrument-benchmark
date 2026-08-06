@@ -2,7 +2,7 @@
 
 Date: 2026-08-06
 
-Status: written design awaiting final user review
+Status: approved and implemented
 
 Target architecture: distributed `instrument` / `instance` / `evaluator`
 
@@ -66,6 +66,13 @@ concerns:
 
 The orchestrator never imports OpenFIBSEM, the hidden simulator service, the
 geometry oracle, or scoring code on the host.
+
+The three-repository architecture accepts independently sourced instances.
+Each evaluator selects its own locked runtime profile; instances do not inherit
+another instance's dependencies or execution semantics. In particular, the
+FIBSEM evaluator image is built from `fibsem-evaluator.Dockerfile`, the pinned
+OpenFIBSEM source, and the FIBSEM wheelhouse only. It does not contain or depend
+on the PyVISA runtime profile.
 
 ### `instance`
 
