@@ -1369,6 +1369,7 @@ def dump_json(path: Path, value: Any) -> None:
     payload = json.dumps(value, indent=2, sort_keys=True) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path: Path | None = None
+    publication_error: BaseException | None = None
     try:
         with tempfile.NamedTemporaryFile(
             mode="w",
@@ -1383,9 +1384,20 @@ def dump_json(path: Path, value: Any) -> None:
             temporary.flush()
             os.fsync(temporary.fileno())
         os.replace(temporary_path, path)
+    except BaseException as error:
+        publication_error = error
+        raise
     finally:
         if temporary_path is not None:
-            temporary_path.unlink(missing_ok=True)
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except BaseException as cleanup_error:
+                if publication_error is None:
+                    raise
+                publication_error.add_note(
+                    "failed to remove atomic-write temporary file "
+                    f"{temporary_path}: {cleanup_error!r}"
+                )
 
 
 def _git(path: Path, *arguments: str) -> str:

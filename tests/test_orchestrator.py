@@ -364,6 +364,56 @@ class DistributedOrchestratorTests(unittest.TestCase):
             self.assertEqual(report.read_text(), '{"original": true}\n')
             self.assertEqual(list(report.parent.glob("*.tmp")), [])
 
+    def test_dump_json_preserves_fsync_failure_when_cleanup_also_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "reports" / "openfibsem" / "run.json"
+            report.parent.mkdir(parents=True)
+            report.write_text('{"original": true}\n')
+
+            publication_failure = OSError("forced fsync failure")
+            cleanup_failure = OSError("forced cleanup failure")
+            with (
+                patch(
+                    "instrument_benchmark.contracts.os.fsync",
+                    side_effect=publication_failure,
+                ),
+                patch(
+                    "instrument_benchmark.contracts.Path.unlink",
+                    autospec=True,
+                    side_effect=cleanup_failure,
+                ),
+            ):
+                with self.assertRaises(OSError) as raised:
+                    dump_json(report, {"replacement": True})
+
+            self.assertIs(raised.exception, publication_failure)
+            self.assertTrue(
+                any(
+                    "forced cleanup failure" in note
+                    for note in getattr(raised.exception, "__notes__", ())
+                )
+            )
+            self.assertEqual(report.read_text(), '{"original": true}\n')
+            self.assertEqual(len(list(report.parent.glob("*.tmp"))), 1)
+
+    def test_dump_json_surfaces_cleanup_failure_without_publication_failure(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "reports" / "openfibsem" / "run.json"
+            cleanup_failure = OSError("forced cleanup failure")
+
+            with patch(
+                "instrument_benchmark.contracts.Path.unlink",
+                autospec=True,
+                side_effect=cleanup_failure,
+            ):
+                with self.assertRaises(OSError) as raised:
+                    dump_json(report, {"replacement": True})
+
+            self.assertIs(raised.exception, cleanup_failure)
+            self.assertEqual(json.loads(report.read_text()), {"replacement": True})
+
     def test_v2_run_forwards_the_builder_image_id_to_the_evaluator(self) -> None:
         from tests.test_v2_contracts import v2_report
 
