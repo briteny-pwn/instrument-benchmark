@@ -1378,10 +1378,10 @@ def dump_json(path: Path, value: Any) -> None:
             dir=path.parent,
             delete=False,
         ) as temporary:
+            temporary_path = Path(temporary.name)
             temporary.write(payload)
             temporary.flush()
             os.fsync(temporary.fileno())
-            temporary_path = Path(temporary.name)
         os.replace(temporary_path, path)
     finally:
         if temporary_path is not None:

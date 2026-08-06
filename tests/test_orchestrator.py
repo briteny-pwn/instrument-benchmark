@@ -347,6 +347,23 @@ class DistributedOrchestratorTests(unittest.TestCase):
             self.assertTrue(temporary.name.endswith(".tmp"))
             self.assertEqual(list(report.parent.glob("*.tmp")), [])
 
+    def test_dump_json_cleans_temporary_file_when_fsync_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "reports" / "openfibsem" / "run.json"
+            report.parent.mkdir(parents=True)
+            report.write_text('{"original": true}\n')
+
+            failure = OSError("forced fsync failure")
+            with patch(
+                "instrument_benchmark.contracts.os.fsync", side_effect=failure
+            ):
+                with self.assertRaises(OSError) as raised:
+                    dump_json(report, {"replacement": True})
+
+            self.assertIs(raised.exception, failure)
+            self.assertEqual(report.read_text(), '{"original": true}\n')
+            self.assertEqual(list(report.parent.glob("*.tmp")), [])
+
     def test_v2_run_forwards_the_builder_image_id_to_the_evaluator(self) -> None:
         from tests.test_v2_contracts import v2_report
 
