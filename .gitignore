@@ -3,3 +3,5 @@ __pycache__/
 .venv/
 *.egg-info/
 .worktrees/
+reports/fibsem_liftout_v1.json
+reports/fibsem_liftout_v1.artifacts/
