@@ -49,6 +49,8 @@ def test_native_linux_runner_preserves_daemon_visible_paths_and_identity() -> No
     assert "git_bin=$(command -v git)" in text
     assert "git_exec_path=$(git --exec-path)" in text
     assert 'ldd "$git_bin"' in text
+    assert '$3 !~ /\\/libc\\.so\\./' in text
+    assert '$1 !~ /\\/ld-linux/' in text
     assert 'src="$git_bin",dst="$git_bin",readonly' in text
     assert 'src="$git_exec_path",dst="$git_exec_path",readonly' in text
     assert '--user "$(id -u):$(id -g)"' in text

@@ -26,7 +26,8 @@ test -x "$git_bin"
 test -d "$git_exec_path"
 git_libraries=$(
     ldd "$git_bin" | awk \
-        '$2 == "=>" && $3 ~ /^\// { print $3 } $1 ~ /^\// { print $1 }'
+        '$2 == "=>" && $3 ~ /^\// && $3 !~ /\/libc\.so\./ { print $3 }
+         $1 ~ /^\// && $1 !~ /\/ld-linux/ { print $1 }'
 )
 test -n "$git_libraries"
 set -- \
