@@ -84,8 +84,9 @@ PYTHONPATH=src python scripts/validate_distributed_benchmark.py
 ```
 
 The official path builds the trusted evaluator image for every run from only
-Git-tracked evaluator inputs. Python wheels and the Linux/amd64 Docker CLI are
-vendored with SHA-256 manifests, and the image build uses `--network=none`.
+Git-tracked evaluator inputs. Python wheels, the Linux/amd64 Docker CLI, and
+the Docker Buildx plugin are vendored with SHA-256 manifests, and the image
+build uses `--network=none`.
 The non-root outer evaluator has no network, a read-only root filesystem and
 the host Docker socket. It uses that privileged socket only to create hardened
 sibling candidate containers; candidates never receive the socket or evaluator

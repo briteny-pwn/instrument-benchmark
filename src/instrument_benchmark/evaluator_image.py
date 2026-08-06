@@ -168,6 +168,7 @@ def stage_evaluator_build_context(
     if destination.exists():
         raise EvaluatorImageError(f"build context already exists: {destination}")
     _verify_docker_cli(assets_root / "docker-cli")
+    _verify_docker_buildx(assets_root / "docker-buildx")
     if (openfibsem_checkout is None) != (openfibsem_commit is None):
         raise EvaluatorImageError(
             "OpenFIBSEM checkout and commit must be supplied together"
@@ -218,6 +219,7 @@ def stage_evaluator_build_context(
     else:
         shutil.copytree(assets_root / "wheelhouse", destination / "wheelhouse")
     shutil.copytree(assets_root / "docker-cli", destination / "docker-cli")
+    shutil.copytree(assets_root / "docker-buildx", destination / "docker-buildx")
     source_digest: str | None = None
     if openfibsem_checkout is not None and openfibsem_commit is not None:
         source_digest = _stage_openfibsem_source(
@@ -533,6 +535,43 @@ def _verify_docker_cli(root: Path) -> None:
         or value.get("docker_sha256") != _sha256(payload)
     ):
         raise EvaluatorImageError("Docker CLI manifest does not match binary")
+
+
+def _verify_docker_buildx(root: Path) -> None:
+    manifest_path = root / "manifest.json"
+    executable = root / "docker-buildx"
+    source = (
+        "https://download.docker.com/linux/ubuntu/dists/jammy/pool/stable/"
+        "amd64/docker-buildx-plugin_0.30.1-1~ubuntu.22.04~jammy_amd64.deb"
+    )
+    try:
+        value = json.loads(manifest_path.read_text(encoding="utf-8"))
+        payload = executable.read_bytes()
+    except (OSError, json.JSONDecodeError) as exc:
+        raise EvaluatorImageError(f"cannot load Docker Buildx asset: {exc}") from exc
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "schema_version",
+            "version",
+            "platform",
+            "source",
+            "package",
+            "package_sha256",
+            "buildx_sha256",
+        }
+        or value.get("schema_version") != 1
+        or value.get("version") != "0.30.1"
+        or value.get("platform") != "linux/amd64"
+        or value.get("source") != source
+        or value.get("package")
+        != "docker-buildx-plugin=0.30.1-1~ubuntu.22.04~jammy"
+        or value.get("package_sha256")
+        != "c550ca2fcca56836605b58c64c6a89e198bb9f757d8978e4060a82227bda9c98"
+        or value.get("buildx_sha256") != _sha256(payload)
+    ):
+        raise EvaluatorImageError("Docker Buildx manifest does not match binary")
 
 
 def _stage_openfibsem_source(

@@ -347,6 +347,33 @@ class EvaluatorImageTests(unittest.TestCase):
                 }
             )
         )
+        docker_buildx = assets / "docker-buildx"
+        docker_buildx.mkdir()
+        buildx = docker_buildx / "docker-buildx"
+        buildx.write_bytes(b"fake-static-buildx")
+        (docker_buildx / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "version": "0.30.1",
+                    "platform": "linux/amd64",
+                    "source": (
+                        "https://download.docker.com/linux/ubuntu/dists/jammy/"
+                        "pool/stable/amd64/docker-buildx-plugin_"
+                        "0.30.1-1~ubuntu.22.04~jammy_amd64.deb"
+                    ),
+                    "package": (
+                        "docker-buildx-plugin=0.30.1-1~ubuntu.22.04~jammy"
+                    ),
+                    "package_sha256": (
+                        "c550ca2fcca56836605b58c64c6a89e198bb9f757d8978e4060a82227bda9c98"
+                    ),
+                    "buildx_sha256": hashlib.sha256(
+                        buildx.read_bytes()
+                    ).hexdigest(),
+                }
+            )
+        )
         return assets
 
     def test_stage_contains_only_tracked_evaluator_and_verified_assets(self) -> None:
@@ -369,6 +396,9 @@ class EvaluatorImageTests(unittest.TestCase):
             )
             self.assertFalse((destination / "evaluator" / "reports").exists())
             self.assertTrue((destination / "docker-cli" / "docker").is_file())
+            self.assertTrue(
+                (destination / "docker-buildx" / "docker-buildx").is_file()
+            )
             self.assertEqual(len(context.evaluator_commit), 40)
             verify_build_manifest(context.root, context.manifest_path)
 
@@ -405,6 +435,31 @@ class EvaluatorImageTests(unittest.TestCase):
 
             with self.assertRaisesRegex(EvaluatorImageError, "Docker CLI"):
                 stage_evaluator_build_context(evaluator, assets, root / "context")
+
+    def test_docker_buildx_manifest_rejects_digest_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evaluator = self.make_evaluator(root)
+            assets = self.make_assets(root)
+            (assets / "docker-buildx" / "docker-buildx").write_bytes(b"changed")
+
+            with self.assertRaisesRegex(EvaluatorImageError, "Buildx"):
+                stage_evaluator_build_context(evaluator, assets, root / "context")
+
+    def test_trusted_dockerfiles_install_verified_buildx_plugin(self) -> None:
+        expected_hash = (
+            "a5a4fbd515283ebf05c450bc5b5fabaeeea3f7ac55c322ec310a016005df45a0"
+        )
+        for name in ("evaluator.Dockerfile", "fibsem-evaluator.Dockerfile"):
+            with self.subTest(name=name):
+                text = (ROOT / "container" / name).read_text(encoding="utf-8")
+                self.assertIn(
+                    "COPY docker-buildx/docker-buildx "
+                    "/usr/libexec/docker/cli-plugins/docker-buildx",
+                    text,
+                )
+                self.assertIn(expected_hash, text)
+                self.assertIn("docker buildx version", text)
 
     def test_builder_uses_offline_linux_build_and_validates_image(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
