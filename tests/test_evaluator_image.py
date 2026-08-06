@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -21,7 +22,49 @@ from instrument_benchmark.evaluator_image import (  # noqa: E402
 )
 
 
+def canonical_json(value: object) -> bytes:
+    return (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()
+
+
+def file_records(root: Path) -> dict[str, dict[str, int | str]]:
+    records: dict[str, dict[str, int | str]] = {}
+    for path in sorted(root.rglob("*")):
+        if path.is_file():
+            payload = path.read_bytes()
+            records[path.relative_to(root).as_posix()] = {
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "bytes": len(payload),
+            }
+    return records
+
+
 class EvaluatorImageTests(unittest.TestCase):
+    PYVISA_SOURCE = "pyvisa"
+    PYVISA_EVALUATOR = "pyvisa_dut_validation_v2"
+    FIBSEM_SOURCE = "openfibsem"
+    FIBSEM_EVALUATOR = "fibsem_liftout_v1"
+
+    def stage(
+        self,
+        evaluator: Path,
+        assets: Path,
+        destination: Path,
+        *,
+        source_id: str = PYVISA_SOURCE,
+        evaluator_id: str = PYVISA_EVALUATOR,
+        openfibsem_checkout: Path | None = None,
+        openfibsem_commit: str | None = None,
+    ):
+        return stage_evaluator_build_context(
+            evaluator,
+            assets,
+            destination,
+            source_id=source_id,
+            evaluator_id=evaluator_id,
+            openfibsem_checkout=openfibsem_checkout,
+            openfibsem_commit=openfibsem_commit,
+        )
+
     def make_openfibsem(self, root: Path) -> tuple[Path, str]:
         checkout = root / "openfibsem"
         checkout.mkdir()
@@ -60,10 +103,12 @@ class EvaluatorImageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             checkout, commit = self.make_openfibsem(root)
-            context = stage_evaluator_build_context(
+            context = self.stage(
                 self.make_evaluator(root),
                 self.make_assets(root, source_commit=commit),
                 root / "context",
+                source_id=self.FIBSEM_SOURCE,
+                evaluator_id=self.FIBSEM_EVALUATOR,
                 openfibsem_checkout=checkout,
                 openfibsem_commit=commit,
             )
@@ -88,7 +133,11 @@ class EvaluatorImageTests(unittest.TestCase):
             self.assertTrue(
                 (context.root / "fibsem-system-packages" / "manifest.json").is_file()
             )
-            verify_build_manifest(context.root, context.manifest_path)
+            verify_build_manifest(
+                context.root,
+                context.manifest_path,
+                expected_evaluator_commit=context.evaluator_commit,
+            )
 
     def test_fibsem_context_rejects_commit_mismatch_and_tracked_changes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -98,20 +147,24 @@ class EvaluatorImageTests(unittest.TestCase):
             assets = self.make_assets(root, source_commit=commit)
 
             with self.assertRaisesRegex(EvaluatorImageError, "commit"):
-                stage_evaluator_build_context(
+                self.stage(
                     evaluator,
                     assets,
                     root / "wrong-context",
+                    source_id=self.FIBSEM_SOURCE,
+                    evaluator_id=self.FIBSEM_EVALUATOR,
                     openfibsem_checkout=checkout,
                     openfibsem_commit="0" * 40,
                 )
 
             (checkout / "fibsem/model3d/simulator.py").write_text("changed\n")
             with self.assertRaisesRegex(EvaluatorImageError, "tracked"):
-                stage_evaluator_build_context(
+                self.stage(
                     evaluator,
                     assets,
                     root / "dirty-context",
+                    source_id=self.FIBSEM_SOURCE,
+                    evaluator_id=self.FIBSEM_EVALUATOR,
                     openfibsem_checkout=checkout,
                     openfibsem_commit=commit,
                 )
@@ -125,10 +178,12 @@ class EvaluatorImageTests(unittest.TestCase):
             wheel.write_bytes(wheel.read_bytes() + b"tampered")
 
             with self.assertRaisesRegex(EvaluatorImageError, "OpenFIBSEM wheel"):
-                stage_evaluator_build_context(
+                self.stage(
                     self.make_evaluator(root),
                     assets,
                     root / "context",
+                    source_id=self.FIBSEM_SOURCE,
+                    evaluator_id=self.FIBSEM_EVALUATOR,
                     openfibsem_checkout=checkout,
                     openfibsem_commit=commit,
                 )
@@ -159,10 +214,12 @@ class EvaluatorImageTests(unittest.TestCase):
             manifest_path.write_text(json.dumps(manifest, sort_keys=True))
             wheel.unlink()
 
-            context = stage_evaluator_build_context(
+            context = self.stage(
                 self.make_evaluator(root),
                 assets,
                 root / "context",
+                source_id=self.FIBSEM_SOURCE,
+                evaluator_id=self.FIBSEM_EVALUATOR,
                 openfibsem_checkout=checkout,
                 openfibsem_commit=commit,
             )
@@ -182,20 +239,28 @@ class EvaluatorImageTests(unittest.TestCase):
             package.write_bytes(package.read_bytes() + b"tampered")
 
             with self.assertRaisesRegex(EvaluatorImageError, "system package"):
-                stage_evaluator_build_context(
+                self.stage(
                     self.make_evaluator(root),
                     assets,
                     root / "context",
+                    source_id=self.FIBSEM_SOURCE,
+                    evaluator_id=self.FIBSEM_EVALUATOR,
                     openfibsem_checkout=checkout,
                     openfibsem_commit=commit,
                 )
+
     def test_real_context_installs_hooked_sim_fork_before_evaluator(self) -> None:
-        evaluator = (ROOT.parent / "evaluator").resolve()
+        evaluator = ROOT.parent / "evaluator"
+        if not evaluator.is_dir():
+            evaluator = ROOT.parents[2] / "evaluator" / ".worktrees" / ROOT.name
+        evaluator = evaluator.resolve()
         with tempfile.TemporaryDirectory() as directory:
-            context = stage_evaluator_build_context(
+            context = self.stage(
                 evaluator,
                 ROOT / "container",
                 Path(directory) / "context",
+                source_id=self.PYVISA_SOURCE,
+                evaluator_id=self.PYVISA_EVALUATOR,
             )
             vendor = context.root / "evaluator" / "vendor" / "pyvisa-sim-iab"
             self.assertTrue((vendor / "pyproject.toml").is_file())
@@ -237,6 +302,71 @@ class EvaluatorImageTests(unittest.TestCase):
         package = evaluator / "instrument_benchmark_evaluator"
         package.mkdir()
         (package / "__init__.py").write_text("")
+        sources = evaluator / "sources"
+        sources.mkdir()
+        (sources / "__init__.py").write_text("")
+        pyvisa = sources / self.PYVISA_SOURCE
+        pyvisa.mkdir()
+        (pyvisa / "__init__.py").write_text("")
+        (pyvisa / "source.yaml").write_text(
+            "schema_version: 1\n"
+            "source_id: pyvisa\n"
+            "display_name: PyVISA\n"
+            "description: Trusted PyVISA evaluators\n"
+            "evaluators:\n"
+            "  - pyvisa_dut_validation_v1\n"
+            "  - pyvisa_dut_validation_v2\n"
+        )
+        for evaluator_id in (
+            "pyvisa_dut_validation_v1",
+            "pyvisa_dut_validation_v2",
+        ):
+            leaf = pyvisa / evaluator_id
+            leaf.mkdir()
+            (leaf / "__init__.py").write_text("")
+            (leaf / "evaluator.yaml").write_text(
+                "schema_version: 2\n"
+                "source_id: pyvisa\n"
+                f"evaluator_id: {evaluator_id}\n"
+                "protocol_version: 2\n"
+                "container_protocol_version: 1\n"
+                "supported_instances:\n"
+                f"  - {evaluator_id}\n"
+            )
+            (leaf / "implementation.py").write_text(
+                f"EVALUATOR_ID = {evaluator_id!r}\n"
+            )
+        openfibsem = sources / self.FIBSEM_SOURCE
+        openfibsem.mkdir()
+        (openfibsem / "__init__.py").write_text("")
+        (openfibsem / "source.yaml").write_text(
+            "schema_version: 1\n"
+            "source_id: openfibsem\n"
+            "display_name: OpenFIBSEM\n"
+            "description: Trusted FIBSEM evaluators\n"
+            "evaluators:\n"
+            "  - fibsem_liftout_v1\n"
+        )
+        fibsem_leaf = openfibsem / self.FIBSEM_EVALUATOR
+        fibsem_leaf.mkdir()
+        (fibsem_leaf / "__init__.py").write_text("")
+        (fibsem_leaf / "evaluator.yaml").write_text(
+            "schema_version: 2\n"
+            "source_id: openfibsem\n"
+            "evaluator_id: fibsem_liftout_v1\n"
+            "protocol_version: 2\n"
+            "container_protocol_version: 1\n"
+            "supported_instances:\n"
+            "  - fibsem_liftout_v1\n"
+        )
+        (fibsem_leaf / "implementation.py").write_text("FIBSEM = True\n")
+        vendor = evaluator / "vendor" / "pyvisa-sim-iab" / "pyvisa_sim"
+        vendor.mkdir(parents=True)
+        (vendor.parent / "pyproject.toml").write_text(
+            "[project]\nname='pyvisa-sim-iab'\nversion='1'\n"
+        )
+        (vendor / "__init__.py").write_text("")
+        (vendor / "hooks.py").write_text("HOOKED = True\n")
         (evaluator / ".gitignore").write_text("__pycache__/\nreports/\n")
         subprocess.run(["git", "add", "."], cwd=evaluator, check=True)
         subprocess.run(["git", "commit", "-m", "fixture"], cwd=evaluator, check=True)
@@ -383,7 +513,7 @@ class EvaluatorImageTests(unittest.TestCase):
             assets = self.make_assets(root)
             destination = root / "context"
 
-            context = stage_evaluator_build_context(
+            context = self.stage(
                 evaluator,
                 assets,
                 destination,
@@ -400,12 +530,195 @@ class EvaluatorImageTests(unittest.TestCase):
                 (destination / "docker-buildx" / "docker-buildx").is_file()
             )
             self.assertEqual(len(context.evaluator_commit), 40)
-            verify_build_manifest(context.root, context.manifest_path)
+            verify_build_manifest(
+                context.root,
+                context.manifest_path,
+                expected_evaluator_commit=context.evaluator_commit,
+            )
+
+    def test_source_selection_and_provenance_are_exact(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evaluator = self.make_evaluator(root)
+            assets = self.make_assets(root)
+
+            pyvisa = self.stage(evaluator, assets, root / "pyvisa-context")
+            pyvisa_root = pyvisa.root / "evaluator"
+            self.assertTrue((pyvisa_root / "pyproject.toml").is_file())
+            self.assertTrue((pyvisa_root / "instrument_benchmark_evaluator").is_dir())
+            self.assertTrue((pyvisa_root / "sources" / "__init__.py").is_file())
+            self.assertTrue((pyvisa_root / "sources" / "pyvisa").is_dir())
+            self.assertTrue(
+                (
+                    pyvisa_root
+                    / "sources/pyvisa/pyvisa_dut_validation_v1/implementation.py"
+                ).is_file()
+            )
+            self.assertTrue((pyvisa_root / "vendor" / "pyvisa-sim-iab").is_dir())
+            self.assertFalse((pyvisa_root / "sources" / "openfibsem").exists())
+
+            manifest = json.loads(pyvisa.manifest_path.read_text())
+            expected_source = pyvisa_root / "sources" / "pyvisa"
+            expected_source_manifest = hashlib.sha256(
+                (expected_source / "source.yaml").read_bytes()
+            ).hexdigest()
+            expected_source_tree = hashlib.sha256(
+                canonical_json(file_records(expected_source))
+            ).hexdigest()
+            self.assertEqual(manifest["schema_version"], 2)
+            self.assertEqual(manifest["evaluator_commit"], pyvisa.evaluator_commit)
+            self.assertEqual(manifest["source_id"], self.PYVISA_SOURCE)
+            self.assertEqual(manifest["evaluator_id"], self.PYVISA_EVALUATOR)
+            self.assertIsNotNone(
+                re.fullmatch(r"[0-9a-f]{64}", manifest["source_manifest_sha256"])
+            )
+            self.assertIsNotNone(
+                re.fullmatch(r"[0-9a-f]{64}", manifest["source_tree_sha256"])
+            )
+            self.assertEqual(
+                manifest["source_manifest_sha256"], expected_source_manifest
+            )
+            self.assertEqual(manifest["source_tree_sha256"], expected_source_tree)
+            self.assertIsInstance(manifest["files"], dict)
+            self.assertTrue(manifest["files"])
+            self.assertEqual(pyvisa.source_id, self.PYVISA_SOURCE)
+            self.assertEqual(pyvisa.evaluator_id, self.PYVISA_EVALUATOR)
+            self.assertEqual(
+                pyvisa.source_manifest_sha256, expected_source_manifest
+            )
+            self.assertEqual(pyvisa.source_tree_sha256, expected_source_tree)
+
+            fibsem = self.stage(
+                evaluator,
+                assets,
+                root / "fibsem-context",
+                source_id=self.FIBSEM_SOURCE,
+                evaluator_id=self.FIBSEM_EVALUATOR,
+            )
+            fibsem_root = fibsem.root / "evaluator"
+            self.assertTrue(
+                (
+                    fibsem_root
+                    / "sources/openfibsem/fibsem_liftout_v1/implementation.py"
+                ).is_file()
+            )
+            self.assertFalse((fibsem_root / "sources" / "pyvisa").exists())
+            self.assertFalse((fibsem_root / "vendor" / "pyvisa-sim-iab").exists())
+
+    def test_source_resolution_rejects_missing_unregistered_and_symlinked_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            assets = self.make_assets(root)
+
+            with self.assertRaisesRegex(EvaluatorImageError, "source"):
+                self.stage(
+                    self.make_evaluator(root),
+                    assets,
+                    root / "missing",
+                    source_id="missing",
+                    evaluator_id="missing_evaluator",
+                )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evaluator = self.make_evaluator(root)
+            with self.assertRaisesRegex(EvaluatorImageError, "registered|leaf"):
+                self.stage(
+                    evaluator,
+                    self.make_assets(root),
+                    root / "unregistered",
+                    evaluator_id="unregistered_evaluator",
+                )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evaluator = self.make_evaluator(root)
+            source = evaluator / "sources" / self.PYVISA_SOURCE
+            target = evaluator / "real-pyvisa"
+            source.rename(target)
+            source.symlink_to(target, target_is_directory=True)
+            with self.assertRaisesRegex(EvaluatorImageError, "symlink"):
+                self.stage(
+                    evaluator,
+                    self.make_assets(root),
+                    root / "symlink",
+                )
+
+    def test_evaluator_checkout_must_be_clean_even_for_other_source_content(self) -> None:
+        for untracked in (False, True):
+            with (
+                self.subTest(untracked=untracked),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                root = Path(directory)
+                evaluator = self.make_evaluator(root)
+                other_source = evaluator / "sources" / self.FIBSEM_SOURCE
+                if untracked:
+                    (other_source / "untracked.txt").write_text("untracked\n")
+                else:
+                    tracked = other_source / self.FIBSEM_EVALUATOR / "implementation.py"
+                    tracked.write_text("DIRTY = True\n")
+                with self.assertRaisesRegex(
+                    EvaluatorImageError, "evaluator checkout must be clean"
+                ):
+                    self.stage(
+                        evaluator,
+                        self.make_assets(root),
+                        root / "dirty",
+                    )
+
+    def test_selected_tracked_symlink_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evaluator = self.make_evaluator(root)
+            link = evaluator / "sources" / self.PYVISA_SOURCE / "linked.py"
+            link.symlink_to("../../instrument_benchmark_evaluator/__init__.py")
+            subprocess.run(["git", "add", str(link)], cwd=evaluator, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "tracked symlink"], cwd=evaluator, check=True
+            )
+            with self.assertRaisesRegex(EvaluatorImageError, "regular file"):
+                self.stage(evaluator, self.make_assets(root), root / "context")
+
+    def test_manifest_verification_recomputes_commit_and_source_digests(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            context = self.stage(
+                self.make_evaluator(root),
+                self.make_assets(root),
+                root / "context",
+            )
+            with self.assertRaisesRegex(EvaluatorImageError, "commit"):
+                verify_build_manifest(
+                    context.root,
+                    context.manifest_path,
+                    expected_evaluator_commit="0" * 40,
+                )
+
+            selected = (
+                context.root
+                / "evaluator"
+                / "sources"
+                / self.PYVISA_SOURCE
+                / self.PYVISA_EVALUATOR
+                / "implementation.py"
+            )
+            selected.write_text("TAMPERED = True\n")
+            manifest = json.loads(context.manifest_path.read_text())
+            manifest["files"] = file_records(context.root)
+            manifest["files"].pop(context.manifest_path.name)
+            context.manifest_path.write_bytes(canonical_json(manifest))
+            with self.assertRaisesRegex(EvaluatorImageError, "source tree"):
+                verify_build_manifest(
+                    context.root,
+                    context.manifest_path,
+                    expected_evaluator_commit=context.evaluator_commit,
+                )
 
     def test_build_manifest_detects_staged_input_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            context = stage_evaluator_build_context(
+            context = self.stage(
                 self.make_evaluator(root),
                 self.make_assets(root),
                 root / "context",
@@ -414,7 +727,11 @@ class EvaluatorImageTests(unittest.TestCase):
             staged.write_text(staged.read_text() + "# changed\n")
 
             with self.assertRaisesRegex(EvaluatorImageError, "manifest"):
-                verify_build_manifest(context.root, context.manifest_path)
+                verify_build_manifest(
+                    context.root,
+                    context.manifest_path,
+                    expected_evaluator_commit=context.evaluator_commit,
+                )
 
     def test_wheel_manifest_rejects_digest_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -424,7 +741,7 @@ class EvaluatorImageTests(unittest.TestCase):
             (assets / "wheelhouse" / "fake-1-py3-none-any.whl").write_bytes(b"changed")
 
             with self.assertRaisesRegex(EvaluatorImageError, "wheel"):
-                stage_evaluator_build_context(evaluator, assets, root / "context")
+                self.stage(evaluator, assets, root / "context")
 
     def test_docker_cli_manifest_rejects_digest_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -434,7 +751,7 @@ class EvaluatorImageTests(unittest.TestCase):
             (assets / "docker-cli" / "docker").write_bytes(b"changed")
 
             with self.assertRaisesRegex(EvaluatorImageError, "Docker CLI"):
-                stage_evaluator_build_context(evaluator, assets, root / "context")
+                self.stage(evaluator, assets, root / "context")
 
     def test_docker_buildx_manifest_rejects_digest_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -444,7 +761,7 @@ class EvaluatorImageTests(unittest.TestCase):
             (assets / "docker-buildx" / "docker-buildx").write_bytes(b"changed")
 
             with self.assertRaisesRegex(EvaluatorImageError, "Buildx"):
-                stage_evaluator_build_context(evaluator, assets, root / "context")
+                self.stage(evaluator, assets, root / "context")
 
     def test_trusted_dockerfiles_install_verified_buildx_plugin(self) -> None:
         expected_hash = (
@@ -495,7 +812,12 @@ class EvaluatorImageTests(unittest.TestCase):
             evidence = EvaluatorImageBuilder(
                 assets_root=assets,
                 executor=execute,
-            ).build(evaluator, run_id="run 1")
+            ).build(
+                evaluator,
+                run_id="run 1",
+                source_id=self.PYVISA_SOURCE,
+                evaluator_id=self.PYVISA_EVALUATOR,
+            )
 
             build = next(call for call in calls if call[:2] == ["docker", "build"])
             self.assertIn("--network=none", build)
@@ -504,6 +826,12 @@ class EvaluatorImageTests(unittest.TestCase):
             self.assertTrue(evidence.reference.startswith("iab/evaluator:run-1-"))
             self.assertEqual(evidence.image_id, "sha256:" + "a" * 64)
             self.assertEqual(evidence.user, "11001:11001")
+            self.assertEqual(evidence.source_id, self.PYVISA_SOURCE)
+            self.assertEqual(evidence.evaluator_id, self.PYVISA_EVALUATOR)
+            self.assertRegex(evidence.source_manifest_sha256, r"^[0-9a-f]{64}$")
+            self.assertRegex(evidence.source_tree_sha256, r"^[0-9a-f]{64}$")
+            self.assertIn("iab.source_id=pyvisa", build)
+            self.assertIn("iab.evaluator_id=pyvisa_dut_validation_v2", build)
             EvaluatorImageBuilder(
                 assets_root=assets,
                 executor=execute,
@@ -539,7 +867,12 @@ class EvaluatorImageTests(unittest.TestCase):
                 EvaluatorImageBuilder(
                     assets_root=assets,
                     executor=execute,
-                ).build(evaluator, run_id="run")
+                ).build(
+                    evaluator,
+                    run_id="run",
+                    source_id=self.PYVISA_SOURCE,
+                    evaluator_id=self.PYVISA_EVALUATOR,
+                )
 
 
 if __name__ == "__main__":

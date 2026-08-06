@@ -9,6 +9,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from .contracts import ContractError
+from .repository_layout import ID_PATTERN, resolve_evaluator_leaf
+
 
 BUILD_MANIFEST = ".iab-build-manifest.json"
 
@@ -24,6 +27,10 @@ class EvaluatorBuildContext:
     manifest_sha256: str
     dockerfile_sha256: str
     evaluator_commit: str
+    source_id: str
+    evaluator_id: str
+    source_manifest_sha256: str
+    source_tree_sha256: str
     openfibsem_commit: str | None = None
     openfibsem_source_sha256: str | None = None
 
@@ -45,6 +52,10 @@ class EvaluatorImageEvidence:
     evaluator_commit: str
     platform: str
     user: str
+    source_id: str = ""
+    evaluator_id: str = ""
+    source_manifest_sha256: str = ""
+    source_tree_sha256: str = ""
     openfibsem_commit: str | None = None
     openfibsem_source_sha256: str | None = None
 
@@ -69,6 +80,8 @@ class EvaluatorImageBuilder:
         evaluator_checkout: Path,
         *,
         run_id: str,
+        source_id: str,
+        evaluator_id: str,
         openfibsem_checkout: Path | None = None,
         openfibsem_commit: str | None = None,
     ) -> EvaluatorImageEvidence:
@@ -79,10 +92,16 @@ class EvaluatorImageBuilder:
                 evaluator_checkout,
                 self.assets_root,
                 Path(directory) / "context",
+                source_id=source_id,
+                evaluator_id=evaluator_id,
                 openfibsem_checkout=openfibsem_checkout,
                 openfibsem_commit=openfibsem_commit,
             )
-            verify_build_manifest(context.root, context.manifest_path)
+            verify_build_manifest(
+                context.root,
+                context.manifest_path,
+                expected_evaluator_commit=context.evaluator_commit,
+            )
             safe_run = _safe_tag(run_id)
             reference = (
                 f"iab/evaluator:{safe_run}-{context.evaluator_commit[:12]}"
@@ -102,6 +121,10 @@ class EvaluatorImageBuilder:
                     "iab.kind=evaluator-image",
                     "--label",
                     f"iab.evaluator_commit={context.evaluator_commit}",
+                    "--label",
+                    f"iab.source_id={context.source_id}",
+                    "--label",
+                    f"iab.evaluator_id={context.evaluator_id}",
                     "--tag",
                     reference,
                     "--file",
@@ -141,6 +164,10 @@ class EvaluatorImageBuilder:
                 dockerfile_sha256=context.dockerfile_sha256,
                 build_manifest_sha256=context.manifest_sha256,
                 evaluator_commit=context.evaluator_commit,
+                source_id=context.source_id,
+                evaluator_id=context.evaluator_id,
+                source_manifest_sha256=context.source_manifest_sha256,
+                source_tree_sha256=context.source_tree_sha256,
                 platform=platform,
                 user=user,
                 openfibsem_commit=context.openfibsem_commit,
@@ -159,6 +186,8 @@ def stage_evaluator_build_context(
     assets_root: Path,
     destination: Path,
     *,
+    source_id: str,
+    evaluator_id: str,
     openfibsem_checkout: Path | None = None,
     openfibsem_commit: str | None = None,
 ) -> EvaluatorBuildContext:
@@ -167,6 +196,14 @@ def stage_evaluator_build_context(
     destination = destination.resolve()
     if destination.exists():
         raise EvaluatorImageError(f"build context already exists: {destination}")
+    try:
+        selected_leaf = resolve_evaluator_leaf(
+            evaluator_checkout, source_id, evaluator_id
+        )
+    except (ContractError, OSError) as exc:
+        raise EvaluatorImageError(str(exc)) from exc
+    if _git(evaluator_checkout, "status", "--porcelain"):
+        raise EvaluatorImageError("evaluator checkout must be clean")
     _verify_docker_cli(assets_root / "docker-cli")
     _verify_docker_buildx(assets_root / "docker-buildx")
     if (openfibsem_checkout is None) != (openfibsem_commit is None):
@@ -184,13 +221,30 @@ def stage_evaluator_build_context(
     evaluator_target = destination / "evaluator"
     evaluator_target.mkdir()
     commit = _git(evaluator_checkout, "rev-parse", "HEAD")
-    for relative in _tracked_files(evaluator_checkout):
+    selected = tuple(
+        relative
+        for relative in _tracked_files(evaluator_checkout)
+        if _selected_evaluator_file(relative, source_id=source_id)
+    )
+    if selected_leaf.manifest_path.relative_to(evaluator_checkout) not in selected:
+        raise EvaluatorImageError("selected evaluator packaging inputs are incomplete")
+    for relative in selected:
         source = evaluator_checkout / relative
         if source.is_symlink() or not source.is_file():
-            raise EvaluatorImageError(f"tracked evaluator input is not a regular file: {relative}")
+            raise EvaluatorImageError(
+                f"tracked evaluator input is not a regular file: {relative}"
+            )
         target = evaluator_target / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
+    staged_source = evaluator_target / "sources" / source_id
+    staged_source_manifest = staged_source / "source.yaml"
+    if staged_source_manifest.is_symlink() or not staged_source_manifest.is_file():
+        raise EvaluatorImageError("selected source manifest is not a regular file")
+    source_manifest_sha256 = _sha256(staged_source_manifest.read_bytes())
+    source_tree_sha256 = _sha256(
+        _canonical_json(_file_records(staged_source, exclude=set()))
+    )
     profile_inputs = (
         (
             ("fibsem-evaluator.Dockerfile", "evaluator.Dockerfile"),
@@ -238,7 +292,12 @@ def stage_evaluator_build_context(
     )
     manifest_path = destination / BUILD_MANIFEST
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "evaluator_commit": commit,
+        "source_id": source_id,
+        "evaluator_id": evaluator_id,
+        "source_manifest_sha256": source_manifest_sha256,
+        "source_tree_sha256": source_tree_sha256,
         "files": _file_records(destination, exclude={BUILD_MANIFEST}),
     }
     payload = _canonical_json(manifest)
@@ -249,22 +308,79 @@ def stage_evaluator_build_context(
         manifest_sha256=_sha256(payload),
         dockerfile_sha256=_sha256((destination / "evaluator.Dockerfile").read_bytes()),
         evaluator_commit=commit,
+        source_id=source_id,
+        evaluator_id=evaluator_id,
+        source_manifest_sha256=source_manifest_sha256,
+        source_tree_sha256=source_tree_sha256,
         openfibsem_commit=openfibsem_commit,
         openfibsem_source_sha256=source_digest,
     )
 
 
-def verify_build_manifest(root: Path, manifest_path: Path) -> None:
+def verify_build_manifest(
+    root: Path,
+    manifest_path: Path,
+    *,
+    expected_evaluator_commit: str,
+) -> None:
     try:
         value = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise EvaluatorImageError(f"cannot load build manifest: {exc}") from exc
-    if not isinstance(value, dict) or value.get("schema_version") != 1:
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "schema_version",
+            "evaluator_commit",
+            "source_id",
+            "evaluator_id",
+            "source_manifest_sha256",
+            "source_tree_sha256",
+            "files",
+        }
+        or value.get("schema_version") != 2
+    ):
         raise EvaluatorImageError("build manifest schema is invalid")
+    if value.get("evaluator_commit") != expected_evaluator_commit:
+        raise EvaluatorImageError("build manifest evaluator commit mismatch")
+    source_id = value.get("source_id")
+    evaluator_id = value.get("evaluator_id")
+    if (
+        not isinstance(source_id, str)
+        or ID_PATTERN.fullmatch(source_id) is None
+        or not isinstance(evaluator_id, str)
+        or ID_PATTERN.fullmatch(evaluator_id) is None
+        or not _is_raw_sha256(value.get("source_manifest_sha256"))
+        or not _is_raw_sha256(value.get("source_tree_sha256"))
+    ):
+        raise EvaluatorImageError("build manifest source identity is invalid")
+    source_root = root.resolve() / "evaluator" / "sources" / source_id
+    source_manifest = source_root / "source.yaml"
+    if source_manifest.is_symlink() or not source_manifest.is_file():
+        raise EvaluatorImageError("staged source manifest is not a regular file")
+    if value["source_manifest_sha256"] != _sha256(source_manifest.read_bytes()):
+        raise EvaluatorImageError("build manifest source manifest digest mismatch")
+    source_tree_sha256 = _sha256(
+        _canonical_json(_file_records(source_root, exclude=set()))
+    )
+    if value["source_tree_sha256"] != source_tree_sha256:
+        raise EvaluatorImageError("build manifest source tree digest mismatch")
     expected = value.get("files")
     actual = _file_records(root.resolve(), exclude={BUILD_MANIFEST})
     if expected != actual:
         raise EvaluatorImageError("build manifest does not match staged inputs")
+
+
+def _selected_evaluator_file(relative: Path, *, source_id: str) -> bool:
+    return (
+        relative == Path("pyproject.toml")
+        or relative.parts[:1] == ("instrument_benchmark_evaluator",)
+        or relative == Path("sources/__init__.py")
+        or relative.parts[:2] == ("sources", source_id)
+        or source_id == "pyvisa"
+        and relative.parts[:2] == ("vendor", "pyvisa-sim-iab")
+    )
 
 
 def _verify_wheelhouse(wheelhouse: Path) -> None:

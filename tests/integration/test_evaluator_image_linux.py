@@ -25,7 +25,12 @@ class EvaluatorImageLinuxTests(unittest.TestCase):
         ).resolve()
         evidence = EvaluatorImageBuilder(
             assets_root=ROOT / "container"
-        ).build(evaluator, run_id="image-integration")
+        ).build(
+            evaluator,
+            run_id="image-integration",
+            source_id="pyvisa",
+            evaluator_id="pyvisa_dut_validation_v2",
+        )
         try:
             completed = subprocess.run(
                 [
@@ -45,7 +50,8 @@ class EvaluatorImageLinuxTests(unittest.TestCase):
                         "import shutil,subprocess; "
                         "from pathlib import Path; from zipfile import ZipFile; "
                         "from pyvisa_sim.hooks import CommandContext; "
-                        "from evaluators.pyvisa_dut_validation_v1 import scoring,worlds; "
+                        "from sources.pyvisa.pyvisa_dut_validation_v1 "
+                        "import scoring,worlds; "
                         "assert os.getuid()==11001; "
                         "assert pyvisa_sim.__version__=='0.7.1+iab1'; "
                         "assert CommandContext.__module__=='pyvisa_sim.hooks'; "
