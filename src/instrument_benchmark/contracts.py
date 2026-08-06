@@ -1396,6 +1396,7 @@ def dump_json(path: Path, value: Any) -> None:
             temporary_path = Path(temporary.name)
             temporary.write(payload)
             temporary.flush()
+            os.fchmod(temporary.fileno(), 0o644)
             os.fsync(temporary.fileno())
         os.replace(temporary_path, path)
     except BaseException as error:

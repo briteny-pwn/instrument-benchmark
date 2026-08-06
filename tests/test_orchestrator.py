@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import stat
 import subprocess
 import sys
 import tempfile
@@ -371,6 +372,7 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 dump_json(report, {"ok": True})
 
             self.assertEqual(json.loads(report.read_text()), {"ok": True})
+            self.assertEqual(stat.S_IMODE(report.stat().st_mode), 0o644)
             self.assertEqual(len(moves), 1)
             temporary, destination = moves[0]
             self.assertEqual(destination, report)
