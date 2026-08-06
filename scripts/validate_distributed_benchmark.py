@@ -54,11 +54,9 @@ def run_command(
 
 def semantic_projection(value: Any) -> Any:
     if isinstance(value, dict):
-        return {
-            key: semantic_projection(item)
-            for key, item in value.items()
-            if key
-            not in {
+        projection: dict[str, Any] = {}
+        for key, item in value.items():
+            if key in {
                 "evidence_sequences",
                 "validation",
                 "provenance",
@@ -70,8 +68,28 @@ def semantic_projection(value: Any) -> Any:
                 "stdout_sha256",
                 "stderr_sha256",
                 "report_sha256",
-            }
-        }
+            }:
+                continue
+            if key == "mounts" and isinstance(item, list) and all(
+                isinstance(mount, dict) for mount in item
+            ):
+                mounts = [
+                    {
+                        mount_key: semantic_projection(mount_value)
+                        for mount_key, mount_value in mount.items()
+                        if mount_key != "source"
+                    }
+                    for mount in item
+                ]
+                projection[key] = sorted(
+                    mounts,
+                    key=lambda mount: json.dumps(
+                        mount, sort_keys=True, separators=(",", ":")
+                    ),
+                )
+            else:
+                projection[key] = semantic_projection(item)
+        return projection
     if isinstance(value, list):
         return [semantic_projection(item) for item in value]
     return value

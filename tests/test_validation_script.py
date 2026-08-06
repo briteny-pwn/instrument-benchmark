@@ -11,6 +11,7 @@ from scripts.validate_distributed_benchmark import (
     _adversarial_cases,
     _v2_invariants,
     main,
+    semantic_projection,
 )
 from instrument_benchmark.contracts import load_run_config
 
@@ -19,6 +20,55 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class FormalValidationScriptTests(unittest.TestCase):
+    def test_semantic_projection_normalizes_ephemeral_mount_details(self) -> None:
+        first = {
+            "source_id": "pyvisa",
+            "container_evidence": {
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/iab-first/candidate",
+                        "destination": "/workspace/candidate",
+                        "mode": "ro",
+                        "rw": False,
+                    },
+                    {
+                        "type": "bind",
+                        "source": "/tmp/iab-first/output",
+                        "destination": "/workspace/output",
+                        "mode": "rw",
+                        "rw": True,
+                    },
+                ]
+            },
+        }
+        second = {
+            "source_id": "pyvisa",
+            "container_evidence": {
+                "mounts": [
+                    {
+                        "type": "bind",
+                        "source": "/tmp/iab-second/output",
+                        "destination": "/workspace/output",
+                        "mode": "rw",
+                        "rw": True,
+                    },
+                    {
+                        "type": "bind",
+                        "source": "/tmp/iab-second/candidate",
+                        "destination": "/workspace/candidate",
+                        "mode": "ro",
+                        "rw": False,
+                    },
+                ]
+            },
+        }
+
+        self.assertEqual(semantic_projection(first), semantic_projection(second))
+        second["container_evidence"]["mounts"][0]["rw"] = False
+        self.assertNotEqual(semantic_projection(first), semantic_projection(second))
+        self.assertEqual(semantic_projection(first)["source_id"], "pyvisa")
+
     def test_v2_invariants_require_literal_and_complete_sibling_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             reference = Path(directory) / "solution.py"
