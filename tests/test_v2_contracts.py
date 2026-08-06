@@ -248,7 +248,8 @@ def v2_world(world_id: str = "nominal") -> dict:
 
 def v2_report() -> dict:
     return {
-        "schema_version": 2,
+        "schema_version": 3,
+        "source_id": "pyvisa",
         "status": "completed",
         "strict_pass": True,
         "score": 100,
@@ -259,8 +260,9 @@ def v2_report() -> dict:
         "retry_eligible": False,
         "worlds": [copy.deepcopy(v2_world(world_id)) for world_id in WORLD_IDS],
         "evaluator": {
+            "source_id": "pyvisa",
             "id": "pyvisa_dut_validation_v2",
-            "protocol_version": 1,
+            "protocol_version": 2,
             "run_id": "run-v2",
         },
     }
@@ -287,16 +289,19 @@ def rehash(journal_value: dict) -> None:
 
 
 class V2ReportContractTests(unittest.TestCase):
-    def test_valid_schema_two_checks_both_siblings_and_journal(self) -> None:
+    def test_valid_schema_three_checks_both_siblings_and_journal(self) -> None:
         report = v2_report()
         self.assertIs(
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2"),
+            validate_evaluator_report(
+                report, "pyvisa", "pyvisa_dut_validation_v2"
+            ),
             report,
         )
 
-    def test_valid_v1_schema_remains_accepted(self) -> None:
+    def test_valid_v1_evaluator_report_uses_schema_two(self) -> None:
         report = {
-            "schema_version": 1,
+            "schema_version": 2,
+            "source_id": "pyvisa",
             "status": "completed",
             "strict_pass": True,
             "score": 100,
@@ -306,11 +311,34 @@ class V2ReportContractTests(unittest.TestCase):
             "infrastructure_valid": True,
             "retry_eligible": False,
             "worlds": [{"container_evidence": container("candidate")}],
+            "evaluator": {
+                "source_id": "pyvisa",
+                "id": "pyvisa_dut_validation_v1",
+                "protocol_version": 2,
+                "run_id": "run-v1",
+            },
         }
         self.assertIs(
-            validate_evaluator_report(report, "pyvisa_dut_validation_v1"),
+            validate_evaluator_report(
+                report, "pyvisa", "pyvisa_dut_validation_v1"
+            ),
             report,
         )
+
+    def test_report_requires_top_level_and_evaluator_source_identity(self) -> None:
+        report = v2_report()
+        report["source_id"] = "other"
+        with self.assertRaisesRegex(ContractError, "source_id"):
+            validate_evaluator_report(
+                report, "pyvisa", "pyvisa_dut_validation_v2"
+            )
+
+        report = v2_report()
+        report["evaluator"]["source_id"] = "other"
+        with self.assertRaisesRegex(ContractError, "source_id"):
+            validate_evaluator_report(
+                report, "pyvisa", "pyvisa_dut_validation_v2"
+            )
 
     def test_valid_v2_rejects_security_mount_cleanup_and_journal_drift(self) -> None:
         mutations = {
@@ -342,7 +370,7 @@ class V2ReportContractTests(unittest.TestCase):
                 mutate(report["worlds"][0])
                 with self.assertRaises(ContractError):
                     validate_evaluator_report(
-                        report, "pyvisa_dut_validation_v2"
+                        report, "pyvisa", "pyvisa_dut_validation_v2"
                     )
 
     def test_normal_lifecycle_requires_actual_sigterm(self) -> None:
@@ -356,7 +384,7 @@ class V2ReportContractTests(unittest.TestCase):
         signal_event["fields"] = {"signal": "EVENT"}
         rehash(journal_value)
         with self.assertRaisesRegex(ContractError, "lifecycle"):
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2")
 
     def test_journal_recomputes_counts_and_requires_full_safe_state(self) -> None:
         report = v2_report()
@@ -364,7 +392,7 @@ class V2ReportContractTests(unittest.TestCase):
         journal_value["counts"]["scpi_reads"] = 2
         rehash(journal_value)
         with self.assertRaisesRegex(ContractError, "lifecycle"):
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2")
 
         report = v2_report()
         journal_value = report["worlds"][0]["sim_journal_evidence"]
@@ -380,7 +408,7 @@ class V2ReportContractTests(unittest.TestCase):
             item["monotonic_ns"] = sequence
         rehash(journal_value)
         with self.assertRaisesRegex(ContractError, "lifecycle"):
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2")
 
         report = v2_report()
         journal_value = report["worlds"][0]["sim_journal_evidence"]
@@ -396,14 +424,14 @@ class V2ReportContractTests(unittest.TestCase):
             item["monotonic_ns"] = sequence
         rehash(journal_value)
         with self.assertRaisesRegex(ContractError, "lifecycle"):
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2")
 
         report = v2_report()
         journal_value = report["worlds"][0]["sim_journal_evidence"]
         journal_value["post_cleanup_snapshot"].pop("awg_points")
         rehash(journal_value)
         with self.assertRaisesRegex(ContractError, "lifecycle"):
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2")
 
         report = v2_report()
         journal_value = report["worlds"][0]["sim_journal_evidence"]
@@ -415,31 +443,32 @@ class V2ReportContractTests(unittest.TestCase):
         forced["fields"]["state_after"]["awg"]["output"] = True
         rehash(journal_value)
         with self.assertRaisesRegex(ContractError, "lifecycle"):
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2")
 
         report = v2_report()
         journal_value = report["worlds"][0]["sim_journal_evidence"]
         journal_value["post_cleanup_snapshot"]["psu_output"] = True
         rehash(journal_value)
         with self.assertRaisesRegex(ContractError, "lifecycle"):
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2")
 
     def test_evaluator_id_and_missing_valid_sibling_are_rejected(self) -> None:
         report = v2_report()
         report["evaluator"]["id"] = "pyvisa_dut_validation_v1"
         with self.assertRaisesRegex(ContractError, "evaluator"):
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2")
 
     def test_world_composition_and_current_run_id_are_bound(self) -> None:
         report = v2_report()
         report["worlds"][1] = copy.deepcopy(report["worlds"][0])
         with self.assertRaisesRegex(ContractError, "world|nineteen"):
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2")
 
         report = v2_report()
         with self.assertRaisesRegex(ContractError, "run"):
             validate_evaluator_report(
                 report,
+                "pyvisa",
                 "pyvisa_dut_validation_v2",
                 expected_run_id="another-run",
             )
@@ -458,7 +487,7 @@ class V2ReportContractTests(unittest.TestCase):
         report["infrastructure_valid"] = False
         report["retry_eligible"] = True
         with self.assertRaisesRegex(ContractError, "status"):
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2")
 
         world["status"] = "infrastructure_failure"
         fatal_fields = {
@@ -492,19 +521,19 @@ class V2ReportContractTests(unittest.TestCase):
             },
         }
         with self.assertRaisesRegex(ContractError, "fatal"):
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2")
         world["sim_journal_evidence"]["fatal"]["final_hash"] = fatal_event[
             "event_hash"
         ]
         self.assertIs(
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2"),
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2"),
             report,
         )
 
         report = v2_report()
         report["worlds"][0]["sim_container_evidence"] = None
         with self.assertRaisesRegex(ContractError, "evidence|infrastructure"):
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2")
 
     def test_retryable_trusted_failure_may_omit_sibling_evidence(self) -> None:
         report = v2_report()
@@ -521,12 +550,12 @@ class V2ReportContractTests(unittest.TestCase):
         report["infrastructure_valid"] = False
         report["retry_eligible"] = True
         self.assertIs(
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2"),
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2"),
             report,
         )
         world["errors"] = []
         with self.assertRaisesRegex(ContractError, "trusted|errors"):
-            validate_evaluator_report(report, "pyvisa_dut_validation_v2")
+            validate_evaluator_report(report, "pyvisa", "pyvisa_dut_validation_v2")
 
 
 if __name__ == "__main__":

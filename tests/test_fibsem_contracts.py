@@ -23,7 +23,7 @@ from instrument_benchmark.orchestrator import (  # noqa: E402
     _build_evaluator_request,
     _publish_fibsem_artifacts,
 )
-from evaluators.fibsem_liftout_v1.tests.test_reports import (  # noqa: E402
+from sources.openfibsem.fibsem_liftout_v1.tests.test_reports import (  # noqa: E402
     complete_report,
 )
 
@@ -74,8 +74,9 @@ def test_openfibsem_fields_are_conditional_and_exact(tmp_path: Path) -> None:
     candidate = tmp_path / "solution.py"
     candidate.write_text("pass")
     base = {
-        "schema_version": 1,
+        "schema_version": 2,
         "run_id": "run",
+        "source_id": "openfibsem",
         "instance_checkout": str(instance),
         "instance_id": "fibsem_liftout_v1",
         "evaluator_checkout": str(evaluator),
@@ -122,25 +123,38 @@ def test_fibsem_request_carries_exact_evaluator_image_id() -> None:
     assert request["evaluator_image_id"] == image_id
 
 
-def test_report_v3_requires_ten_world_checkpoint_and_sibling_evidence() -> None:
+def test_report_v4_requires_source_ten_world_checkpoint_and_sibling_evidence() -> None:
     report = complete_report()
     validated = validate_evaluator_report(
         report,
+        "openfibsem",
         "fibsem_liftout_v1",
-        expected_run_id="ignored-for-schema-v3",
+        expected_run_id="ignored-for-schema-v4",
     )
-    assert validated["schema_version"] == 3
+    assert validated["schema_version"] == 4
+    assert validated["source_id"] == "openfibsem"
     assert len(validated["worlds"]) == 10
 
     broken = json.loads(json.dumps(report))
     broken["worlds"][0]["checkpoints"].pop("step_2")
     with pytest.raises(ContractError, match="checkpoint evidence"):
-        validate_evaluator_report(broken, "fibsem_liftout_v1")
+        validate_evaluator_report(
+            broken, "openfibsem", "fibsem_liftout_v1"
+        )
 
     broken = json.loads(json.dumps(report))
     broken["worlds"][0]["sim_container_evidence"] = None
     with pytest.raises(ContractError, match="sibling evidence"):
-        validate_evaluator_report(broken, "fibsem_liftout_v1")
+        validate_evaluator_report(
+            broken, "openfibsem", "fibsem_liftout_v1"
+        )
+
+    broken = json.loads(json.dumps(report))
+    broken["source_id"] = "pyvisa"
+    with pytest.raises(ContractError, match="source_id|identity"):
+        validate_evaluator_report(
+            broken, "openfibsem", "fibsem_liftout_v1"
+        )
 
 
 def test_trusted_checkpoint_bundles_are_published_beside_report(

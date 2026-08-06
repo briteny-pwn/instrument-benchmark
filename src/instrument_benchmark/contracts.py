@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,6 +41,7 @@ V2_COUNTED_EVENTS = {
 class RunConfig:
     schema_version: int
     run_id: str
+    source_id: str
     instance_checkout: Path
     instance_id: str
     evaluator_checkout: Path
@@ -83,6 +85,7 @@ def load_run_config(path: Path) -> RunConfig:
     required = {
         "schema_version",
         "run_id",
+        "source_id",
         "instance_checkout",
         "instance_id",
         "evaluator_checkout",
@@ -98,10 +101,10 @@ def load_run_config(path: Path) -> RunConfig:
     }
     optional_openfibsem = {"openfibsem_checkout", "openfibsem_commit"}
     if not isinstance(value, dict):
-        raise ContractError("run config fields do not match schema version 1")
+        raise ContractError("run config fields do not match schema version 2")
     is_fibsem = (
-        value.get("instance_id") == "fibsem_liftout_v1"
-        or value.get("evaluator_id") == "fibsem_liftout_v1"
+        value.get("source_id") == "openfibsem"
+        and value.get("evaluator_id") == "fibsem_liftout_v1"
     )
     present_openfibsem = set(value) & optional_openfibsem
     if is_fibsem and present_openfibsem != optional_openfibsem:
@@ -112,9 +115,12 @@ def load_run_config(path: Path) -> RunConfig:
         raise ContractError("OpenFIBSEM fields are only valid for FIBSEM")
     expected = required | (optional_openfibsem if is_fibsem else set())
     if set(value) != expected:
-        raise ContractError("run config fields do not match schema version 1")
-    if value["schema_version"] != 1:
+        raise ContractError("run config fields do not match schema version 2")
+    if value["schema_version"] != 2:
         raise ContractError("unsupported run config schema_version")
+    source_id = _identifier(value["source_id"], "source_id")
+    instance_id = _identifier(value["instance_id"], "instance_id")
+    evaluator_id = _identifier(value["evaluator_id"], "evaluator_id")
     root = path.parent
     instance = _resolve(root, value["instance_checkout"])
     evaluator = _resolve(root, value["evaluator_checkout"])
@@ -137,12 +143,13 @@ def load_run_config(path: Path) -> RunConfig:
             raise ContractError("OpenFIBSEM checkout commit does not match the lock")
         _require_tracked_clean(openfibsem, "OpenFIBSEM")
     return RunConfig(
-        schema_version=1,
+        schema_version=2,
         run_id=_non_empty(value["run_id"], "run_id"),
+        source_id=source_id,
         instance_checkout=instance,
-        instance_id=_non_empty(value["instance_id"], "instance_id"),
+        instance_id=instance_id,
         evaluator_checkout=evaluator,
-        evaluator_id=_non_empty(value["evaluator_id"], "evaluator_id"),
+        evaluator_id=evaluator_id,
         candidate_path=candidate,
         report_path=report,
         timeout_seconds=_positive_number(value["timeout_seconds"], "timeout_seconds"),
@@ -197,8 +204,14 @@ def repository_provenance(
 
 
 def validate_dependencies(
-    instance: dict[str, Any], evaluator: dict[str, Any]
+    source_id: str,
+    instance: dict[str, Any],
+    evaluator: dict[str, Any],
 ) -> None:
+    if instance.get("source_id") != source_id:
+        raise ContractError("instance source_id mismatch")
+    if evaluator.get("source_id") != source_id:
+        raise ContractError("evaluator source_id mismatch")
     instance_id = instance.get("instance_id")
     evaluator_contract = instance.get("evaluator")
     if not isinstance(evaluator_contract, dict):
@@ -238,19 +251,33 @@ def validate_visible_hashes(instance_root: Path, manifest: dict[str, Any]) -> No
             raise ContractError(f"visible file hash mismatch: {relative}")
 
 
+REPORT_SCHEMA_VERSIONS = {
+    ("pyvisa", "pyvisa_dut_validation_v1"): 2,
+    ("pyvisa", "pyvisa_dut_validation_v2"): 3,
+    ("openfibsem", "fibsem_liftout_v1"): 4,
+}
+
+
 def validate_evaluator_report(
     value: Any,
-    evaluator_id: str = "pyvisa_dut_validation_v1",
+    source_id: str,
+    evaluator_id: str,
     *,
     expected_run_id: str | None = None,
 ) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ContractError("evaluator report must be an object")
-    if evaluator_id == "fibsem_liftout_v1":
+    expected_schema = REPORT_SCHEMA_VERSIONS.get((source_id, evaluator_id))
+    if expected_schema is None:
+        raise ContractError("unsupported evaluator report identity")
+    if value.get("source_id") != source_id:
+        raise ContractError("report source_id does not match evaluator")
+    if (source_id, evaluator_id) == ("openfibsem", "fibsem_liftout_v1"):
         _validate_fibsem_report(value)
         return value
     required = {
         "schema_version",
+        "source_id",
         "status",
         "strict_pass",
         "score",
@@ -260,18 +287,16 @@ def validate_evaluator_report(
         "worlds",
         "infrastructure_valid",
         "retry_eligible",
+        "evaluator",
     }
     missing = sorted(required - set(value))
     if missing:
         raise ContractError(f"evaluator report missing: {', '.join(missing)}")
-    expected_schema = {
-        "pyvisa_dut_validation_v1": 1,
-        "pyvisa_dut_validation_v2": 2,
-    }.get(evaluator_id)
-    if expected_schema is None:
-        raise ContractError("unsupported evaluator report id")
     if value["schema_version"] != expected_schema:
         raise ContractError("report schema_version does not match evaluator")
+    evaluator = value["evaluator"]
+    if not isinstance(evaluator, dict) or evaluator.get("source_id") != source_id:
+        raise ContractError("report evaluator source_id does not match evaluator")
     try:
         valid_score = (
             not isinstance(value["score"], bool)
@@ -299,6 +324,7 @@ def validate_evaluator_report(
 def _validate_fibsem_report(report: dict[str, Any]) -> None:
     required = {
         "schema_version",
+        "source_id",
         "evaluator_id",
         "openfibsem_commit",
         "score",
@@ -313,7 +339,8 @@ def _validate_fibsem_report(report: dict[str, Any]) -> None:
     if set(report) != required:
         raise ContractError("FIBSEM report fields are invalid")
     if (
-        report["schema_version"] != 3
+        report["schema_version"] != 4
+        or report["source_id"] != "openfibsem"
         or report["evaluator_id"] != "fibsem_liftout_v1"
         or not _is_git_commit(report["openfibsem_commit"])
         or not isinstance(report["strict_pass"], bool)
@@ -660,7 +687,7 @@ def _validate_v2_report(
     if (
         not isinstance(evaluator, dict)
         or evaluator.get("id") != evaluator_id
-        or evaluator.get("protocol_version") != 1
+        or evaluator.get("protocol_version") != 2
         or not isinstance(evaluator.get("run_id"), str)
         or not evaluator["run_id"]
     ):
@@ -1374,6 +1401,14 @@ def _resolve(root: Path, raw: Any, *, must_exist: bool = True) -> Path:
 def _non_empty(raw: Any, name: str) -> str:
     if not isinstance(raw, str) or not raw:
         raise ContractError(f"{name} must be a non-empty string")
+    return raw
+
+
+def _identifier(raw: Any, name: str) -> str:
+    if not isinstance(raw, str) or re.fullmatch(
+        r"[a-z][a-z0-9_-]*", raw
+    ) is None:
+        raise ContractError(f"invalid {name}")
     return raw
 
 
