@@ -216,7 +216,7 @@ class DistributedOrchestratorTests(unittest.TestCase):
             {"openfibsem_checkout", "openfibsem_commit"},
         )
 
-    def test_configs_and_tracked_report_are_grouped_by_source(self) -> None:
+    def test_configs_are_grouped_and_generated_reports_are_not_tracked(self) -> None:
         self.assertEqual(list((ROOT / "configs").glob("*.yaml")), [])
         expected = {
             "pyvisa/pyvisa_dut_validation_v1.yaml": (
@@ -249,10 +249,41 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 )
                 self.assertEqual(value["instance_checkout"], "../../../instance")
                 self.assertEqual(value["evaluator_checkout"], "../../../evaluator")
-        self.assertTrue(
-            (ROOT / "reports/pyvisa/pyvisa_dut_validation_v1.json").is_file()
+        tracked_report = subprocess.run(
+            [
+                "git",
+                "ls-files",
+                "--error-unmatch",
+                "reports/pyvisa/pyvisa_dut_validation_v1.json",
+            ],
+            cwd=ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
         )
+        self.assertNotEqual(tracked_report.returncode, 0)
         self.assertFalse((ROOT / "reports/distributed_validation.json").exists())
+
+    def test_gitignore_covers_grouped_generated_outputs_without_flat_rules(
+        self,
+    ) -> None:
+        lines = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+        self.assertNotIn("reports/fibsem_liftout_v1.json", lines)
+        self.assertNotIn("reports/fibsem_liftout_v1.artifacts/", lines)
+        for relative in (
+            "reports/pyvisa/pyvisa_dut_validation_v1.json",
+            "reports/pyvisa/pyvisa_dut_validation_v2.json",
+            "reports/openfibsem/fibsem_liftout_v1.json",
+            "reports/openfibsem/fibsem_liftout_v1.artifacts/world/step.json",
+            "reports/evaluator-build-manifest.json",
+        ):
+            with self.subTest(relative=relative):
+                ignored = subprocess.run(
+                    ["git", "check-ignore", "--no-index", "--quiet", relative],
+                    cwd=ROOT,
+                    check=False,
+                )
+                self.assertEqual(ignored.returncode, 0)
 
     def test_v2_request_is_bound_to_composite_identity_and_image_id(
         self,
@@ -638,6 +669,46 @@ class DistributedOrchestratorTests(unittest.TestCase):
         with self.assertRaisesRegex(ContractError, "container protocol"):
             validate_dependencies("pyvisa", instance, evaluator)
 
+    def test_supported_instances_must_be_a_non_empty_sorted_unique_id_list(
+        self,
+    ) -> None:
+        instance = {
+            "source_id": "pyvisa",
+            "instance_id": "pyvisa_dut_validation_v1",
+            "evaluator": {
+                "id": "pyvisa_dut_validation_v1",
+                "protocol_version": 2,
+            },
+            "container": {"protocol_version": 1},
+        }
+        evaluator = {
+            "source_id": "pyvisa",
+            "evaluator_id": "pyvisa_dut_validation_v1",
+            "protocol_version": 2,
+            "supported_instances": [
+                "pyvisa_dut_validation_v1",
+                "pyvisa_dut_validation_v2",
+            ],
+            "container_protocol_version": 1,
+            "candidate_execution": "docker",
+            "image_mode": "locked",
+        }
+        validate_dependencies("pyvisa", instance, evaluator)
+
+        invalid_values = (
+            "pyvisa_dut_validation_v1",
+            [],
+            ["pyvisa_dut_validation_v1", "pyvisa_dut_validation_v1"],
+            ["pyvisa_dut_validation_v2", "pyvisa_dut_validation_v1"],
+            ["pyvisa_dut_validation_v1", "../invalid"],
+            ["pyvisa_dut_validation_v1", 1],
+        )
+        for supported_instances in invalid_values:
+            with self.subTest(supported_instances=supported_instances):
+                invalid = dict(evaluator, supported_instances=supported_instances)
+                with self.assertRaisesRegex(ContractError, "supported_instances"):
+                    validate_dependencies("pyvisa", instance, invalid)
+
     def test_run_config_resolves_paths_relative_to_config(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -870,8 +941,13 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 "candidate",
             )
 
-    def test_source_resolution_fails_before_builder_or_runner(self) -> None:
-        cases = ("cross_source", "missing_source_manifest", "flat_root")
+    def test_structural_failures_occur_before_builder_or_runner(self) -> None:
+        cases = (
+            "cross_source",
+            "missing_source_manifest",
+            "flat_root",
+            "malformed_supported_instances",
+        )
         for case in cases:
             with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -914,6 +990,13 @@ class DistributedOrchestratorTests(unittest.TestCase):
                         )
                     if case == "missing_source_manifest":
                         evaluator.joinpath("sources/pyvisa/source.yaml").unlink()
+                    if case == "malformed_supported_instances":
+                        manifest_path = source_leaf / "evaluator.yaml"
+                        manifest = yaml.safe_load(manifest_path.read_text())
+                        manifest["supported_instances"] = "pyvisa_dut_validation_v1"
+                        manifest_path.write_text(
+                            yaml.safe_dump(manifest, sort_keys=False)
+                        )
                 config = root / "run.yaml"
                 config.write_text(
                     yaml.safe_dump(

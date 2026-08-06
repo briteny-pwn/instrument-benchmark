@@ -169,6 +169,33 @@ class EvaluatorImageTests(unittest.TestCase):
                     openfibsem_commit=commit,
                 )
 
+    def test_stage_requires_openfibsem_inputs_for_exact_fibsem_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(EvaluatorImageError, "required"):
+                self.stage(
+                    self.make_evaluator(root),
+                    self.make_assets(root),
+                    root / "context",
+                    source_id=self.FIBSEM_SOURCE,
+                    evaluator_id=self.FIBSEM_EVALUATOR,
+                )
+
+    def test_stage_forbids_openfibsem_inputs_for_non_fibsem_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkout, commit = self.make_openfibsem(root)
+            with self.assertRaisesRegex(EvaluatorImageError, "only valid"):
+                self.stage(
+                    self.make_evaluator(root),
+                    self.make_assets(root, source_commit=commit),
+                    root / "context",
+                    source_id=self.PYVISA_SOURCE,
+                    evaluator_id=self.PYVISA_EVALUATOR,
+                    openfibsem_checkout=checkout,
+                    openfibsem_commit=commit,
+                )
+
     def test_fibsem_context_rejects_tampered_runtime_wheel(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -539,8 +566,9 @@ class EvaluatorImageTests(unittest.TestCase):
     def test_source_selection_and_provenance_are_exact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            openfibsem_checkout, openfibsem_commit = self.make_openfibsem(root)
             evaluator = self.make_evaluator(root)
-            assets = self.make_assets(root)
+            assets = self.make_assets(root, source_commit=openfibsem_commit)
 
             pyvisa = self.stage(evaluator, assets, root / "pyvisa-context")
             pyvisa_root = pyvisa.root / "evaluator"
@@ -594,6 +622,8 @@ class EvaluatorImageTests(unittest.TestCase):
                 root / "fibsem-context",
                 source_id=self.FIBSEM_SOURCE,
                 evaluator_id=self.FIBSEM_EVALUATOR,
+                openfibsem_checkout=openfibsem_checkout,
+                openfibsem_commit=openfibsem_commit,
             )
             fibsem_root = fibsem.root / "evaluator"
             self.assertTrue(
@@ -837,6 +867,37 @@ class EvaluatorImageTests(unittest.TestCase):
                 executor=execute,
             ).remove(evidence)
             self.assertIn(["docker", "image", "rm", evidence.reference], calls)
+
+    def test_builder_requires_openfibsem_inputs_for_exact_fibsem_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(EvaluatorImageError, "required"):
+                EvaluatorImageBuilder(
+                    assets_root=self.make_assets(root),
+                    executor=lambda _: ImageCommandResult(1, "", "must not execute"),
+                ).build(
+                    self.make_evaluator(root),
+                    run_id="run",
+                    source_id=self.FIBSEM_SOURCE,
+                    evaluator_id=self.FIBSEM_EVALUATOR,
+                )
+
+    def test_builder_forbids_openfibsem_inputs_for_non_fibsem_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkout, commit = self.make_openfibsem(root)
+            with self.assertRaisesRegex(EvaluatorImageError, "only valid"):
+                EvaluatorImageBuilder(
+                    assets_root=self.make_assets(root, source_commit=commit),
+                    executor=lambda _: ImageCommandResult(1, "", "must not execute"),
+                ).build(
+                    self.make_evaluator(root),
+                    run_id="run",
+                    source_id=self.PYVISA_SOURCE,
+                    evaluator_id=self.PYVISA_EVALUATOR,
+                    openfibsem_checkout=checkout,
+                    openfibsem_commit=commit,
+                )
 
     def test_builder_rejects_wrong_platform_or_user(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

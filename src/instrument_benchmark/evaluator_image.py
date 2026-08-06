@@ -14,6 +14,7 @@ from .repository_layout import ID_PATTERN, resolve_evaluator_leaf
 
 
 BUILD_MANIFEST = ".iab-build-manifest.json"
+FIBSEM_RUNTIME_IDENTITY = ("openfibsem", "fibsem_liftout_v1")
 
 
 class EvaluatorImageError(RuntimeError):
@@ -206,11 +207,17 @@ def stage_evaluator_build_context(
         raise EvaluatorImageError("evaluator checkout must be clean")
     _verify_docker_cli(assets_root / "docker-cli")
     _verify_docker_buildx(assets_root / "docker-buildx")
-    if (openfibsem_checkout is None) != (openfibsem_commit is None):
+    fibsem_profile = (source_id, evaluator_id) == FIBSEM_RUNTIME_IDENTITY
+    has_openfibsem_checkout = openfibsem_checkout is not None
+    has_openfibsem_commit = openfibsem_commit is not None
+    if fibsem_profile and not (has_openfibsem_checkout and has_openfibsem_commit):
         raise EvaluatorImageError(
-            "OpenFIBSEM checkout and commit must be supplied together"
+            "OpenFIBSEM checkout and commit are required for the FIBSEM evaluator"
         )
-    fibsem_profile = openfibsem_checkout is not None
+    if not fibsem_profile and (has_openfibsem_checkout or has_openfibsem_commit):
+        raise EvaluatorImageError(
+            "OpenFIBSEM checkout and commit are only valid for the FIBSEM evaluator"
+        )
     if fibsem_profile:
         assert openfibsem_commit is not None
         _verify_openfibsem_runtime(assets_root, expected_commit=openfibsem_commit)

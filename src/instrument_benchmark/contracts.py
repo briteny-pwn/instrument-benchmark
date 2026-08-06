@@ -227,7 +227,21 @@ def validate_dependencies(
     _protocol_version(
         evaluator.get("protocol_version"), 2, "evaluator protocol"
     )
-    if instance_id not in evaluator.get("supported_instances", []):
+    supported_instances = evaluator.get("supported_instances")
+    if (
+        not isinstance(supported_instances, list)
+        or not supported_instances
+        or any(
+            not isinstance(item, str)
+            or re.fullmatch(r"[a-z][a-z0-9_-]*", item) is None
+            for item in supported_instances
+        )
+        or supported_instances != sorted(set(supported_instances))
+    ):
+        raise ContractError(
+            "supported_instances must be a non-empty sorted unique identifier list"
+        )
+    if instance_id not in supported_instances:
         raise ContractError("instance is not supported by evaluator")
     container = instance.get("container")
     if not isinstance(container, dict):
