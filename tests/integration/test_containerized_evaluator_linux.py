@@ -43,15 +43,16 @@ class ContainerizedEvaluatorLinuxTests(unittest.TestCase):
             config.write_text(
                 yaml.safe_dump(
                     {
-                        "schema_version": 1,
+                        "schema_version": 2,
                         "run_id": owner,
+                        "source_id": "pyvisa",
                         "instance_checkout": str(instance),
                         "instance_id": "pyvisa_dut_validation_v1",
                         "evaluator_checkout": str(evaluator),
                         "evaluator_id": "pyvisa_dut_validation_v1",
                         "candidate_path": str(
                             evaluator
-                            / "evaluators/pyvisa_dut_validation_v1/reference/solution.py"
+                            / "sources/pyvisa/pyvisa_dut_validation_v1/reference/solution.py"
                         ),
                         "report_path": str(report_path),
                         "timeout_seconds": 30,

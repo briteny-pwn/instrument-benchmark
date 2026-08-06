@@ -161,7 +161,12 @@ class DistributedFibsemLinuxTests(unittest.TestCase):
                 sys.executable,
                 str(VALIDATOR),
                 "--config",
-                str(ROOT / "configs" / "fibsem_liftout_v1.yaml"),
+                str(
+                    ROOT
+                    / "configs"
+                    / "openfibsem"
+                    / "fibsem_liftout_v1.yaml"
+                ),
             ],
             cwd=ROOT,
             text=True,

@@ -28,6 +28,7 @@ from .evaluator_runtime import (
     EvaluatorContainerRunner,
     EvaluatorInfrastructureError,
 )
+from .repository_layout import resolve_evaluator_leaf, resolve_instance_leaf
 
 
 ImageBuilderFactory = Callable[[], EvaluatorImageBuilder]
@@ -43,6 +44,17 @@ def run_benchmark(
     runner_factory: RunnerFactory | None = None,
 ) -> dict[str, Any]:
     config = load_run_config(config_path)
+    instance_leaf = resolve_instance_leaf(
+        config.instance_checkout, config.source_id, config.instance_id
+    )
+    evaluator_leaf = resolve_evaluator_leaf(
+        config.evaluator_checkout, config.source_id, config.evaluator_id
+    )
+    instance_root = instance_leaf.root
+    instance_manifest = instance_leaf.manifest
+    evaluator_manifest = evaluator_leaf.manifest
+    validate_dependencies(config.source_id, instance_manifest, evaluator_manifest)
+    validate_visible_hashes(instance_root, instance_manifest)
     provenance = {
         "instrument": repository_provenance(
             instrument_checkout, allow_dirty=allow_dirty
@@ -60,29 +72,14 @@ def run_benchmark(
             allow_dirty=allow_dirty,
             include_untracked=False,
         )
-    instance_manifest = load_yaml_mapping(
-        config.instance_checkout / config.instance_id / "instance.yaml"
-        if (config.instance_checkout / config.instance_id).is_dir()
-        else config.instance_checkout / "instance.yaml"
+    is_fibsem = (
+        config.source_id == "openfibsem"
+        and config.evaluator_id == "fibsem_liftout_v1"
     )
-    instance_root = (
-        config.instance_checkout / config.instance_id
-        if (config.instance_checkout / config.instance_id).is_dir()
-        else config.instance_checkout
-    )
-    evaluator_manifest = load_yaml_mapping(
-        evaluator_manifest_path(config.evaluator_checkout, config.evaluator_id)
-    )
-    if instance_manifest.get("instance_id") != config.instance_id:
-        raise ContractError("configured instance_id does not match manifest")
-    if evaluator_manifest.get("evaluator_id") != config.evaluator_id:
-        raise ContractError("configured evaluator_id does not match manifest")
-    if config.evaluator_id == "fibsem_liftout_v1" and (
+    if is_fibsem and (
         evaluator_manifest.get("openfibsem_commit") != config.openfibsem_commit
     ):
         raise ContractError("configured OpenFIBSEM commit does not match evaluator")
-    validate_dependencies(instance_manifest, evaluator_manifest)
-    validate_visible_hashes(instance_root, instance_manifest)
 
     assets_root = Path(__file__).resolve().parents[2] / "container"
     image_builder = (
@@ -98,7 +95,7 @@ def run_benchmark(
     published_artifacts: dict[str, Any] | None = None
     try:
         build_arguments: dict[str, Any] = {}
-        if config.evaluator_id == "fibsem_liftout_v1":
+        if is_fibsem:
             build_arguments = {
                 "openfibsem_checkout": config.openfibsem_checkout,
                 "openfibsem_commit": config.openfibsem_commit,
@@ -106,6 +103,8 @@ def run_benchmark(
         evaluator_image = image_builder.build(
             config.evaluator_checkout,
             run_id=config.run_id,
+            source_id=config.source_id,
+            evaluator_id=config.evaluator_id,
             **build_arguments,
         )
     except EvaluatorImageError as exc:
@@ -114,6 +113,13 @@ def run_benchmark(
         ) from exc
 
     try:
+        if (
+            evaluator_image.source_id != config.source_id
+            or evaluator_image.evaluator_id != config.evaluator_id
+        ):
+            raise EvaluatorInfrastructureError(
+                "evaluator image source identity does not match this run"
+            )
         with tempfile.TemporaryDirectory(prefix="iab-", dir="/tmp") as directory:
             run_root = Path(directory).resolve()
             # The outer evaluator runs as a fixed unprivileged UID.
@@ -149,6 +155,7 @@ def run_benchmark(
                 report = dict(
                     validate_evaluator_report(
                         container_result.report,
+                        config.source_id,
                         config.evaluator_id,
                         expected_run_id=config.run_id,
                     )
@@ -157,7 +164,7 @@ def run_benchmark(
                 raise EvaluatorInfrastructureError(
                     f"evaluator produced an invalid report: {exc}"
                 ) from exc
-            if config.evaluator_id == "fibsem_liftout_v1":
+            if is_fibsem:
                 _validate_fibsem_run_binding(
                     report,
                     config=config,
@@ -188,6 +195,9 @@ def run_benchmark(
                     ) from cleanup_error
 
     report["run_id"] = config.run_id
+    report["source_id"] = config.source_id
+    report["instance_id"] = config.instance_id
+    report["evaluator_id"] = config.evaluator_id
     report["provenance"] = {
         name: value.to_dict() for name, value in provenance.items()
     }
@@ -205,6 +215,10 @@ def run_benchmark(
             "dockerfile_sha256": evaluator_image.dockerfile_sha256,
             "build_manifest_sha256": evaluator_image.build_manifest_sha256,
             "evaluator_commit": evaluator_image.evaluator_commit,
+            "source_id": evaluator_image.source_id,
+            "evaluator_id": evaluator_image.evaluator_id,
+            "source_manifest_sha256": evaluator_image.source_manifest_sha256,
+            "source_tree_sha256": evaluator_image.source_tree_sha256,
             "openfibsem_commit": getattr(
                 evaluator_image, "openfibsem_commit", None
             ),
@@ -222,14 +236,6 @@ def run_benchmark(
     return report
 
 
-def evaluator_manifest_path(checkout: Path, evaluator_id: str) -> Path:
-    """Resolve a packaged evaluator manifest, retaining the v1 root fallback."""
-    packaged = checkout / "evaluators" / evaluator_id / "evaluator.yaml"
-    if packaged.is_file():
-        return packaged
-    return checkout / "evaluator.yaml"
-
-
 def _build_evaluator_request(
     config: RunConfig,
     *,
@@ -239,9 +245,11 @@ def _build_evaluator_request(
     evaluator_image_id: str,
 ) -> dict[str, Any]:
     request = {
-        "protocol_version": evaluator_manifest["protocol_version"],
+        "protocol_version": 2,
         "run_id": config.run_id,
+        "source_id": config.source_id,
         "instance_id": config.instance_id,
+        "evaluator_id": config.evaluator_id,
         "instance_path": str(instance_root),
         "candidate_path": str(config.candidate_path),
         "shared_run_root": str(shared_run_root),
@@ -252,9 +260,9 @@ def _build_evaluator_request(
         "container_protocol_version": config.container_protocol_version,
         "image_mode": config.image_mode,
     }
-    if config.evaluator_id in {
-        "pyvisa_dut_validation_v2",
-        "fibsem_liftout_v1",
+    if (config.source_id, config.evaluator_id) in {
+        ("pyvisa", "pyvisa_dut_validation_v2"),
+        ("openfibsem", "fibsem_liftout_v1"),
     }:
         digest = evaluator_image_id.removeprefix("sha256:")
         if (

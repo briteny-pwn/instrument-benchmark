@@ -57,7 +57,8 @@ class V2FormalDualContainerLinuxTests(unittest.TestCase):
         ).resolve()
         reference = (
             evaluator
-            / "evaluators"
+            / "sources"
+            / "pyvisa"
             / "pyvisa_dut_validation_v2"
             / "reference"
             / "solution.py"
@@ -74,8 +75,9 @@ class V2FormalDualContainerLinuxTests(unittest.TestCase):
             config.write_text(
                 yaml.safe_dump(
                     {
-                        "schema_version": 1,
+                        "schema_version": 2,
                         "run_id": owner,
+                        "source_id": "pyvisa",
                         "instance_checkout": str(instance),
                         "instance_id": "pyvisa_dut_validation_v2",
                         "evaluator_checkout": str(evaluator),
@@ -102,10 +104,11 @@ class V2FormalDualContainerLinuxTests(unittest.TestCase):
                     )
                 validate_evaluator_report(
                     report,
+                    "pyvisa",
                     "pyvisa_dut_validation_v2",
                     expected_run_id=owner,
                 )
-                self.assertEqual(report["schema_version"], 2)
+                self.assertEqual(report["schema_version"], 3)
                 self.assertEqual(report["score"], 100)
                 self.assertTrue(report["strict_pass"])
                 self.assertTrue(report["infrastructure_valid"])

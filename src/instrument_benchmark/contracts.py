@@ -3,8 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import re
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -1364,11 +1366,26 @@ def validate_evaluator_container_evidence(value: Any) -> dict[str, Any]:
 
 
 def dump_json(path: Path, value: Any) -> None:
+    payload = json.dumps(value, indent=2, sort_keys=True) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(value, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            dir=path.parent,
+            delete=False,
+        ) as temporary:
+            temporary.write(payload)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+            temporary_path = Path(temporary.name)
+        os.replace(temporary_path, path)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
 
 
 def _git(path: Path, *arguments: str) -> str:

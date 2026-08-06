@@ -56,8 +56,11 @@ def test_three_repository_readmes_publish_fibsem_operator_contract() -> None:
 
 
 def test_real_fibsem_config_pins_all_three_repos_and_openfibsem_source() -> None:
-    config = load_run_config(ROOT / "configs" / "fibsem_liftout_v1.yaml")
+    config = load_run_config(
+        ROOT / "configs" / "openfibsem" / "fibsem_liftout_v1.yaml"
+    )
 
+    assert config.source_id == "openfibsem"
     assert config.instance_id == "fibsem_liftout_v1"
     assert config.evaluator_id == "fibsem_liftout_v1"
     assert config.repeated_worlds == 5
@@ -109,14 +112,21 @@ def test_openfibsem_fields_are_conditional_and_exact(tmp_path: Path) -> None:
 
 
 def test_fibsem_request_carries_exact_evaluator_image_id() -> None:
-    config = load_run_config(ROOT / "configs" / "fibsem_liftout_v1.yaml")
+    config = load_run_config(
+        ROOT / "configs" / "openfibsem" / "fibsem_liftout_v1.yaml"
+    )
     image_id = "sha256:" + "a" * 64
 
     request = _build_evaluator_request(
         config,
-        instance_root=config.instance_checkout / config.instance_id,
+        instance_root=(
+            config.instance_checkout
+            / "sources"
+            / config.source_id
+            / config.instance_id
+        ),
         shared_run_root=ROOT,
-        evaluator_manifest={"protocol_version": 1},
+        evaluator_manifest={"protocol_version": 2},
         evaluator_image_id=image_id,
     )
 
