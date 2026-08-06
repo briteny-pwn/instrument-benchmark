@@ -47,6 +47,22 @@ Linux Docker acceptance with:
 python scripts/validate_fibsem_benchmark.py --config configs/fibsem_liftout_v1.yaml
 ```
 
+That direct entrypoint requires Python 3.11, PyYAML, Git, and Docker on the
+host. On a native Linux x86_64 Docker host, the portable entrypoint supplies
+the Python/Git/Docker client environment in a pinned driver image:
+
+```bash
+scripts/run_fibsem_linux_acceptance.sh configs/fibsem_liftout_v1.yaml
+```
+
+The driver runs as the invoking UID/GID, adds only the Docker socket group,
+and mounts the checkout parent and `/tmp` at an identical absolute path. This
+is necessary because the driver and its sibling evaluator/candidate/simulator
+containers share one native daemon. Network access is used only while adding
+Git to the driver image; the trusted evaluator image still builds with
+`--network=none`, and all evaluator, candidate, and simulator runs have no
+network.
+
 On success, the schema-version-3 report is
 `reports/fibsem_liftout_v1.json`. Forty read-only checkpoint bundles are under
 `reports/fibsem_liftout_v1.artifacts/<world>/<step>/`; each contains
