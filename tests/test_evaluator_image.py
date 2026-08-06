@@ -20,6 +20,7 @@ from instrument_benchmark.evaluator_image import (  # noqa: E402
     stage_evaluator_build_context,
     verify_build_manifest,
 )
+from instrument_benchmark.repository_layout import resolve_evaluator_leaf  # noqa: E402
 
 
 def canonical_json(value: object) -> bytes:
@@ -196,6 +197,106 @@ class EvaluatorImageTests(unittest.TestCase):
                     openfibsem_commit=commit,
                 )
 
+    def test_crossed_registered_identities_forbid_openfibsem_inputs(self) -> None:
+        crossed_identities = (
+            (self.FIBSEM_SOURCE, self.PYVISA_EVALUATOR),
+            (self.PYVISA_SOURCE, self.FIBSEM_EVALUATOR),
+        )
+        for source_id, evaluator_id in crossed_identities:
+            for boundary in ("stage", "builder"):
+                with self.subTest(
+                    source_id=source_id,
+                    evaluator_id=evaluator_id,
+                    boundary=boundary,
+                ), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    checkout, commit = self.make_openfibsem(root)
+                    evaluator = self.make_evaluator(root)
+                    resolved = resolve_evaluator_leaf(
+                        evaluator, source_id, evaluator_id
+                    )
+                    self.assertEqual(resolved.source_id, source_id)
+                    self.assertEqual(resolved.leaf_id, evaluator_id)
+                    assets = self.make_assets(root, source_commit=commit)
+
+                    with self.assertRaisesRegex(
+                        EvaluatorImageError, "only valid"
+                    ):
+                        if boundary == "stage":
+                            self.stage(
+                                evaluator,
+                                assets,
+                                root / "context",
+                                source_id=source_id,
+                                evaluator_id=evaluator_id,
+                                openfibsem_checkout=checkout,
+                                openfibsem_commit=commit,
+                            )
+                        else:
+                            EvaluatorImageBuilder(
+                                assets_root=assets,
+                                executor=lambda _: ImageCommandResult(
+                                    1, "", "must not execute"
+                                ),
+                            ).build(
+                                evaluator,
+                                run_id="run",
+                                source_id=source_id,
+                                evaluator_id=evaluator_id,
+                                openfibsem_checkout=checkout,
+                                openfibsem_commit=commit,
+                            )
+
+    def test_openfibsem_input_pair_completeness_at_stage_and_builder(self) -> None:
+        identities = (
+            (self.FIBSEM_SOURCE, self.FIBSEM_EVALUATOR, "required"),
+            (self.PYVISA_SOURCE, self.PYVISA_EVALUATOR, "only valid"),
+        )
+        for source_id, evaluator_id, expected_error in identities:
+            for supplied_input in ("checkout", "commit"):
+                for boundary in ("stage", "builder"):
+                    with self.subTest(
+                        source_id=source_id,
+                        evaluator_id=evaluator_id,
+                        supplied_input=supplied_input,
+                        boundary=boundary,
+                    ), tempfile.TemporaryDirectory() as directory:
+                        root = Path(directory)
+                        checkout, commit = self.make_openfibsem(root)
+                        evaluator = self.make_evaluator(root)
+                        assets = self.make_assets(root, source_commit=commit)
+                        profile_kwargs = (
+                            {"openfibsem_checkout": checkout}
+                            if supplied_input == "checkout"
+                            else {"openfibsem_commit": commit}
+                        )
+
+                        with self.assertRaisesRegex(
+                            EvaluatorImageError, expected_error
+                        ):
+                            if boundary == "stage":
+                                self.stage(
+                                    evaluator,
+                                    assets,
+                                    root / "context",
+                                    source_id=source_id,
+                                    evaluator_id=evaluator_id,
+                                    **profile_kwargs,
+                                )
+                            else:
+                                EvaluatorImageBuilder(
+                                    assets_root=assets,
+                                    executor=lambda _: ImageCommandResult(
+                                        1, "", "must not execute"
+                                    ),
+                                ).build(
+                                    evaluator,
+                                    run_id="run",
+                                    source_id=source_id,
+                                    evaluator_id=evaluator_id,
+                                    **profile_kwargs,
+                                )
+
     def test_fibsem_context_rejects_tampered_runtime_wheel(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -341,10 +442,12 @@ class EvaluatorImageTests(unittest.TestCase):
             "display_name: PyVISA\n"
             "description: Trusted PyVISA evaluators\n"
             "evaluators:\n"
+            "  - fibsem_liftout_v1\n"
             "  - pyvisa_dut_validation_v1\n"
             "  - pyvisa_dut_validation_v2\n"
         )
         for evaluator_id in (
+            self.FIBSEM_EVALUATOR,
             "pyvisa_dut_validation_v1",
             "pyvisa_dut_validation_v2",
         ):
@@ -373,20 +476,24 @@ class EvaluatorImageTests(unittest.TestCase):
             "description: Trusted FIBSEM evaluators\n"
             "evaluators:\n"
             "  - fibsem_liftout_v1\n"
+            "  - pyvisa_dut_validation_v2\n"
         )
-        fibsem_leaf = openfibsem / self.FIBSEM_EVALUATOR
-        fibsem_leaf.mkdir()
-        (fibsem_leaf / "__init__.py").write_text("")
-        (fibsem_leaf / "evaluator.yaml").write_text(
-            "schema_version: 2\n"
-            "source_id: openfibsem\n"
-            "evaluator_id: fibsem_liftout_v1\n"
-            "protocol_version: 2\n"
-            "container_protocol_version: 1\n"
-            "supported_instances:\n"
-            "  - fibsem_liftout_v1\n"
-        )
-        (fibsem_leaf / "implementation.py").write_text("FIBSEM = True\n")
+        for evaluator_id in (self.FIBSEM_EVALUATOR, self.PYVISA_EVALUATOR):
+            leaf = openfibsem / evaluator_id
+            leaf.mkdir()
+            (leaf / "__init__.py").write_text("")
+            (leaf / "evaluator.yaml").write_text(
+                "schema_version: 2\n"
+                "source_id: openfibsem\n"
+                f"evaluator_id: {evaluator_id}\n"
+                "protocol_version: 2\n"
+                "container_protocol_version: 1\n"
+                "supported_instances:\n"
+                f"  - {evaluator_id}\n"
+            )
+            (leaf / "implementation.py").write_text(
+                f"EVALUATOR_ID = {evaluator_id!r}\n"
+            )
         vendor = evaluator / "vendor" / "pyvisa-sim-iab" / "pyvisa_sim"
         vendor.mkdir(parents=True)
         (vendor.parent / "pyproject.toml").write_text(
