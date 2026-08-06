@@ -142,6 +142,9 @@ def load_run_config(path: Path) -> RunConfig:
         if _git(openfibsem, "rev-parse", "HEAD") != openfibsem_commit:
             raise ContractError("OpenFIBSEM checkout commit does not match the lock")
         _require_tracked_clean(openfibsem, "OpenFIBSEM")
+    container_protocol_version = _protocol_version(
+        value["container_protocol_version"], 1, "container_protocol_version"
+    )
     return RunConfig(
         schema_version=2,
         run_id=_non_empty(value["run_id"], "run_id"),
@@ -158,9 +161,7 @@ def load_run_config(path: Path) -> RunConfig:
         repeated_base_seed=_positive_int(
             value["repeated_base_seed"], "repeated_base_seed"
         ),
-        container_protocol_version=_positive_int(
-            value["container_protocol_version"], "container_protocol_version"
-        ),
+        container_protocol_version=container_protocol_version,
         image_mode=_exact(value["image_mode"], "locked", "image_mode"),
         openfibsem_checkout=openfibsem,
         openfibsem_commit=openfibsem_commit,
@@ -218,18 +219,21 @@ def validate_dependencies(
         raise ContractError("instance evaluator contract is missing")
     if evaluator_contract.get("id") != evaluator.get("evaluator_id"):
         raise ContractError("evaluator id mismatch")
-    if evaluator_contract.get("protocol_version") != evaluator.get(
-        "protocol_version"
-    ):
-        raise ContractError("evaluator protocol mismatch")
+    _protocol_version(
+        evaluator_contract.get("protocol_version"), 2, "instance evaluator protocol"
+    )
+    _protocol_version(
+        evaluator.get("protocol_version"), 2, "evaluator protocol"
+    )
     if instance_id not in evaluator.get("supported_instances", []):
         raise ContractError("instance is not supported by evaluator")
     container = instance.get("container")
     if not isinstance(container, dict):
         raise ContractError("instance container contract is missing")
-    protocol = container.get("protocol_version")
-    if protocol != evaluator.get("container_protocol_version"):
-        raise ContractError("container protocol mismatch")
+    _protocol_version(container.get("protocol_version"), 1, "instance container protocol")
+    _protocol_version(
+        evaluator.get("container_protocol_version"), 1, "evaluator container protocol"
+    )
     if evaluator.get("candidate_execution") != "docker":
         raise ContractError("evaluator must require Docker candidate execution")
     if evaluator.get("image_mode") != "locked":
@@ -294,9 +298,9 @@ def validate_evaluator_report(
         raise ContractError(f"evaluator report missing: {', '.join(missing)}")
     if value["schema_version"] != expected_schema:
         raise ContractError("report schema_version does not match evaluator")
-    evaluator = value["evaluator"]
-    if not isinstance(evaluator, dict) or evaluator.get("source_id") != source_id:
-        raise ContractError("report evaluator source_id does not match evaluator")
+    _validate_non_fibsem_evaluator_metadata(
+        value, source_id, evaluator_id, expected_run_id=expected_run_id
+    )
     try:
         valid_score = (
             not isinstance(value["score"], bool)
@@ -310,15 +314,31 @@ def validate_evaluator_report(
     if not isinstance(worlds, list) or not worlds:
         raise ContractError("evaluator report worlds must be non-empty")
     if evaluator_id == "pyvisa_dut_validation_v2":
-        _validate_v2_report(
-            value,
-            worlds,
-            evaluator_id,
-            expected_run_id=expected_run_id,
-        )
+        _validate_v2_report(value, worlds)
         return value
     _validate_v1_worlds(worlds)
     return value
+
+
+def _validate_non_fibsem_evaluator_metadata(
+    report: dict[str, Any],
+    source_id: str,
+    evaluator_id: str,
+    *,
+    expected_run_id: str | None,
+) -> None:
+    evaluator = report.get("evaluator")
+    if not isinstance(evaluator, dict) or evaluator.get("source_id") != source_id:
+        raise ContractError("report evaluator source_id does not match evaluator")
+    if (
+        evaluator.get("id") != evaluator_id
+        or evaluator.get("protocol_version") != 2
+        or not isinstance(evaluator.get("run_id"), str)
+        or not evaluator["run_id"]
+    ):
+        raise ContractError("report evaluator identity is invalid")
+    if expected_run_id is not None and evaluator["run_id"] != expected_run_id:
+        raise ContractError("report run ID does not match this run")
 
 
 def _validate_fibsem_report(report: dict[str, Any]) -> None:
@@ -671,29 +691,14 @@ def _validate_v1_worlds(worlds: list[Any]) -> None:
             raise ContractError(f"world {index} cleanup evidence failed")
 
 
-def _validate_v2_report(
-    report: dict[str, Any],
-    worlds: list[Any],
-    evaluator_id: str,
-    *,
-    expected_run_id: str | None,
-) -> None:
+def _validate_v2_report(report: dict[str, Any], worlds: list[Any]) -> None:
     if (
         not isinstance(report.get("infrastructure_valid"), bool)
         or not isinstance(report.get("retry_eligible"), bool)
     ):
         raise ContractError("v2 aggregate infrastructure status is invalid")
     evaluator = report.get("evaluator")
-    if (
-        not isinstance(evaluator, dict)
-        or evaluator.get("id") != evaluator_id
-        or evaluator.get("protocol_version") != 2
-        or not isinstance(evaluator.get("run_id"), str)
-        or not evaluator["run_id"]
-    ):
-        raise ContractError("v2 report evaluator identity is invalid")
-    if expected_run_id is not None and evaluator["run_id"] != expected_run_id:
-        raise ContractError("v2 report run ID does not match this run")
+    assert isinstance(evaluator, dict)
     expected_world_ids = (
         "nominal",
         "reordered_resources",
@@ -1422,6 +1427,12 @@ def _positive_int(raw: Any, name: str) -> int:
     if isinstance(raw, bool) or not isinstance(raw, int) or raw <= 0:
         raise ContractError(f"{name} must be a positive integer")
     return raw
+
+
+def _protocol_version(raw: Any, expected: int, name: str) -> int:
+    if isinstance(raw, bool) or not isinstance(raw, int) or raw != expected:
+        raise ContractError(f"{name} must be {expected}")
+    return expected
 
 
 def _exact(raw: Any, expected: str, name: str) -> str:

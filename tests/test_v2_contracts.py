@@ -325,6 +325,35 @@ class V2ReportContractTests(unittest.TestCase):
             report,
         )
 
+        invalid_metadata = {
+            "wrong evaluator ID": lambda candidate: candidate["evaluator"].update(
+                id="pyvisa_dut_validation_v2"
+            ),
+            "protocol 1": lambda candidate: candidate["evaluator"].update(
+                protocol_version=1
+            ),
+            "empty run ID": lambda candidate: candidate["evaluator"].update(run_id=""),
+        }
+        for name, mutate in invalid_metadata.items():
+            with self.subTest(name=name):
+                invalid = {
+                    **report,
+                    "evaluator": dict(report["evaluator"]),
+                }
+                mutate(invalid)
+                with self.assertRaisesRegex(ContractError, "evaluator identity"):
+                    validate_evaluator_report(
+                        invalid, "pyvisa", "pyvisa_dut_validation_v1"
+                    )
+
+        with self.assertRaisesRegex(ContractError, "run ID"):
+            validate_evaluator_report(
+                report,
+                "pyvisa",
+                "pyvisa_dut_validation_v1",
+                expected_run_id="another-run",
+            )
+
     def test_report_requires_top_level_and_evaluator_source_identity(self) -> None:
         report = v2_report()
         report["source_id"] = "other"

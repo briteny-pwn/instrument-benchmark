@@ -403,14 +403,14 @@ class DistributedOrchestratorTests(unittest.TestCase):
             "instance_id": "pyvisa_dut_validation_v1",
             "evaluator": {
                 "id": "pyvisa_dut_validation_v1",
-                "protocol_version": 1,
+                "protocol_version": 2,
             },
             "container": {"protocol_version": 1},
         }
         evaluator = {
             "source_id": "pyvisa",
             "evaluator_id": "pyvisa_dut_validation_v1",
-            "protocol_version": 1,
+            "protocol_version": 2,
             "supported_instances": ["pyvisa_dut_validation_v1"],
             "container_protocol_version": 1,
             "candidate_execution": "docker",
@@ -425,8 +425,24 @@ class DistributedOrchestratorTests(unittest.TestCase):
         with self.assertRaisesRegex(ContractError, "evaluator source_id mismatch"):
             validate_dependencies("pyvisa", instance, evaluator)
         evaluator["source_id"] = "pyvisa"
-        evaluator["protocol_version"] = 2
+        evaluator["protocol_version"] = 1
         with self.assertRaisesRegex(ContractError, "protocol"):
+            validate_dependencies("pyvisa", instance, evaluator)
+
+        evaluator["protocol_version"] = 2
+        instance["evaluator"]["protocol_version"] = 1
+        with self.assertRaisesRegex(ContractError, "protocol"):
+            validate_dependencies("pyvisa", instance, evaluator)
+
+        evaluator["protocol_version"] = 1
+        with self.assertRaisesRegex(ContractError, "protocol"):
+            validate_dependencies("pyvisa", instance, evaluator)
+
+        instance["evaluator"]["protocol_version"] = 2
+        evaluator["protocol_version"] = 2
+        instance["container"]["protocol_version"] = 2
+        evaluator["container_protocol_version"] = 2
+        with self.assertRaisesRegex(ContractError, "container protocol"):
             validate_dependencies("pyvisa", instance, evaluator)
 
     def test_run_config_resolves_paths_relative_to_config(self) -> None:
@@ -460,6 +476,15 @@ class DistributedOrchestratorTests(unittest.TestCase):
             loaded = load_run_config(config)
             self.assertEqual(loaded.instance_checkout, (root / "instance").resolve())
             self.assertEqual(loaded.report_path, (root / "report.json").resolve())
+
+            config.write_text(
+                config.read_text().replace(
+                    "container_protocol_version: 1",
+                    "container_protocol_version: 2",
+                )
+            )
+            with self.assertRaisesRegex(ContractError, "container_protocol_version"):
+                load_run_config(config)
 
     def test_fake_evaluator_is_invoked_through_outer_container_runner(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
