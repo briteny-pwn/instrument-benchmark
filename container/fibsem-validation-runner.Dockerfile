@@ -4,10 +4,10 @@ ENV HOME=/tmp \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONHASHSEED=0
 
-COPY wheelhouse/pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl /build/pyyaml.whl
-RUN echo "b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d  /build/pyyaml.whl" \
+COPY wheelhouse/pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl /build/pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+RUN echo "b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d  /build/pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl" \
       | sha256sum --check --strict \
- && python -m pip install --no-index /build/pyyaml.whl \
+ && python -m pip install --no-index /build/pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl \
  && rm -rf /build /root/.cache
 
 COPY docker-cli/docker /usr/local/bin/docker

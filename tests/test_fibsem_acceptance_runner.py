@@ -11,6 +11,10 @@ RUNNER = ROOT / "scripts" / "run_fibsem_linux_acceptance.sh"
 
 def test_validation_runner_has_a_pinned_python_and_bounded_tools() -> None:
     text = DOCKERFILE.read_text(encoding="utf-8")
+    wheel = (
+        "pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64."
+        "manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+    )
 
     assert (
         "FROM python:3.11.9-slim-bookworm@sha256:"
@@ -20,6 +24,8 @@ def test_validation_runner_has_a_pinned_python_and_bounded_tools() -> None:
     assert "apt-get" not in text
     assert "COPY git" not in text
     assert "COPY wheelhouse/pyyaml-6.0.3-" in text
+    assert f"/build/{wheel}" in text
+    assert "/build/pyyaml.whl" not in text
     assert "python -m pip install --no-index" in text
     assert "COPY docker-cli/docker /usr/local/bin/docker" in text
     assert "242c7a8de606afba2acada7c7af00d77f92c3601678b2f3a60911b49a892c722" in text
