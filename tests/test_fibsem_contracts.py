@@ -133,15 +133,15 @@ def test_fibsem_request_carries_exact_evaluator_image_id() -> None:
     assert request["evaluator_image_id"] == image_id
 
 
-def test_report_v4_requires_source_ten_world_checkpoint_and_sibling_evidence() -> None:
+def test_report_v5_requires_breakdowns_reference_and_sibling_evidence() -> None:
     report = complete_report()
     validated = validate_evaluator_report(
         report,
         "openfibsem",
         "fibsem_liftout_v1",
-        expected_run_id="ignored-for-schema-v4",
+        expected_run_id="ignored-for-schema-v5",
     )
-    assert validated["schema_version"] == 4
+    assert validated["schema_version"] == 5
     assert validated["source_id"] == "openfibsem"
     assert len(validated["worlds"]) == 10
 
@@ -162,6 +162,20 @@ def test_report_v4_requires_source_ten_world_checkpoint_and_sibling_evidence() -
     broken = json.loads(json.dumps(report))
     broken["source_id"] = "pyvisa"
     with pytest.raises(ContractError, match="source_id|identity"):
+        validate_evaluator_report(
+            broken, "openfibsem", "fibsem_liftout_v1"
+        )
+
+    broken = json.loads(json.dumps(report))
+    broken["worlds"][0]["step_breakdowns"]["step_1"]["maximum_points"] = 25
+    with pytest.raises(ContractError, match="breakdown"):
+        validate_evaluator_report(
+            broken, "openfibsem", "fibsem_liftout_v1"
+        )
+
+    broken = json.loads(json.dumps(report))
+    broken["worlds"][0]["reference"]["bundle_sha256"] = "forged"
+    with pytest.raises(ContractError, match="reference"):
         validate_evaluator_report(
             broken, "openfibsem", "fibsem_liftout_v1"
         )
@@ -219,4 +233,7 @@ def test_trusted_checkpoint_bundles_are_published_beside_report(
     assert published["root"] == destination.name
     assert len(published["worlds"]) == 10
     assert (destination / "nominal" / "step_1" / "scene.glb").is_file()
+    assert not any(
+        "reference_artifacts" in path.parts for path in destination.rglob("*")
+    )
     assert not (destination / "nominal" / "step_1" / "scene.glb").stat().st_mode & 0o222

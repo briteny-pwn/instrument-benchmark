@@ -235,7 +235,7 @@ def validate_distributed_report(
     report_path: Path,
 ) -> dict[str, object]:
     if (
-        report.get("schema_version") != 4
+        report.get("schema_version") != 5
         or report.get("source_id") != "openfibsem"
         or report.get("evaluator_id") != "fibsem_liftout_v1"
         or report.get("openfibsem_commit") != OPENFIBSEM_COMMIT

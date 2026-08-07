@@ -274,7 +274,7 @@ def validate_visible_hashes(instance_root: Path, manifest: dict[str, Any]) -> No
 REPORT_SCHEMA_VERSIONS = {
     ("pyvisa", "pyvisa_dut_validation_v1"): 2,
     ("pyvisa", "pyvisa_dut_validation_v2"): 3,
-    ("openfibsem", "fibsem_liftout_v1"): 4,
+    ("openfibsem", "fibsem_liftout_v1"): 5,
 }
 
 
@@ -375,7 +375,7 @@ def _validate_fibsem_report(report: dict[str, Any]) -> None:
     if set(report) != required:
         raise ContractError("FIBSEM report fields are invalid")
     if (
-        report["schema_version"] != 4
+        report["schema_version"] != 5
         or report["source_id"] != "openfibsem"
         or report["evaluator_id"] != "fibsem_liftout_v1"
         or not _is_git_commit(report["openfibsem_commit"])
@@ -462,6 +462,8 @@ def _validate_fibsem_world(world: dict[str, Any], index: int) -> None:
         "retry_eligible",
         "step_scores",
         "artifact_score",
+        "step_breakdowns",
+        "reference",
         "strict_gates",
         "checkpoints",
         "partial_order",
@@ -504,6 +506,16 @@ def _validate_fibsem_world(world: dict[str, Any], index: int) -> None:
     }.items():
         _bounded_score(steps[step], f"FIBSEM {world_id}/{step}", maximum)
     _bounded_score(world.get("artifact_score"), f"FIBSEM {world_id}/artifacts", 10)
+    _validate_fibsem_step_breakdowns(
+        world.get("step_breakdowns"),
+        steps,
+        world_id,
+    )
+    _validate_fibsem_reference(
+        world.get("reference"),
+        world_id,
+        retry=bool(retry),
+    )
     checkpoints = world.get("checkpoints")
     checkpoint_order = ["step_1", "step_2", "step_3", "step_4"]
     if (
@@ -651,6 +663,151 @@ def _validate_fibsem_world(world: dict[str, Any], index: int) -> None:
         or trusted["forced_cleanup"]
     ):
         raise ContractError(f"FIBSEM strict world contradicts evidence: {world_id}")
+
+
+def _validate_fibsem_step_breakdowns(
+    value: Any,
+    step_scores: dict[str, Any],
+    world_id: str,
+) -> None:
+    maximums = {"step_1": 20.0, "step_2": 25.0, "step_3": 25.0, "step_4": 20.0}
+    if not isinstance(value, dict) or set(value) != set(maximums):
+        raise ContractError(f"FIBSEM step breakdowns are invalid: {world_id}")
+    for step, maximum in maximums.items():
+        breakdown = value[step]
+        if not isinstance(breakdown, dict) or set(breakdown) != {
+            "step_id",
+            "raw_score",
+            "final_score",
+            "maximum_points",
+            "criteria",
+            "cap",
+        }:
+            raise ContractError(f"FIBSEM breakdown fields are invalid: {world_id}/{step}")
+        if breakdown["step_id"] != step or breakdown["maximum_points"] != maximum:
+            raise ContractError(f"FIBSEM breakdown maximum is invalid: {world_id}/{step}")
+        _bounded_score(breakdown["raw_score"], f"FIBSEM raw {world_id}/{step}", maximum)
+        _bounded_score(breakdown["final_score"], f"FIBSEM final {world_id}/{step}", maximum)
+        if float(breakdown["final_score"]) != float(step_scores[step]):
+            raise ContractError(f"FIBSEM breakdown score disagrees: {world_id}/{step}")
+        criteria = breakdown["criteria"]
+        if not isinstance(criteria, dict):
+            raise ContractError(f"FIBSEM breakdown criteria are invalid: {world_id}/{step}")
+        point_sum = 0.0
+        maximum_sum = 0.0
+        for criterion_id, criterion in criteria.items():
+            if (
+                not isinstance(criterion_id, str)
+                or not isinstance(criterion, dict)
+                or set(criterion) != {
+                    "criterion_id",
+                    "points",
+                    "maximum_points",
+                    "metrics",
+                }
+                or criterion["criterion_id"] != criterion_id
+                or not isinstance(criterion["metrics"], dict)
+            ):
+                raise ContractError(
+                    f"FIBSEM breakdown criterion is invalid: {world_id}/{step}"
+                )
+            _bounded_score(
+                criterion["maximum_points"],
+                f"FIBSEM criterion maximum {world_id}/{step}/{criterion_id}",
+                maximum,
+            )
+            _bounded_score(
+                criterion["points"],
+                f"FIBSEM criterion {world_id}/{step}/{criterion_id}",
+                float(criterion["maximum_points"]),
+            )
+            point_sum += float(criterion["points"])
+            maximum_sum += float(criterion["maximum_points"])
+            for metric_name, metric in criterion["metrics"].items():
+                if not isinstance(metric_name, str):
+                    raise ContractError(
+                        f"FIBSEM criterion metric is invalid: {world_id}/{step}"
+                    )
+                if metric_name.endswith("sha256") and not _is_raw_sha256(metric):
+                    raise ContractError(
+                        f"FIBSEM criterion digest is invalid: {world_id}/{step}"
+                    )
+                if isinstance(metric, float) and (
+                    not math.isfinite(metric) or round(metric, 6) != metric
+                ):
+                    raise ContractError(
+                        f"FIBSEM criterion metric precision is invalid: {world_id}/{step}"
+                    )
+        if criteria and (
+            abs(point_sum - float(breakdown["raw_score"])) > 1e-6
+            or abs(maximum_sum - maximum) > 1e-6
+        ):
+            raise ContractError(f"FIBSEM breakdown criterion sum is invalid: {world_id}/{step}")
+        cap = breakdown["cap"]
+        if not isinstance(cap, dict) or set(cap) != {"maximum_points", "reasons"}:
+            raise ContractError(f"FIBSEM breakdown cap is invalid: {world_id}/{step}")
+        _bounded_score(
+            cap["maximum_points"], f"FIBSEM cap {world_id}/{step}", maximum
+        )
+        reasons = cap["reasons"]
+        if (
+            not isinstance(reasons, list)
+            or any(not isinstance(reason, str) or not reason for reason in reasons)
+            or reasons != sorted(set(reasons))
+        ):
+            raise ContractError(f"FIBSEM breakdown cap reasons are invalid: {world_id}/{step}")
+        expected_final = min(float(breakdown["raw_score"]), float(cap["maximum_points"]))
+        if abs(float(breakdown["final_score"]) - expected_final) > 1e-6:
+            raise ContractError(f"FIBSEM breakdown cap is inconsistent: {world_id}/{step}")
+
+
+def _validate_fibsem_reference(value: Any, world_id: str, *, retry: bool) -> None:
+    if value is None and retry:
+        return
+    fields = {
+        "schema_version",
+        "source_id",
+        "evaluator_id",
+        "scenario_id",
+        "scenario_sha256",
+        "openfibsem_commit",
+        "evaluator_commit",
+        "generator_tree_sha256",
+        "reference_solution_sha256",
+        "mesh_parser_version",
+        "algorithm_version",
+        "parameter_sha256",
+        "bundle_sha256",
+        "file_sha256",
+    }
+    if not isinstance(value, dict) or set(value) != fields:
+        raise ContractError(f"FIBSEM reference is invalid: {world_id}")
+    if (
+        value["schema_version"] != 1
+        or value["source_id"] != "openfibsem"
+        or value["evaluator_id"] != "fibsem_liftout_v1"
+        or value["scenario_id"] != world_id
+        or value["openfibsem_commit"] != "2ebccb8b9721234ca66bb94de36d0f7cfe047af9"
+        or not _is_git_commit(value["evaluator_commit"])
+        or value["mesh_parser_version"] != "canonical-stl-v1"
+        or value["algorithm_version"] != "stl-shape-v1"
+        or any(
+            not _is_raw_sha256(value[name])
+            for name in (
+                "scenario_sha256",
+                "generator_tree_sha256",
+                "reference_solution_sha256",
+                "parameter_sha256",
+                "bundle_sha256",
+            )
+        )
+        or not isinstance(value["file_sha256"], dict)
+        or any(
+            not isinstance(name, str) or not _is_raw_sha256(digest)
+            for name, digest in value["file_sha256"].items()
+        )
+    ):
+        raise ContractError(f"FIBSEM reference identity is invalid: {world_id}")
 
 
 def _nullable_score(value: Any, name: str, *, nullable: bool) -> None:
