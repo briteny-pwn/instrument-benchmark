@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -27,6 +28,10 @@ EXPECTED_IDENTITIES = {
     ("pyvisa", "pyvisa_dut_validation_v1"): 2,
     ("pyvisa", "pyvisa_dut_validation_v2"): 3,
 }
+EPHEMERAL_MOUNT_SOURCE = re.compile(
+    rf"^{re.escape(str(Path(tempfile.gettempdir()).resolve()))}"
+    r"/iab-[^/]+/w-[^/]+(?P<suffix>/(?:runner|workspace))?$"
+)
 
 
 def run_command(
@@ -75,9 +80,12 @@ def semantic_projection(value: Any) -> Any:
             ):
                 mounts = [
                     {
-                        mount_key: semantic_projection(mount_value)
+                        mount_key: (
+                            _semantic_mount_source(mount_value)
+                            if mount_key == "source"
+                            else semantic_projection(mount_value)
+                        )
                         for mount_key, mount_value in mount.items()
-                        if mount_key != "source"
                     }
                     for mount in item
                 ]
@@ -93,6 +101,15 @@ def semantic_projection(value: Any) -> Any:
     if isinstance(value, list):
         return [semantic_projection(item) for item in value]
     return value
+
+
+def _semantic_mount_source(value: Any) -> Any:
+    if not isinstance(value, str):
+        return semantic_projection(value)
+    match = EPHEMERAL_MOUNT_SOURCE.fullmatch(value)
+    if match is None:
+        return value
+    return f"<iab-run>/<world>{match.group('suffix') or ''}"
 
 
 def main(argv: list[str] | None = None) -> int:
