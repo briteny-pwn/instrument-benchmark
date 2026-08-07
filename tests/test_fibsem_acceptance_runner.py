@@ -94,9 +94,9 @@ def test_fibsem_validator_defaults_to_source_grouped_config_and_rejects_cross_so
     )
 
 
-def test_fibsem_validator_requires_source_aware_report_v4(tmp_path: Path) -> None:
+def test_fibsem_validator_requires_source_aware_report_v5(tmp_path: Path) -> None:
     report = {
-        "schema_version": 4,
+        "schema_version": 5,
         "source_id": "openfibsem",
         "evaluator_id": "fibsem_liftout_v1",
         "openfibsem_commit": OPENFIBSEM_COMMIT,
@@ -109,11 +109,11 @@ def test_fibsem_validator_requires_source_aware_report_v4(tmp_path: Path) -> Non
     with pytest.raises(ValidationError, match="provenance"):
         validate_distributed_report(report, report_path=tmp_path / "report.json")
 
-    report["schema_version"] = 3
+    report["schema_version"] = 4
     with pytest.raises(ValidationError, match="strict score-100"):
         validate_distributed_report(report, report_path=tmp_path / "report.json")
 
-    report["schema_version"] = 4
+    report["schema_version"] = 5
     report["source_id"] = "pyvisa"
     with pytest.raises(ValidationError, match="strict score-100"):
         validate_distributed_report(report, report_path=tmp_path / "report.json")
