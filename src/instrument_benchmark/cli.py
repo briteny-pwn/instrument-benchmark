@@ -14,6 +14,22 @@ from .suite import load_suite_config, run_suite
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _normalize_legacy_args(command_line: list[str]) -> list[str]:
+    if not command_line or command_line[0] == "run":
+        return command_line
+
+    for index, argument in enumerate(command_line):
+        if not argument.startswith("-"):
+            return [
+                "run",
+                "--config",
+                argument,
+                *command_line[:index],
+                *command_line[index + 1 :],
+            ]
+    return command_line
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="instrbench")
     subcommands = parser.add_subparsers(dest="command", required=True)
@@ -23,9 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     target.add_argument("--suite", type=Path)
     run.add_argument("--allow-dirty", action="store_true")
 
-    command_line = list(sys.argv[1:] if argv is None else argv)
-    if command_line and command_line[0] != "run" and not command_line[0].startswith("-"):
-        command_line = ["run", "--config", command_line[0], *command_line[1:]]
+    command_line = _normalize_legacy_args(list(sys.argv[1:] if argv is None else argv))
     arguments = parser.parse_args(command_line)
     try:
         repository_paths = load_repository_paths(ROOT)

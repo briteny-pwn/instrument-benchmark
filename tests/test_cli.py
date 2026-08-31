@@ -141,6 +141,39 @@ def test_cli_run_config_propagates_allow_dirty(tmp_path: Path, capsys) -> None:
     }
 
 
+def test_cli_legacy_config_accepts_leading_allow_dirty(tmp_path: Path, capsys) -> None:
+    config_path = tmp_path / "run.yaml"
+    repositories = RepositoryPaths(tmp_path / "instances", tmp_path / "evaluator")
+    report_path = tmp_path / "report.json"
+
+    with (
+        patch.object(cli, "ROOT", tmp_path),
+        patch.object(cli, "load_repository_paths", return_value=repositories),
+        patch.object(
+            cli, "run_benchmark", return_value={"score": 50, "strict_pass": False}
+        ) as runner,
+        patch.object(
+            cli,
+            "load_run_config",
+            return_value=SimpleNamespace(report_path=report_path),
+        ),
+    ):
+        result = cli.main(["--allow-dirty", str(config_path)])
+
+    assert result == 0
+    runner.assert_called_once_with(
+        config_path,
+        instrument_checkout=tmp_path,
+        repository_paths=repositories,
+        allow_dirty=True,
+    )
+    assert json.loads(capsys.readouterr().out) == {
+        "report": str(report_path),
+        "score": 50,
+        "strict_pass": False,
+    }
+
+
 def test_cli_returns_contract_error_status(tmp_path: Path, capsys) -> None:
     config_path = tmp_path / "run.yaml"
 
