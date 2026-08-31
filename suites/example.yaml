@@ -1,0 +1,6 @@
+schema_version: 1
+suite_id: example
+runs:
+  - ../configs/pyvisa/pyvisa_dut_validation_v1.yaml
+  - ../configs/pyvisa/pyvisa_dut_validation_v2.yaml
+result_path: ../reports/suites/example.json

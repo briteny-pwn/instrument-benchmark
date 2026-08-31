@@ -11,10 +11,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from instrument_benchmark.contracts import ContractError  # noqa: E402
+from instrument_benchmark import cli  # noqa: E402
+from instrument_benchmark.environment import RepositoryPaths  # noqa: E402
 from instrument_benchmark.repository_layout import (  # noqa: E402
     resolve_evaluator_leaf,
     resolve_instance_leaf,
 )
+from instrument_benchmark.suite import load_suite_config, run_suite  # noqa: E402
 
 
 def _write_source(
@@ -268,6 +271,82 @@ def test_rejects_source_and_leaf_manifest_identity_mismatches(
     leaf_manifest.write_text(yaml.safe_dump(leaf_value))
     with pytest.raises(ContractError, match="leaf manifest identity"):
         resolve_instance_leaf(leaf_source_checkout, "pyvisa", "leaf")
+
+
+def _example_suite_repositories(tmp_path: Path) -> RepositoryPaths:
+    instances = tmp_path / "instances"
+    evaluator = tmp_path / "evaluator"
+    instances.mkdir()
+    for version in ("v1", "v2"):
+        candidate = (
+            evaluator
+            / "sources"
+            / "pyvisa"
+            / f"pyvisa_dut_validation_{version}"
+            / "reference"
+            / "solution.py"
+        )
+        candidate.parent.mkdir(parents=True, exist_ok=True)
+        candidate.write_text("pass\n", encoding="utf-8")
+    return RepositoryPaths(instances, evaluator)
+
+
+def test_example_suite_contract_and_readme_command(tmp_path: Path) -> None:
+    suite = load_suite_config(
+        ROOT / "suites" / "example.yaml", _example_suite_repositories(tmp_path)
+    )
+
+    assert [entry.config_path for entry in suite.entries] == [
+        (ROOT / "configs/pyvisa/pyvisa_dut_validation_v1.yaml").resolve(),
+        (ROOT / "configs/pyvisa/pyvisa_dut_validation_v2.yaml").resolve(),
+    ]
+    assert suite.result_path == (ROOT / "reports/suites/example.json").resolve()
+    assert "instrbench run --suite suites/example.yaml" in (
+        ROOT / "README.md"
+    ).read_text(encoding="utf-8")
+
+
+def test_example_suite_runs_through_public_cli_in_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    repositories = _example_suite_repositories(tmp_path)
+    calls: list[Path] = []
+    executions = []
+
+    def benchmark_runner(config_path: Path, **_: object) -> dict[str, object]:
+        calls.append(config_path)
+        return {"score": 100.0, "strict_pass": True}
+
+    def deterministic_run_suite(*args: object, **kwargs: object):
+        execution = run_suite(
+            *args,
+            **kwargs,
+            benchmark_runner=benchmark_runner,
+        )
+        executions.append(execution)
+        return execution
+
+    monkeypatch.setattr(cli, "load_repository_paths", lambda _: repositories)
+    monkeypatch.setattr(cli, "run_suite", deterministic_run_suite)
+    suite_path = ROOT / "suites" / "example.yaml"
+    result_path = ROOT / "reports/suites/example.json"
+    try:
+        assert cli.main(["run", "--suite", str(suite_path), "--allow-dirty"]) == 0
+
+        suite = load_suite_config(suite_path, repositories)
+        report = yaml.safe_load(result_path.read_text(encoding="utf-8"))
+        assert calls == [entry.config_path for entry in suite.entries]
+        assert [run["run_id"] for run in report["runs"]] == [
+            "pyvisa-dut-validation-reference",
+            "pyvisa-dut-validation-v2-reference",
+        ]
+        assert [run["report_path"] for run in report["runs"]] == [
+            str(entry.config.report_path) for entry in suite.entries
+        ]
+        assert report == executions[0].report
+        assert yaml.safe_load(capsys.readouterr().out)["report"] == str(result_path)
+    finally:
+        result_path.unlink(missing_ok=True)
 
 
 def test_rejects_legacy_flat_instance_and_evaluator_layouts(
