@@ -3,12 +3,13 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import yaml
 
-from .contracts import ContractError, RunConfig, load_run_config
+from .contracts import ContractError, RunConfig, dump_json, load_run_config
 from .environment import RepositoryPaths
+from .orchestrator import run_benchmark
 
 
 _IDENTIFIER = re.compile(r"[a-z][a-z0-9_-]*")
@@ -27,6 +28,15 @@ class SuiteConfig:
     suite_path: Path
     entries: tuple[SuiteEntry, ...]
     result_path: Path
+
+
+BenchmarkRunner = Callable[..., dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class SuiteExecution:
+    report: dict[str, Any]
+    has_infrastructure_failures: bool
 
 
 def load_suite_config(path: Path, repository_paths: RepositoryPaths) -> SuiteConfig:
@@ -65,6 +75,81 @@ def load_suite_config(path: Path, repository_paths: RepositoryPaths) -> SuiteCon
         suite_path=suite_path,
         entries=entries,
         result_path=result_path,
+    )
+
+
+def run_suite(
+    config: SuiteConfig,
+    *,
+    instrument_checkout: Path,
+    repository_paths: RepositoryPaths,
+    allow_dirty: bool = False,
+    benchmark_runner: BenchmarkRunner = run_benchmark,
+) -> SuiteExecution:
+    runs: list[dict[str, Any]] = []
+    infrastructure_failures = 0
+
+    for index, entry in enumerate(config.entries):
+        run = {
+            "index": index,
+            "config_path": str(entry.config_path),
+            "run_id": entry.config.run_id,
+            "source_id": entry.config.source_id,
+            "instance_id": entry.config.instance_id,
+            "evaluator_id": entry.config.evaluator_id,
+            "report_path": str(entry.config.report_path),
+        }
+        try:
+            result = benchmark_runner(
+                entry.config_path,
+                instrument_checkout=instrument_checkout,
+                repository_paths=repository_paths,
+                allow_dirty=allow_dirty,
+            )
+        except Exception as exc:
+            infrastructure_failures += 1
+            runs.append(
+                {
+                    **run,
+                    "status": "infrastructure_error",
+                    "score": None,
+                    "strict_pass": None,
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+        else:
+            runs.append(
+                {
+                    **run,
+                    "status": "completed",
+                    "score": result["score"],
+                    "strict_pass": result["strict_pass"],
+                    "error": None,
+                }
+            )
+
+    completed = len(runs) - infrastructure_failures
+    strict_passed = sum(
+        run["status"] == "completed" and run["strict_pass"] is True
+        for run in runs
+    )
+    report = {
+        "schema_version": 1,
+        "suite_id": config.suite_id,
+        "suite_path": str(config.suite_path),
+        "runs": runs,
+        "summary": {
+            "total": len(runs),
+            "completed": completed,
+            "infrastructure_failed": infrastructure_failures,
+            "strict_passed": strict_passed,
+            "strict_pass": completed == len(runs) and strict_passed == len(runs),
+        },
+    }
+    dump_json(config.result_path, report)
+    return SuiteExecution(
+        report=report,
+        has_infrastructure_failures=bool(infrastructure_failures),
     )
 
 
