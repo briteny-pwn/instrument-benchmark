@@ -168,5 +168,5 @@ PYTHONPATH=src python scripts/validate_distributed_benchmark.py \
 ```
 
 The PyVISA v1 and v2 top-level reports are schema versions 2 and 3,
-respectively; the OpenFIBSEM report is schema version 4. All require the
+respectively; the OpenFIBSEM report is schema version 5. All require the
 configured `source_id`.

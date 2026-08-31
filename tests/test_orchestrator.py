@@ -554,7 +554,12 @@ class DistributedOrchestratorTests(unittest.TestCase):
                     "dirty": False,
                 }
             )
+            builder = FakeBuilder()
             with (
+                patch(
+                    "instrument_benchmark.orchestrator.EvaluatorImageBuilder",
+                    return_value=builder,
+                ) as builder_type,
                 patch(
                     "instrument_benchmark.orchestrator.repository_provenance",
                     return_value=provenance,
@@ -571,10 +576,12 @@ class DistributedOrchestratorTests(unittest.TestCase):
                     config,
                     instrument_checkout=instrument,
                     repository_paths=self.repository_paths(instance, evaluator),
-                    image_builder_factory=FakeBuilder,
                     runner_factory=FakeRunner,
                 )
 
+            builder_type.assert_called_once_with(
+                assets_root=evaluator.resolve() / "container"
+            )
             self.assertEqual(seen["evaluator_image_id"], image_id)
             self.assertEqual(seen["protocol_version"], 2)
             self.assertEqual(seen["source_id"], "pyvisa")

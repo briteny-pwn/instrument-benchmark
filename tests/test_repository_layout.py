@@ -89,13 +89,10 @@ def test_instrument_repository_does_not_own_evaluator_container_assets() -> None
     assert not (ROOT / "container").exists()
 
 
-def test_orchestrator_selects_container_assets_from_evaluator_repository() -> None:
-    source = (ROOT / "src/instrument_benchmark/orchestrator.py").read_text(
-        encoding="utf-8"
-    )
+def test_readme_publishes_the_current_openfibsem_report_schema() -> None:
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert 'assets_root = config.evaluator_repo_path / "container"' in source
-    assert 'Path(__file__).resolve().parents[2] / "container"' not in source
+    assert "OpenFIBSEM report is schema version 5" in text
 
 
 def test_duplicate_leaf_ids_resolve_only_within_requested_source(
