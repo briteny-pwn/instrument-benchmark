@@ -153,6 +153,24 @@ def test_suite_rejects_missing_run_file(tmp_path: Path) -> None:
         load_suite_config(suite_path, repositories)
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        _suite_value("bad\0run.yaml"),
+        _suite_value("run.yaml", result_path="results/bad\0result.json"),
+    ],
+)
+def test_suite_converts_nul_path_resolution_errors_to_contract_errors(
+    tmp_path: Path, value: object
+) -> None:
+    repositories, _, _ = suite_fixture(tmp_path)
+    _write_run(tmp_path / "suite" / "run.yaml", repositories, run_id="run")
+    suite_path = _write_suite(tmp_path / "suite" / "example.yaml", value)
+
+    with pytest.raises(ContractError, match="cannot resolve suite path"):
+        load_suite_config(suite_path, repositories)
+
+
 def test_suite_rejects_duplicate_resolved_run_paths_including_symlink_aliases(
     tmp_path: Path,
 ) -> None:

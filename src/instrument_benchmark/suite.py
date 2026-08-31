@@ -33,7 +33,7 @@ def load_suite_config(path: Path, repository_paths: RepositoryPaths) -> SuiteCon
     try:
         suite_path = path.resolve()
         value = yaml.safe_load(suite_path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as exc:
+    except (OSError, RuntimeError, ValueError, yaml.YAMLError) as exc:
         raise ContractError(f"cannot load suite config: {exc}") from exc
     _validate_contract(value)
 
@@ -92,5 +92,5 @@ def _resolve(root: Path, path: str) -> Path:
         if Path(path).is_absolute():
             return Path(path).resolve()
         return (root / path).resolve()
-    except OSError as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
         raise ContractError(f"cannot resolve suite path: {exc}") from exc
