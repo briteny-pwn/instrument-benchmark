@@ -69,6 +69,13 @@ def load_suite_config(path: Path, repository_paths: RepositoryPaths) -> SuiteCon
     result_path = _resolve(root, value["result_path"])
     if result_path in report_paths:
         raise ContractError("suite result_path collides with a run report_path")
+    input_paths = {suite_path, *run_paths}
+    output_paths = {result_path, *report_paths}
+    collisions = input_paths & output_paths
+    if collisions:
+        raise ContractError(
+            f"suite input/output path collision: {sorted(collisions)[0]}"
+        )
     return SuiteConfig(
         schema_version=1,
         suite_id=value["suite_id"],

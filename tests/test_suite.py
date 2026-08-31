@@ -336,3 +336,68 @@ def test_suite_rejects_result_collision_with_per_run_report(tmp_path: Path) -> N
 
     with pytest.raises(ContractError, match="suite result_path collides"):
         load_suite_config(suite_path, repositories)
+
+
+def test_suite_rejects_result_path_that_overwrites_a_run_config(
+    tmp_path: Path,
+) -> None:
+    repositories, first, second = suite_fixture(tmp_path)
+    suite_path = _write_suite(
+        tmp_path / "suite" / "example.yaml",
+        _suite_value(str(first), str(second), result_path=str(first)),
+    )
+
+    with pytest.raises(ContractError, match="input/output path collision"):
+        load_suite_config(suite_path, repositories)
+
+
+def test_suite_rejects_report_path_that_overwrites_a_later_run_config(
+    tmp_path: Path,
+) -> None:
+    repositories, first, second = suite_fixture(tmp_path)
+    first_value = yaml.safe_load(first.read_text(encoding="utf-8"))
+    first_value["report_path"] = str(second)
+    first.write_text(yaml.safe_dump(first_value, sort_keys=False), encoding="utf-8")
+    suite_path = _write_suite(
+        tmp_path / "suite" / "example.yaml", _suite_value(str(first), str(second))
+    )
+
+    with pytest.raises(ContractError, match="input/output path collision"):
+        load_suite_config(suite_path, repositories)
+
+
+@pytest.mark.parametrize("output_field", ["result_path", "report_path"])
+def test_suite_rejects_outputs_that_overwrite_the_suite_config(
+    tmp_path: Path, output_field: str
+) -> None:
+    repositories, first, _ = suite_fixture(tmp_path)
+    suite_path = tmp_path / "suite" / "example.yaml"
+    if output_field == "report_path":
+        first_value = yaml.safe_load(first.read_text(encoding="utf-8"))
+        first_value["report_path"] = str(suite_path)
+        first.write_text(
+            yaml.safe_dump(first_value, sort_keys=False), encoding="utf-8"
+        )
+    suite_value = _suite_value(str(first))
+    if output_field == "result_path":
+        suite_value["result_path"] = "example.yaml"
+    _write_suite(suite_path, suite_value)
+
+    with pytest.raises(ContractError, match="input/output path collision"):
+        load_suite_config(suite_path, repositories)
+
+
+def test_suite_rejects_symlink_result_path_alias_for_a_run_config(
+    tmp_path: Path,
+) -> None:
+    repositories, first, _ = suite_fixture(tmp_path)
+    alias = tmp_path / "suite" / "result-alias.yaml"
+    alias.parent.mkdir()
+    alias.symlink_to(first)
+    suite_path = _write_suite(
+        tmp_path / "suite" / "example.yaml",
+        _suite_value(str(first), result_path="result-alias.yaml"),
+    )
+
+    with pytest.raises(ContractError, match="input/output path collision"):
+        load_suite_config(suite_path, repositories)
