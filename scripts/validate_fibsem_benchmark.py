@@ -23,6 +23,7 @@ if str(SOURCE) not in sys.path:
     sys.path.insert(0, str(SOURCE))
 
 from instrument_benchmark.contracts import dump_json, load_run_config
+from instrument_benchmark.environment import RepositoryPaths, load_repository_paths
 from instrument_benchmark.orchestrator import run_benchmark
 
 
@@ -368,14 +369,17 @@ def validate_distributed_report(
     return projection
 
 
-def _repeat_config(source_path: Path, destination: Path, report_path: Path) -> None:
-    config = load_run_config(source_path)
+def _repeat_config(
+    source_path: Path,
+    destination: Path,
+    report_path: Path,
+    repository_paths: RepositoryPaths,
+) -> None:
+    config = load_run_config(source_path, repository_paths)
     value = yaml.safe_load(source_path.read_text(encoding="utf-8"))
     value.update(
         {
             "run_id": f"{config.run_id}-repeat",
-            "instance_checkout": str(config.instance_checkout),
-            "evaluator_checkout": str(config.evaluator_checkout),
             "candidate_path": str(config.candidate_path),
             "report_path": str(report_path),
             "openfibsem_checkout": str(config.openfibsem_checkout),
@@ -410,7 +414,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--allow-dirty", action="store_true")
     arguments = parser.parse_args(argv)
     config_path = arguments.config.resolve()
-    config = load_run_config(config_path)
+    repository_paths = load_repository_paths(ROOT)
+    config = load_run_config(config_path, repository_paths)
     if (config.source_id, config.evaluator_id) != (
         "openfibsem",
         "fibsem_liftout_v1",
@@ -424,6 +429,7 @@ def main(argv: list[str] | None = None) -> int:
     first = run_benchmark(
         config_path,
         instrument_checkout=ROOT,
+        repository_paths=repository_paths,
         allow_dirty=arguments.allow_dirty,
     )
     first_projection = validate_distributed_report(first, report_path=config.report_path)
@@ -431,10 +437,16 @@ def main(argv: list[str] | None = None) -> int:
         temporary = Path(directory)
         repeat_config = temporary / "config.yaml"
         repeat_report = temporary / "report.json"
-        _repeat_config(config_path, repeat_config, repeat_report)
+        _repeat_config(
+            config_path,
+            repeat_config,
+            repeat_report,
+            repository_paths,
+        )
         second = run_benchmark(
             repeat_config,
             instrument_checkout=ROOT,
+            repository_paths=repository_paths,
             allow_dirty=arguments.allow_dirty,
         )
         second_projection = validate_distributed_report(

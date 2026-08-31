@@ -9,9 +9,12 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
+
+if TYPE_CHECKING:
+    from .environment import RepositoryPaths
 
 
 class ContractError(ValueError):
@@ -44,9 +47,9 @@ class RunConfig:
     schema_version: int
     run_id: str
     source_id: str
-    instance_checkout: Path
+    instances_repo_path: Path
     instance_id: str
-    evaluator_checkout: Path
+    evaluator_repo_path: Path
     evaluator_id: str
     candidate_path: Path
     report_path: Path
@@ -78,7 +81,7 @@ class RepositoryProvenance:
         }
 
 
-def load_run_config(path: Path) -> RunConfig:
+def load_run_config(path: Path, repository_paths: RepositoryPaths) -> RunConfig:
     path = path.resolve()
     try:
         value = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -88,9 +91,7 @@ def load_run_config(path: Path) -> RunConfig:
         "schema_version",
         "run_id",
         "source_id",
-        "instance_checkout",
         "instance_id",
-        "evaluator_checkout",
         "evaluator_id",
         "candidate_path",
         "report_path",
@@ -103,7 +104,7 @@ def load_run_config(path: Path) -> RunConfig:
     }
     optional_openfibsem = {"openfibsem_checkout", "openfibsem_commit"}
     if not isinstance(value, dict):
-        raise ContractError("run config fields do not match schema version 2")
+        raise ContractError("run config fields do not match schema version 3")
     is_fibsem = (
         value.get("source_id") == "openfibsem"
         and value.get("evaluator_id") == "fibsem_liftout_v1"
@@ -117,19 +118,22 @@ def load_run_config(path: Path) -> RunConfig:
         raise ContractError("OpenFIBSEM fields are only valid for FIBSEM")
     expected = required | (optional_openfibsem if is_fibsem else set())
     if set(value) != expected:
-        raise ContractError("run config fields do not match schema version 2")
-    if value["schema_version"] != 2:
+        raise ContractError("run config fields do not match schema version 3")
+    if value["schema_version"] != 3:
         raise ContractError("unsupported run config schema_version")
     source_id = _identifier(value["source_id"], "source_id")
     instance_id = _identifier(value["instance_id"], "instance_id")
     evaluator_id = _identifier(value["evaluator_id"], "evaluator_id")
     root = path.parent
-    instance = _resolve(root, value["instance_checkout"])
-    evaluator = _resolve(root, value["evaluator_checkout"])
-    candidate = _resolve(root, value["candidate_path"])
+    instances_repo_path = repository_paths.instances_repo_path.resolve()
+    evaluator_repo_path = repository_paths.evaluator_repo_path.resolve()
+    if not instances_repo_path.is_dir() or not evaluator_repo_path.is_dir():
+        raise ContractError("instance/evaluator repository path must be a directory")
+    candidate = _resolve_candidate(
+        evaluator_repo_path,
+        value["candidate_path"],
+    )
     report = _resolve(root, value["report_path"], must_exist=False)
-    if not instance.is_dir() or not evaluator.is_dir():
-        raise ContractError("instance/evaluator checkout must be a directory")
     if not candidate.is_file():
         raise ContractError("candidate_path must be a file")
     openfibsem: Path | None = None
@@ -148,12 +152,12 @@ def load_run_config(path: Path) -> RunConfig:
         value["container_protocol_version"], 1, "container_protocol_version"
     )
     return RunConfig(
-        schema_version=2,
+        schema_version=3,
         run_id=_non_empty(value["run_id"], "run_id"),
         source_id=source_id,
-        instance_checkout=instance,
+        instances_repo_path=instances_repo_path,
         instance_id=instance_id,
-        evaluator_checkout=evaluator,
+        evaluator_repo_path=evaluator_repo_path,
         evaluator_id=evaluator_id,
         candidate_path=candidate,
         report_path=report,
@@ -1601,6 +1605,22 @@ def _resolve(root: Path, raw: Any, *, must_exist: bool = True) -> Path:
     resolved = path.resolve() if path.is_absolute() else (root / path).resolve()
     if must_exist and not resolved.exists():
         raise ContractError(f"path does not exist: {resolved}")
+    return resolved
+
+
+def _resolve_candidate(evaluator_repo_path: Path, raw: Any) -> Path:
+    if not isinstance(raw, str) or not raw:
+        raise ContractError("candidate_path must be a non-empty string")
+    path = Path(raw)
+    if path.is_absolute():
+        return path.resolve()
+    resolved = (evaluator_repo_path / path).resolve()
+    try:
+        resolved.relative_to(evaluator_repo_path)
+    except ValueError as exc:
+        raise ContractError(
+            "relative candidate_path must remain inside the evaluator repository"
+        ) from exc
     return resolved
 
 

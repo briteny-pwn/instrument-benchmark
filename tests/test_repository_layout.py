@@ -59,29 +59,29 @@ def _write_source(
 def test_resolves_instance_and_evaluator_from_strict_source_tree(
     tmp_path: Path,
 ) -> None:
-    instance_checkout = tmp_path / "instance"
-    evaluator_checkout = tmp_path / "evaluator"
-    _write_source(instance_checkout, "openfibsem", ["fibsem_liftout_v1"])
+    instances_repo_path = tmp_path / "instance"
+    evaluator_repo_path = tmp_path / "evaluator"
+    _write_source(instances_repo_path, "openfibsem", ["fibsem_liftout_v1"])
     _write_source(
-        evaluator_checkout,
+        evaluator_repo_path,
         "pyvisa",
         ["pyvisa_dut_validation_v2"],
         kind="evaluators",
     )
 
     instance = resolve_instance_leaf(
-        instance_checkout, "openfibsem", "fibsem_liftout_v1"
+        instances_repo_path, "openfibsem", "fibsem_liftout_v1"
     )
     assert instance.root == (
-        instance_checkout / "sources/openfibsem/fibsem_liftout_v1"
+        instances_repo_path / "sources/openfibsem/fibsem_liftout_v1"
     )
     assert instance.source_manifest["instances"] == ["fibsem_liftout_v1"]
 
     evaluator = resolve_evaluator_leaf(
-        evaluator_checkout, "pyvisa", "pyvisa_dut_validation_v2"
+        evaluator_repo_path, "pyvisa", "pyvisa_dut_validation_v2"
     )
     assert evaluator.root == (
-        evaluator_checkout / "sources/pyvisa/pyvisa_dut_validation_v2"
+        evaluator_repo_path / "sources/pyvisa/pyvisa_dut_validation_v2"
     )
 
 
@@ -263,16 +263,16 @@ def test_rejects_source_and_leaf_manifest_identity_mismatches(
 def test_rejects_legacy_flat_instance_and_evaluator_layouts(
     tmp_path: Path,
 ) -> None:
-    instance_checkout = tmp_path / "instance"
-    _write_source(instance_checkout, "pyvisa", ["leaf"])
-    legacy_leaf = instance_checkout / "legacy_leaf"
+    instances_repo_path = tmp_path / "instance"
+    _write_source(instances_repo_path, "pyvisa", ["leaf"])
+    legacy_leaf = instances_repo_path / "legacy_leaf"
     legacy_leaf.mkdir()
     (legacy_leaf / "instance.yaml").write_text("instance_id: legacy_leaf\n")
     with pytest.raises(ContractError, match="legacy flat"):
-        resolve_instance_leaf(instance_checkout, "pyvisa", "leaf")
+        resolve_instance_leaf(instances_repo_path, "pyvisa", "leaf")
 
-    evaluator_checkout = tmp_path / "evaluator"
-    _write_source(evaluator_checkout, "pyvisa", ["leaf"], kind="evaluators")
-    (evaluator_checkout / "evaluators").mkdir()
+    evaluator_repo_path = tmp_path / "evaluator"
+    _write_source(evaluator_repo_path, "pyvisa", ["leaf"], kind="evaluators")
+    (evaluator_repo_path / "evaluators").mkdir()
     with pytest.raises(ContractError, match="legacy evaluators"):
-        resolve_evaluator_leaf(evaluator_checkout, "pyvisa", "leaf")
+        resolve_evaluator_leaf(evaluator_repo_path, "pyvisa", "leaf")

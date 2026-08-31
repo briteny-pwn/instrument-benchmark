@@ -33,10 +33,18 @@ from instrument_benchmark.evaluator_runtime import (  # noqa: E402
     EvaluatorContainerEvidence,
     EvaluatorContainerResult,
 )
+from instrument_benchmark.environment import RepositoryPaths  # noqa: E402
 from scripts.validate_distributed_benchmark import semantic_projection  # noqa: E402
 
 
 class DistributedOrchestratorTests(unittest.TestCase):
+    @staticmethod
+    def repository_paths(instance: Path, evaluator: Path) -> RepositoryPaths:
+        return RepositoryPaths(
+            instances_repo_path=instance.resolve(),
+            evaluator_repo_path=evaluator.resolve(),
+        )
+
     def write_source_registry(
         self, checkout: Path, source_id: str, key: str, leaf_ids: list[str]
     ) -> Path:
@@ -116,21 +124,19 @@ class DistributedOrchestratorTests(unittest.TestCase):
         )
         return leaf
 
-    def test_run_config_requires_schema_v2_and_source_id_before_git(self) -> None:
+    def test_run_config_requires_schema_v3_and_source_id_before_git(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ("instance", "evaluator"):
                 (root / name).mkdir()
             (root / "solution.py").write_text("pass\n")
             base = {
-                "schema_version": 2,
+                "schema_version": 3,
                 "run_id": "run",
                 "source_id": "pyvisa",
-                "instance_checkout": "instance",
                 "instance_id": "pyvisa_dut_validation_v1",
-                "evaluator_checkout": "evaluator",
                 "evaluator_id": "pyvisa_dut_validation_v1",
-                "candidate_path": "solution.py",
+                "candidate_path": str(root / "solution.py"),
                 "report_path": "report.json",
                 "timeout_seconds": 30,
                 "max_output_bytes": 65536,
@@ -140,6 +146,7 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 "image_mode": "locked",
             }
             config = root / "run.yaml"
+            repositories = self.repository_paths(root / "instance", root / "evaluator")
 
             for mutate in (
                 lambda value: value.update(schema_version=1),
@@ -154,25 +161,23 @@ class DistributedOrchestratorTests(unittest.TestCase):
                     patch("instrument_benchmark.contracts.subprocess.run") as process,
                 ):
                     with self.assertRaises(ContractError):
-                        load_run_config(config)
+                        load_run_config(config, repositories)
                 git.assert_not_called()
                 process.assert_not_called()
 
-    def test_run_config_v2_validates_all_composite_identity_ids(self) -> None:
+    def test_run_config_v3_validates_all_composite_identity_ids(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ("instance", "evaluator"):
                 (root / name).mkdir()
             (root / "solution.py").write_text("pass\n")
             base = {
-                "schema_version": 2,
+                "schema_version": 3,
                 "run_id": "run",
                 "source_id": "pyvisa",
-                "instance_checkout": "instance",
                 "instance_id": "pyvisa_dut_validation_v1",
-                "evaluator_checkout": "evaluator",
                 "evaluator_id": "pyvisa_dut_validation_v1",
-                "candidate_path": "solution.py",
+                "candidate_path": str(root / "solution.py"),
                 "report_path": "report.json",
                 "timeout_seconds": 30,
                 "max_output_bytes": 65536,
@@ -182,24 +187,29 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 "image_mode": "locked",
             }
             config = root / "run.yaml"
+            repositories = self.repository_paths(root / "instance", root / "evaluator")
             for field in ("source_id", "instance_id", "evaluator_id"):
                 value = dict(base)
                 value[field] = "../escape"
                 config.write_text(yaml.safe_dump(value))
                 with self.assertRaisesRegex(ContractError, "invalid"):
-                    load_run_config(config)
+                    load_run_config(config, repositories)
 
             config.write_text(yaml.safe_dump(base))
-            loaded = load_run_config(config)
-            self.assertEqual(loaded.schema_version, 2)
+            loaded = load_run_config(config, repositories)
+            self.assertEqual(loaded.schema_version, 3)
             self.assertEqual(loaded.source_id, "pyvisa")
 
-    def test_run_json_schema_v2_uses_composite_fibsem_identity(self) -> None:
+    def test_run_json_schema_v3_uses_environment_repository_paths(self) -> None:
         schema = json.loads((ROOT / "schemas" / "run.schema.json").read_text())
         properties = schema["properties"]
 
-        self.assertEqual(properties["schema_version"], {"const": 2})
+        self.assertEqual(properties["schema_version"], {"const": 3})
         self.assertIn("source_id", schema["required"])
+        self.assertNotIn("instance_checkout", schema["required"])
+        self.assertNotIn("evaluator_checkout", schema["required"])
+        self.assertNotIn("instance_checkout", properties)
+        self.assertNotIn("evaluator_checkout", properties)
         for field in ("source_id", "instance_id", "evaluator_id"):
             self.assertEqual(
                 properties[field]["pattern"], "^[a-z][a-z0-9_-]*$"
@@ -222,24 +232,24 @@ class DistributedOrchestratorTests(unittest.TestCase):
         expected = {
             "pyvisa/pyvisa_dut_validation_v1.yaml": (
                 "pyvisa",
-                "../../../evaluator/sources/pyvisa/pyvisa_dut_validation_v1/reference/solution.py",
+                "sources/pyvisa/pyvisa_dut_validation_v1/reference/solution.py",
                 "../../reports/pyvisa/pyvisa_dut_validation_v1.json",
             ),
             "pyvisa/pyvisa_dut_validation_v2.yaml": (
                 "pyvisa",
-                "../../../evaluator/sources/pyvisa/pyvisa_dut_validation_v2/reference/solution.py",
+                "sources/pyvisa/pyvisa_dut_validation_v2/reference/solution.py",
                 "../../reports/pyvisa/pyvisa_dut_validation_v2.json",
             ),
             "openfibsem/fibsem_liftout_v1.yaml": (
                 "openfibsem",
-                "../../../evaluator/sources/openfibsem/fibsem_liftout_v1/reference/solution.py",
+                "sources/openfibsem/fibsem_liftout_v1/reference/solution.py",
                 "../../reports/openfibsem/fibsem_liftout_v1.json",
             ),
         }
         for relative, values in expected.items():
             with self.subTest(config=relative):
                 value = yaml.safe_load((ROOT / "configs" / relative).read_text())
-                self.assertEqual(value["schema_version"], 2)
+                self.assertEqual(value["schema_version"], 3)
                 self.assertEqual(
                     (
                         value["source_id"],
@@ -248,8 +258,8 @@ class DistributedOrchestratorTests(unittest.TestCase):
                     ),
                     values,
                 )
-                self.assertEqual(value["instance_checkout"], "../../../instance")
-                self.assertEqual(value["evaluator_checkout"], "../../../evaluator")
+                self.assertNotIn("instance_checkout", value)
+                self.assertNotIn("evaluator_checkout", value)
         tracked_report = subprocess.run(
             [
                 "git",
@@ -299,12 +309,12 @@ class DistributedOrchestratorTests(unittest.TestCase):
             candidate.write_text("pass\n")
 
             common = dict(
-                schema_version=2,
+                schema_version=3,
                 run_id="run",
                 source_id="pyvisa",
-                instance_checkout=root,
+                instances_repo_path=root,
                 instance_id="pyvisa_dut_validation_v1",
-                evaluator_checkout=evaluator,
+                evaluator_repo_path=evaluator,
                 evaluator_id="pyvisa_dut_validation_v1",
                 candidate_path=candidate,
                 report_path=root / "report.json",
@@ -470,12 +480,10 @@ class DistributedOrchestratorTests(unittest.TestCase):
             config.write_text(
                 "\n".join(
                     (
-                        "schema_version: 2",
+                        "schema_version: 3",
                         "run_id: run-v2",
                         "source_id: pyvisa",
-                        f"instance_checkout: {instance}",
                         "instance_id: pyvisa_dut_validation_v2",
-                        f"evaluator_checkout: {evaluator}",
                         "evaluator_id: pyvisa_dut_validation_v2",
                         f"candidate_path: {candidate}",
                         f"report_path: {report_path}",
@@ -562,6 +570,7 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 result = run_benchmark(
                     config,
                     instrument_checkout=instrument,
+                    repository_paths=self.repository_paths(instance, evaluator),
                     image_builder_factory=FakeBuilder,
                     runner_factory=FakeRunner,
                 )
@@ -711,22 +720,20 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 with self.assertRaisesRegex(ContractError, "supported_instances"):
                     validate_dependencies("pyvisa", instance, invalid)
 
-    def test_run_config_resolves_paths_relative_to_config(self) -> None:
+    def test_run_config_resolves_candidate_from_evaluator_and_report_from_config(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ("instance", "evaluator"):
                 (root / name).mkdir()
-            (root / "solution.py").write_text("pass")
+            (root / "evaluator" / "solution.py").write_text("pass")
             config = root / "run.yaml"
             config.write_text(
                 "\n".join(
                     (
-                        "schema_version: 2",
+                        "schema_version: 3",
                         "run_id: test",
                         "source_id: pyvisa",
-                        "instance_checkout: instance",
                         "instance_id: pyvisa_dut_validation_v1",
-                        "evaluator_checkout: evaluator",
                         "evaluator_id: pyvisa_dut_validation_v1",
                         "candidate_path: solution.py",
                         "report_path: report.json",
@@ -739,8 +746,13 @@ class DistributedOrchestratorTests(unittest.TestCase):
                     )
                 )
             )
-            loaded = load_run_config(config)
-            self.assertEqual(loaded.instance_checkout, (root / "instance").resolve())
+            repositories = self.repository_paths(root / "instance", root / "evaluator")
+            loaded = load_run_config(config, repositories)
+            self.assertEqual(loaded.instances_repo_path, (root / "instance").resolve())
+            self.assertEqual(
+                loaded.candidate_path,
+                (root / "evaluator" / "solution.py").resolve(),
+            )
             self.assertEqual(loaded.report_path, (root / "report.json").resolve())
 
             config.write_text(
@@ -750,7 +762,7 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 )
             )
             with self.assertRaisesRegex(ContractError, "container_protocol_version"):
-                load_run_config(config)
+                load_run_config(config, repositories)
 
     def test_fake_evaluator_is_invoked_through_outer_container_runner(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -776,12 +788,10 @@ class DistributedOrchestratorTests(unittest.TestCase):
             config.write_text(
                 "\n".join(
                     (
-                        "schema_version: 2",
+                        "schema_version: 3",
                         "run_id: fake",
                         "source_id: pyvisa",
-                        f"instance_checkout: {instance}",
                         "instance_id: pyvisa_dut_validation_v1",
-                        f"evaluator_checkout: {evaluator}",
                         "evaluator_id: pyvisa_dut_validation_v1",
                         f"candidate_path: {candidate}",
                         f"report_path: {report}",
@@ -910,13 +920,21 @@ class DistributedOrchestratorTests(unittest.TestCase):
                     )
 
             builder = FakeBuilder()
-            result = run_benchmark(
-                config,
-                instrument_checkout=instrument,
-                allow_dirty=False,
-                image_builder_factory=lambda: builder,
-                runner_factory=FakeRunner,
-            )
+            with patch(
+                "instrument_benchmark.orchestrator._container_provenance",
+                return_value={
+                    "image_digest": "sha256:" + "3" * 64,
+                    "docker_engine_version": "fixture",
+                },
+            ):
+                result = run_benchmark(
+                    config,
+                    instrument_checkout=instrument,
+                    repository_paths=self.repository_paths(instance, evaluator),
+                    allow_dirty=False,
+                    image_builder_factory=lambda: builder,
+                    runner_factory=FakeRunner,
+                )
             self.assertEqual(
                 builder.seen,
                 {
@@ -1003,12 +1021,10 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 config.write_text(
                     yaml.safe_dump(
                         {
-                            "schema_version": 2,
+                            "schema_version": 3,
                             "run_id": "source-guard",
                             "source_id": "pyvisa",
-                            "instance_checkout": str(instance),
                             "instance_id": "pyvisa_dut_validation_v1",
-                            "evaluator_checkout": str(evaluator),
                             "evaluator_id": "pyvisa_dut_validation_v1",
                             "candidate_path": str(candidate),
                             "report_path": str(root / "report.json"),
@@ -1040,6 +1056,7 @@ class DistributedOrchestratorTests(unittest.TestCase):
                         run_benchmark(
                             config,
                             instrument_checkout=instrument,
+                            repository_paths=self.repository_paths(instance, evaluator),
                             image_builder_factory=builder_factory,
                             runner_factory=runner_factory,
                         )

@@ -7,9 +7,7 @@
     "schema_version",
     "run_id",
     "source_id",
-    "instance_checkout",
     "instance_id",
-    "evaluator_checkout",
     "evaluator_id",
     "candidate_path",
     "report_path",
@@ -21,18 +19,16 @@
     "image_mode"
   ],
   "properties": {
-    "schema_version": {"const": 2},
+    "schema_version": {"const": 3},
     "run_id": {"type": "string", "minLength": 1},
     "source_id": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]*$"
     },
-    "instance_checkout": {"type": "string", "minLength": 1},
     "instance_id": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]*$"
     },
-    "evaluator_checkout": {"type": "string", "minLength": 1},
     "evaluator_id": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]*$"

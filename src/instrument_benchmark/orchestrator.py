@@ -28,6 +28,7 @@ from .evaluator_runtime import (
     EvaluatorContainerRunner,
     EvaluatorInfrastructureError,
 )
+from .environment import RepositoryPaths
 from .repository_layout import resolve_evaluator_leaf, resolve_instance_leaf
 
 
@@ -39,16 +40,17 @@ def run_benchmark(
     config_path: Path,
     *,
     instrument_checkout: Path,
+    repository_paths: RepositoryPaths,
     allow_dirty: bool = False,
     image_builder_factory: ImageBuilderFactory | None = None,
     runner_factory: RunnerFactory | None = None,
 ) -> dict[str, Any]:
-    config = load_run_config(config_path)
+    config = load_run_config(config_path, repository_paths)
     instance_leaf = resolve_instance_leaf(
-        config.instance_checkout, config.source_id, config.instance_id
+        config.instances_repo_path, config.source_id, config.instance_id
     )
     evaluator_leaf = resolve_evaluator_leaf(
-        config.evaluator_checkout, config.source_id, config.evaluator_id
+        config.evaluator_repo_path, config.source_id, config.evaluator_id
     )
     instance_root = instance_leaf.root
     instance_manifest = instance_leaf.manifest
@@ -60,10 +62,10 @@ def run_benchmark(
             instrument_checkout, allow_dirty=allow_dirty
         ),
         "instance": repository_provenance(
-            config.instance_checkout, allow_dirty=allow_dirty
+            config.instances_repo_path, allow_dirty=allow_dirty
         ),
         "evaluator": repository_provenance(
-            config.evaluator_checkout, allow_dirty=allow_dirty
+            config.evaluator_repo_path, allow_dirty=allow_dirty
         ),
     }
     if config.openfibsem_checkout is not None:
@@ -101,7 +103,7 @@ def run_benchmark(
                 "openfibsem_commit": config.openfibsem_commit,
             }
         evaluator_image = image_builder.build(
-            config.evaluator_checkout,
+            config.evaluator_repo_path,
             run_id=config.run_id,
             source_id=config.source_id,
             evaluator_id=config.evaluator_id,

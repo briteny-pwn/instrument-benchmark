@@ -78,7 +78,7 @@ class EvaluatorImageBuilder:
 
     def build(
         self,
-        evaluator_checkout: Path,
+        evaluator_repo_path: Path,
         *,
         run_id: str,
         source_id: str,
@@ -86,11 +86,11 @@ class EvaluatorImageBuilder:
         openfibsem_checkout: Path | None = None,
         openfibsem_commit: str | None = None,
     ) -> EvaluatorImageEvidence:
-        evaluator_checkout = evaluator_checkout.resolve()
-        commit_time = _git(evaluator_checkout, "show", "-s", "--format=%ct", "HEAD")
+        evaluator_repo_path = evaluator_repo_path.resolve()
+        commit_time = _git(evaluator_repo_path, "show", "-s", "--format=%ct", "HEAD")
         with tempfile.TemporaryDirectory(prefix="iab-evaluator-build-") as directory:
             context = stage_evaluator_build_context(
-                evaluator_checkout,
+                evaluator_repo_path,
                 self.assets_root,
                 Path(directory) / "context",
                 source_id=source_id,
@@ -183,7 +183,7 @@ class EvaluatorImageBuilder:
 
 
 def stage_evaluator_build_context(
-    evaluator_checkout: Path,
+    evaluator_repo_path: Path,
     assets_root: Path,
     destination: Path,
     *,
@@ -192,19 +192,19 @@ def stage_evaluator_build_context(
     openfibsem_checkout: Path | None = None,
     openfibsem_commit: str | None = None,
 ) -> EvaluatorBuildContext:
-    evaluator_checkout = evaluator_checkout.resolve()
+    evaluator_repo_path = evaluator_repo_path.resolve()
     assets_root = assets_root.resolve()
     destination = destination.resolve()
     if destination.exists():
         raise EvaluatorImageError(f"build context already exists: {destination}")
     try:
         selected_leaf = resolve_evaluator_leaf(
-            evaluator_checkout, source_id, evaluator_id
+            evaluator_repo_path, source_id, evaluator_id
         )
     except (ContractError, OSError) as exc:
         raise EvaluatorImageError(str(exc)) from exc
-    if _git(evaluator_checkout, "status", "--porcelain"):
-        raise EvaluatorImageError("evaluator checkout must be clean")
+    if _git(evaluator_repo_path, "status", "--porcelain"):
+        raise EvaluatorImageError("evaluator repository must be clean")
     _verify_docker_cli(assets_root / "docker-cli")
     _verify_docker_buildx(assets_root / "docker-buildx")
     fibsem_profile = (source_id, evaluator_id) == FIBSEM_RUNTIME_IDENTITY
@@ -227,16 +227,16 @@ def stage_evaluator_build_context(
     destination.mkdir(parents=True)
     evaluator_target = destination / "evaluator"
     evaluator_target.mkdir()
-    commit = _git(evaluator_checkout, "rev-parse", "HEAD")
+    commit = _git(evaluator_repo_path, "rev-parse", "HEAD")
     selected = tuple(
         relative
-        for relative in _tracked_files(evaluator_checkout)
+        for relative in _tracked_files(evaluator_repo_path)
         if _selected_evaluator_file(relative, source_id=source_id)
     )
-    if selected_leaf.manifest_path.relative_to(evaluator_checkout) not in selected:
+    if selected_leaf.manifest_path.relative_to(evaluator_repo_path) not in selected:
         raise EvaluatorImageError("selected evaluator packaging inputs are incomplete")
     for relative in selected:
-        source = evaluator_checkout / relative
+        source = evaluator_repo_path / relative
         if source.is_symlink() or not source.is_file():
             raise EvaluatorImageError(
                 f"tracked evaluator input is not a regular file: {relative}"

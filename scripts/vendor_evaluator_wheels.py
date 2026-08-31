@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WHEELHOUSE = ROOT / "container" / "wheelhouse"
 PACKAGES = (
+    "python-dotenv==1.2.3",
     "PyYAML==6.0.3",
     "PyVISA==1.16.2",
     "PyVISA-sim==0.7.1",

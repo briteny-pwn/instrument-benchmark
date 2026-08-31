@@ -21,6 +21,7 @@ from instrument_benchmark.evaluator_image import (  # noqa: E402
     verify_build_manifest,
 )
 from instrument_benchmark.repository_layout import resolve_evaluator_leaf  # noqa: E402
+from instrument_benchmark.environment import load_repository_paths  # noqa: E402
 
 
 def canonical_json(value: object) -> bytes:
@@ -378,10 +379,7 @@ class EvaluatorImageTests(unittest.TestCase):
                 )
 
     def test_real_context_installs_hooked_sim_fork_before_evaluator(self) -> None:
-        evaluator = ROOT.parent / "evaluator"
-        if not evaluator.is_dir():
-            evaluator = ROOT.parents[2] / "evaluator" / ".worktrees" / ROOT.name
-        evaluator = evaluator.resolve()
+        evaluator = load_repository_paths(ROOT).evaluator_repo_path
         with tempfile.TemporaryDirectory() as directory:
             context = self.stage(
                 evaluator,
@@ -781,7 +779,7 @@ class EvaluatorImageTests(unittest.TestCase):
                     root / "symlink",
                 )
 
-    def test_evaluator_checkout_must_be_clean_even_for_other_source_content(self) -> None:
+    def test_evaluator_repository_must_be_clean_even_for_other_source_content(self) -> None:
         for untracked in (False, True):
             with (
                 self.subTest(untracked=untracked),
@@ -796,7 +794,7 @@ class EvaluatorImageTests(unittest.TestCase):
                     tracked = other_source / self.FIBSEM_EVALUATOR / "implementation.py"
                     tracked.write_text("DIRTY = True\n")
                 with self.assertRaisesRegex(
-                    EvaluatorImageError, "evaluator checkout must be clean"
+                    EvaluatorImageError, "evaluator repository must be clean"
                 ):
                     self.stage(
                         evaluator,

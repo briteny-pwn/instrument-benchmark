@@ -1,11 +1,9 @@
-schema_version: 2
+schema_version: 3
 run_id: fibsem-liftout-v1-reference
 source_id: openfibsem
-instance_checkout: ../../../instance
 instance_id: fibsem_liftout_v1
-evaluator_checkout: ../../../evaluator
 evaluator_id: fibsem_liftout_v1
-candidate_path: ../../../evaluator/sources/openfibsem/fibsem_liftout_v1/reference/solution.py
+candidate_path: sources/openfibsem/fibsem_liftout_v1/reference/solution.py
 report_path: ../../reports/openfibsem/fibsem_liftout_v1.json
 timeout_seconds: 180
 max_output_bytes: 1048576

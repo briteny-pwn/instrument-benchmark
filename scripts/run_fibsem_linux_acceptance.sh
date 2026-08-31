@@ -15,15 +15,53 @@ case "$config_arg" in
 esac
 
 test -f "$config_path"
-test -d "$checkout_parent/instance/.git"
-test -d "$checkout_parent/evaluator/.git"
-test -d "$checkout_parent/fibsem/.git"
+
+runner_image=iab/fibsem-validation-runner:v1
+docker build \
+    --platform linux/amd64 \
+    --network=none \
+    --file "$instrument_root/container/fibsem-validation-runner.Dockerfile" \
+    --tag "$runner_image" \
+    "$instrument_root/container"
+
+set -- \
+    --mount type=bind,src="$instrument_root",dst="$instrument_root",readonly
+if [ "${INSTANCES_REPO_PATH+x}" = x ]; then
+    set -- "$@" --env "INSTANCES_REPO_PATH=$INSTANCES_REPO_PATH"
+fi
+if [ "${EVALUATOR_REPO_PATH+x}" = x ]; then
+    set -- "$@" --env "EVALUATOR_REPO_PATH=$EVALUATOR_REPO_PATH"
+fi
+repository_values=$(
+    docker run --rm \
+        --platform linux/amd64 \
+        --network=none \
+        --read-only \
+        --env HOME=/tmp \
+        --env "PYTHONPATH=$instrument_root/src" \
+        "$@" \
+        --workdir "$instrument_root" \
+        "$runner_image" \
+        -c 'from pathlib import Path; from instrument_benchmark.environment import read_repository_path_values; print(*read_repository_path_values(Path.cwd()), sep="\n")'
+)
+instances_repo_path=$(printf '%s\n' "$repository_values" | sed -n '1p')
+evaluator_repo_path=$(printf '%s\n' "$repository_values" | sed -n '2p')
+test -n "$instances_repo_path"
+test -n "$evaluator_repo_path"
+test -z "$(printf '%s\n' "$repository_values" | sed -n '3p')"
+case "$instances_repo_path" in /*) ;; *) exit 2 ;; esac
+case "$evaluator_repo_path" in /*) ;; *) exit 2 ;; esac
+instances_repo_path=$(CDPATH= cd -- "$instances_repo_path" && pwd -P)
+evaluator_repo_path=$(CDPATH= cd -- "$evaluator_repo_path" && pwd -P)
 
 socket_gid=$(stat -c '%g' /var/run/docker.sock)
 git_bin=$(command -v git)
 git_exec_path=$(git --exec-path)
 test -x "$git_bin"
 test -d "$git_exec_path"
+test "$(git -C "$instances_repo_path" rev-parse --show-toplevel)" = "$instances_repo_path"
+test "$(git -C "$evaluator_repo_path" rev-parse --show-toplevel)" = "$evaluator_repo_path"
+test "$(git -C "$checkout_parent/fibsem" rev-parse --show-toplevel)" = "$checkout_parent/fibsem"
 git_libraries=$(
     ldd "$git_bin" | awk \
         '$2 == "=>" && $3 ~ /^\// && $3 !~ /\/libc\.so\./ { print $3 }
@@ -38,14 +76,6 @@ for git_library in $git_libraries; do
     set -- "$@" \
         --mount type=bind,src="$git_library",dst="$git_library",readonly
 done
-runner_image=iab/fibsem-validation-runner:v1
-
-docker build \
-    --platform linux/amd64 \
-    --network=none \
-    --file "$instrument_root/container/fibsem-validation-runner.Dockerfile" \
-    --tag "$runner_image" \
-    "$instrument_root/container"
 
 docker run --rm \
     --platform linux/amd64 \
@@ -53,8 +83,13 @@ docker run --rm \
     --user "$(id -u):$(id -g)" \
     --group-add "$socket_gid" \
     --env HOME=/tmp \
+    --env "INSTANCES_REPO_PATH=$instances_repo_path" \
+    --env "EVALUATOR_REPO_PATH=$evaluator_repo_path" \
     "$@" \
-    --mount type=bind,src="$checkout_parent",dst="$checkout_parent" \
+    --mount type=bind,src="$instrument_root",dst="$instrument_root" \
+    --mount type=bind,src="$instances_repo_path",dst="$instances_repo_path",readonly \
+    --mount type=bind,src="$evaluator_repo_path",dst="$evaluator_repo_path",readonly \
+    --mount type=bind,src="$checkout_parent/fibsem",dst="$checkout_parent/fibsem",readonly \
     --mount type=bind,src=/tmp,dst=/tmp \
     --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
     --workdir "$instrument_root" \

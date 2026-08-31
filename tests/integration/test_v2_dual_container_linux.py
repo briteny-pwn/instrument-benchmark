@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from instrument_benchmark.contracts import validate_evaluator_report  # noqa: E402
+from instrument_benchmark.environment import load_repository_paths  # noqa: E402
 from instrument_benchmark.orchestrator import run_benchmark  # noqa: E402
 
 
@@ -48,13 +49,9 @@ class V2FormalDualContainerLinuxTests(unittest.TestCase):
     def test_reference_passes_all_nineteen_worlds_with_complete_evidence(
         self,
     ) -> None:
-        worktrees = ROOT.parent
-        evaluator = Path(
-            os.environ.get("IAB_EVALUATOR_CHECKOUT", worktrees / "evaluator")
-        ).resolve()
-        instance = Path(
-            os.environ.get("IAB_INSTANCE_CHECKOUT", worktrees / "instance")
-        ).resolve()
+        repositories = load_repository_paths(ROOT)
+        evaluator = repositories.evaluator_repo_path
+        instance = repositories.instances_repo_path
         reference = (
             evaluator
             / "sources"
@@ -75,14 +72,15 @@ class V2FormalDualContainerLinuxTests(unittest.TestCase):
             config.write_text(
                 yaml.safe_dump(
                     {
-                        "schema_version": 2,
+                        "schema_version": 3,
                         "run_id": owner,
                         "source_id": "pyvisa",
-                        "instance_checkout": str(instance),
                         "instance_id": "pyvisa_dut_validation_v2",
-                        "evaluator_checkout": str(evaluator),
                         "evaluator_id": "pyvisa_dut_validation_v2",
-                        "candidate_path": str(reference),
+                        "candidate_path": (
+                            "sources/pyvisa/pyvisa_dut_validation_v2/"
+                            "reference/solution.py"
+                        ),
                         "report_path": str(report_path),
                         "timeout_seconds": 30,
                         "max_output_bytes": 1_048_576,
@@ -100,6 +98,7 @@ class V2FormalDualContainerLinuxTests(unittest.TestCase):
                     report = run_benchmark(
                         config,
                         instrument_checkout=ROOT,
+                        repository_paths=repositories,
                         allow_dirty=False,
                     )
                 validate_evaluator_report(

@@ -12,6 +12,7 @@ from scripts.validate_fibsem_benchmark import (
     main,
     validate_distributed_report,
 )
+from instrument_benchmark.environment import RepositoryPaths
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +36,8 @@ def test_validation_runner_has_a_pinned_python_and_bounded_tools() -> None:
     assert "apt-get" not in text
     assert "COPY git" not in text
     assert "COPY wheelhouse/pyyaml-6.0.3-" in text
+    assert "COPY wheelhouse/python_dotenv-1.2.3-py3-none-any.whl" in text
+    assert "904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9" in text
     assert f"/build/{wheel}" in text
     assert "/build/pyyaml.whl" not in text
     assert "python -m pip install --no-index" in text
@@ -46,6 +49,7 @@ def test_validation_runner_has_a_pinned_python_and_bounded_tools() -> None:
     assert ignored.splitlines()[0] == "**"
     assert "!docker-cli/docker" in ignored
     assert "!wheelhouse/pyyaml-6.0.3-" in ignored
+    assert "!wheelhouse/python_dotenv-1.2.3-py3-none-any.whl" in ignored
     assert "!openfibsem-wheelhouse" not in ignored
 
 
@@ -68,7 +72,20 @@ def test_native_linux_runner_preserves_daemon_visible_paths_and_identity() -> No
     assert '--group-add "$socket_gid"' in text
     assert "src=/var/run/docker.sock,dst=/var/run/docker.sock" in text
     assert 'src=/tmp,dst=/tmp' in text
-    assert 'src="$checkout_parent",dst="$checkout_parent"' in text
+    assert "read_repository_path_values" in text
+    assert 'src="$instrument_root",dst="$instrument_root"' in text
+    assert 'src="$instances_repo_path",dst="$instances_repo_path"' in text
+    assert 'src="$evaluator_repo_path",dst="$evaluator_repo_path"' in text
+    assert '--env "INSTANCES_REPO_PATH=$instances_repo_path"' in text
+    assert '--env "EVALUATOR_REPO_PATH=$evaluator_repo_path"' in text
+    assert 'test -d "$checkout_parent/instance/.git"' not in text
+    assert 'test -d "$checkout_parent/evaluator/.git"' not in text
+    assert 'test -d "$instances_repo_path/.git"' not in text
+    assert 'test -d "$evaluator_repo_path/.git"' not in text
+    assert 'test -d "$checkout_parent/fibsem/.git"' not in text
+    assert 'git -C "$instances_repo_path" rev-parse --show-toplevel' in text
+    assert 'git -C "$evaluator_repo_path" rev-parse --show-toplevel' in text
+    assert 'git -C "$checkout_parent/fibsem" rev-parse --show-toplevel' in text
     assert 'python scripts/validate_fibsem_benchmark.py' not in text
     assert 'scripts/validate_fibsem_benchmark.py --config "$config_path"' in text
     assert "config_arg=${1:-configs/openfibsem/fibsem_liftout_v1.yaml}" in text
@@ -82,15 +99,23 @@ def test_fibsem_validator_defaults_to_source_grouped_config_and_rejects_cross_so
         evaluator_id="fibsem_liftout_v1",
         report_path=tmp_path / "report.json",
     )
-    with mock.patch(
-        "scripts.validate_fibsem_benchmark.load_run_config",
-        return_value=config,
-    ) as loader:
+    repositories = RepositoryPaths(Path("/instances"), Path("/evaluator"))
+    with (
+        mock.patch(
+            "scripts.validate_fibsem_benchmark.load_repository_paths",
+            return_value=repositories,
+        ),
+        mock.patch(
+            "scripts.validate_fibsem_benchmark.load_run_config",
+            return_value=config,
+        ) as loader,
+    ):
         with pytest.raises(ValidationError, match="source.*evaluator|identity"):
             main([])
 
     loader.assert_called_once_with(
-        (ROOT / "configs/openfibsem/fibsem_liftout_v1.yaml").resolve()
+        (ROOT / "configs/openfibsem/fibsem_liftout_v1.yaml").resolve(),
+        repositories,
     )
 
 

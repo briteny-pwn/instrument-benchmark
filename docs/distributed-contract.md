@@ -18,6 +18,14 @@ produced; candidate failures remain normal report outcomes. Exit status `2`
 means an incompatible or invalid request. Any other status is evaluator
 infrastructure failure.
 
+Run YAML uses schema version 3. Repository locations are not YAML fields:
+`INSTANCES_REPO_PATH` and `EVALUATOR_REPO_PATH` must be absolute existing
+directories. The process environment has priority over the optional
+repository-root `.env` file. A relative `candidate_path` is evaluator-root
+relative and cannot escape that repository; an absolute path selects an
+external candidate. These run-config rules are independent of the evaluator
+request protocol version named by this document.
+
 Instance and evaluator leaves resolve only at
 `sources/<source_id>/<leaf_id>/`, after their source registries and schema-v2
 manifests agree. Source-grouped config and report paths are also mandatory.
@@ -46,7 +54,7 @@ For `fibsem_liftout_v1`, the request binds the exact evaluator image ID and the
 external source commit. The evaluator runs one public nominal world, four
 hidden fixed worlds, and five deterministic seeded worlds. At each of
 `step_1` through `step_4`, it freezes the simulator before exporting the
-trusted scene. The final schema-version-4 report binds source identity, journal heads,
+trusted scene. The final schema-version-5 report binds source identity, journal heads,
 connectivity/pose metrics, artifact hashes, sibling container evidence,
 cleanup state, all three repository commits, and OpenFIBSEM commit/source
 digest. The operator validator is:
