@@ -24,6 +24,9 @@ from instrument_benchmark.repository_layout import resolve_evaluator_leaf  # noq
 from instrument_benchmark.environment import load_repository_paths  # noqa: E402
 
 
+ASSETS_ROOT = load_repository_paths(ROOT).evaluator_repo_path / "container"
+
+
 def canonical_json(value: object) -> bytes:
     return (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
@@ -383,7 +386,7 @@ class EvaluatorImageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             context = self.stage(
                 evaluator,
-                ROOT / "container",
+                ASSETS_ROOT,
                 Path(directory) / "context",
                 source_id=self.PYVISA_SOURCE,
                 evaluator_id=self.PYVISA_EVALUATOR,
@@ -392,7 +395,7 @@ class EvaluatorImageTests(unittest.TestCase):
             self.assertTrue((vendor / "pyproject.toml").is_file())
             self.assertTrue((vendor / "pyvisa_sim" / "hooks.py").is_file())
 
-        dockerfile = (ROOT / "container" / "evaluator.Dockerfile").read_text()
+        dockerfile = (ASSETS_ROOT / "evaluator.Dockerfile").read_text()
         normalized = " ".join(dockerfile.replace("\\", "").split())
         fork_install = (
             "python -m pip install --no-index --no-deps --no-build-isolation "
@@ -904,7 +907,7 @@ class EvaluatorImageTests(unittest.TestCase):
         )
         for name in ("evaluator.Dockerfile", "fibsem-evaluator.Dockerfile"):
             with self.subTest(name=name):
-                text = (ROOT / "container" / name).read_text(encoding="utf-8")
+                text = (ASSETS_ROOT / name).read_text(encoding="utf-8")
                 self.assertIn(
                     "COPY docker-buildx/docker-buildx "
                     "/usr/libexec/docker/cli-plugins/docker-buildx",

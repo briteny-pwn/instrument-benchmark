@@ -85,6 +85,19 @@ def test_resolves_instance_and_evaluator_from_strict_source_tree(
     )
 
 
+def test_instrument_repository_does_not_own_evaluator_container_assets() -> None:
+    assert not (ROOT / "container").exists()
+
+
+def test_orchestrator_selects_container_assets_from_evaluator_repository() -> None:
+    source = (ROOT / "src/instrument_benchmark/orchestrator.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'assets_root = config.evaluator_repo_path / "container"' in source
+    assert 'Path(__file__).resolve().parents[2] / "container"' not in source
+
+
 def test_duplicate_leaf_ids_resolve_only_within_requested_source(
     tmp_path: Path,
 ) -> None:

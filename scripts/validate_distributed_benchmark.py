@@ -189,7 +189,7 @@ def main(argv: list[str] | None = None) -> int:
     with tempfile.TemporaryDirectory(prefix="iab-manifest-") as directory:
         context = stage_evaluator_build_context(
             evaluator,
-            ROOT / "container",
+            evaluator / "container",
             Path(directory) / "context",
             source_id=config.source_id,
             evaluator_id=config.evaluator_id,

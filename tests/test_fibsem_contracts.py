@@ -67,9 +67,10 @@ def test_three_repository_readmes_publish_fibsem_operator_contract() -> None:
     assert "native Linux Docker" in combined
     assert "reports/openfibsem/fibsem_liftout_v1.artifacts" in combined
     assert (
-        "python scripts/validate_fibsem_benchmark.py \\\n"
-        "  --config configs/openfibsem/fibsem_liftout_v1.yaml"
+        '"$EVALUATOR_REPO_PATH/scripts/run_fibsem_linux_acceptance.sh" \\\n'
+        '  "$PWD/configs/openfibsem/fibsem_liftout_v1.yaml"'
     ) in readmes["instrument"]
+    assert "python scripts/validate_fibsem_benchmark.py" not in readmes["instrument"]
 
 
 @pytest.mark.skipif(

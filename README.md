@@ -72,17 +72,21 @@ crosses `step_1`, `step_2`, `step_3`, and `step_4`. Run the complete native
 Linux Docker acceptance with:
 
 ```bash
-python scripts/validate_fibsem_benchmark.py \
-  --config configs/openfibsem/fibsem_liftout_v1.yaml
+PYTHONPATH=src \
+  "$EVALUATOR_REPO_PATH/scripts/validate_fibsem_benchmark.py" \
+  --instrument-root "$PWD" \
+  --config "$PWD/configs/openfibsem/fibsem_liftout_v1.yaml"
 ```
 
+The validator and its container assets are owned by the evaluator repository.
 That direct entrypoint requires Python 3.11, python-dotenv, PyYAML, Git, and
-Docker on the host. On a native Linux x86_64 Docker host, the portable entrypoint supplies
-the Python/Git/Docker client environment in a pinned driver image:
+Docker on the host. On a native Linux x86_64 Docker host, its portable
+entrypoint supplies the Python/Git/Docker client environment in a pinned
+driver image:
 
 ```bash
-scripts/run_fibsem_linux_acceptance.sh \
-  configs/openfibsem/fibsem_liftout_v1.yaml
+"$EVALUATOR_REPO_PATH/scripts/run_fibsem_linux_acceptance.sh" \
+  "$PWD/configs/openfibsem/fibsem_liftout_v1.yaml"
 ```
 
 The driver runs as the invoking UID/GID, adds only the Docker socket group,
@@ -116,9 +120,10 @@ PYTHONPATH=src python scripts/validate_distributed_benchmark.py
 ```
 
 The official path builds the trusted evaluator image for every run from only
-Git-tracked evaluator inputs. Python wheels, the Linux/amd64 Docker CLI, and
-the Docker Buildx plugin are vendored with SHA-256 manifests, and the image
-build uses `--network=none`.
+Git-tracked evaluator inputs. The evaluator repository owns the Dockerfiles,
+Python wheels, Linux/amd64 Docker CLI, Docker Buildx plugin and SHA-256
+manifests under `$EVALUATOR_REPO_PATH/container`; the image build uses
+`--network=none`.
 The non-root outer evaluator has no network, a read-only root filesystem and
 the host Docker socket. It uses that privileged socket only to create hardened
 sibling candidate containers; candidates never receive the socket or evaluator

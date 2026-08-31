@@ -83,7 +83,7 @@ def run_benchmark(
     ):
         raise ContractError("configured OpenFIBSEM commit does not match evaluator")
 
-    assets_root = Path(__file__).resolve().parents[2] / "container"
+    assets_root = config.evaluator_repo_path / "container"
     image_builder = (
         image_builder_factory()
         if image_builder_factory is not None

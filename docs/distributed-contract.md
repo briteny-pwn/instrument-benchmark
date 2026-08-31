@@ -44,11 +44,11 @@ orchestrator validates but never changes the evaluator score. It adds:
 The three repositories define the benchmark distribution boundary, not a
 shared instrument inheritance hierarchy. Each instance declares its own task
 type, evaluator, public API, image lock, report schema, and optional external
-source inputs. `fibsem_liftout_v1` therefore selects
-`container/fibsem-evaluator.Dockerfile`, the OpenFIBSEM wheel/system-package
-locks, and the pinned OpenFIBSEM source tree without staging the PyVISA lock or
-wheelhouse. The evaluator CLI also imports PyVISA implementations lazily, so
-the FIBSEM route can start when `pyvisa` is absent.
+source inputs. `fibsem_liftout_v1` therefore selects the evaluator-owned
+`$EVALUATOR_REPO_PATH/container/fibsem-evaluator.Dockerfile`, OpenFIBSEM
+wheel/system-package locks, and pinned OpenFIBSEM source tree without staging
+the PyVISA lock or wheelhouse. The evaluator CLI also imports PyVISA
+implementations lazily, so the FIBSEM route can start when `pyvisa` is absent.
 
 For `fibsem_liftout_v1`, the request binds the exact evaluator image ID and the
 external source commit. The evaluator runs one public nominal world, four
@@ -60,10 +60,11 @@ cleanup state, all three repository commits, and OpenFIBSEM commit/source
 digest. The operator validator is:
 
 ```bash
-python scripts/validate_fibsem_benchmark.py \
-  --config configs/openfibsem/fibsem_liftout_v1.yaml
-scripts/run_fibsem_linux_acceptance.sh \
-  configs/openfibsem/fibsem_liftout_v1.yaml
+PYTHONPATH=src "$EVALUATOR_REPO_PATH/scripts/validate_fibsem_benchmark.py" \
+  --instrument-root "$PWD" \
+  --config "$PWD/configs/openfibsem/fibsem_liftout_v1.yaml"
+"$EVALUATOR_REPO_PATH/scripts/run_fibsem_linux_acceptance.sh" \
+  "$PWD/configs/openfibsem/fibsem_liftout_v1.yaml"
 ```
 
 The validated output is
