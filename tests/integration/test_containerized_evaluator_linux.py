@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from instrument_benchmark.orchestrator import run_benchmark  # noqa: E402
+from instrument_benchmark.environment import load_repository_paths  # noqa: E402
 
 
 @unittest.skipUnless(
@@ -24,17 +25,9 @@ from instrument_benchmark.orchestrator import run_benchmark  # noqa: E402
 )
 class ContainerizedEvaluatorLinuxTests(unittest.TestCase):
     def test_official_path_runs_outer_evaluator_and_sibling_candidates(self) -> None:
-        worktrees = ROOT.parent
-        evaluator = Path(
-            os.environ.get(
-                "IAB_EVALUATOR_CHECKOUT", worktrees / "evaluator-docker-runner"
-            )
-        ).resolve()
-        instance = Path(
-            os.environ.get(
-                "IAB_INSTANCE_CHECKOUT", worktrees / "instance-docker-runner"
-            )
-        ).resolve()
+        repositories = load_repository_paths(ROOT)
+        evaluator = repositories.evaluator_repo_path
+        instance = repositories.instances_repo_path
         owner = "containerized-evaluator-integration"
         with tempfile.TemporaryDirectory(prefix="iab-integration-") as directory:
             temporary = Path(directory)
@@ -43,12 +36,10 @@ class ContainerizedEvaluatorLinuxTests(unittest.TestCase):
             config.write_text(
                 yaml.safe_dump(
                     {
-                        "schema_version": 2,
+                        "schema_version": 3,
                         "run_id": owner,
                         "source_id": "pyvisa",
-                        "instance_checkout": str(instance),
                         "instance_id": "pyvisa_dut_validation_v1",
-                        "evaluator_checkout": str(evaluator),
                         "evaluator_id": "pyvisa_dut_validation_v1",
                         "candidate_path": str(
                             evaluator
@@ -71,6 +62,7 @@ class ContainerizedEvaluatorLinuxTests(unittest.TestCase):
                     report = run_benchmark(
                         config,
                         instrument_checkout=ROOT,
+                        repository_paths=repositories,
                         allow_dirty=True,
                     )
                 outer = report["orchestration"]["evaluator_container"]

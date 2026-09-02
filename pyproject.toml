@@ -6,11 +6,10 @@ build-backend = "setuptools.build_meta"
 name = "instrument-benchmark"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["PyYAML==6.0.3"]
+dependencies = ["python-dotenv==1.2.3", "PyYAML==6.0.3"]
 
 [project.scripts]
 instrument-benchmark = "instrument_benchmark.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-

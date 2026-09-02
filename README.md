@@ -2,20 +2,35 @@
 
 This branch contains the generic orchestration layer for the distributed
 instrument benchmark. Concrete model-visible instances and private evaluators
-live in separate sibling repositories.
+live in separate repositories.
 
 The orchestrator accepts independently sourced instance/evaluator pairs. A
 runtime profile is selected by the versioned manifests; one instance is never
 treated as the base class or dependency template for another. In particular,
 `fibsem_liftout_v1` uses OpenFIBSEM and has no runtime dependency on PyVISA.
 
-Expected checkout layout:
+Configure their absolute roots before running the orchestrator. For local
+development, copy the tracked example and edit both values:
+
+```bash
+cp .env.example .env
+```
+
+```dotenv
+INSTANCES_REPO_PATH=/absolute/path/instrument-benchmark-instances
+EVALUATOR_REPO_PATH=/absolute/path/instrument-benchmark-evaluator
+```
+
+The orchestrator reads only `.env` at this repository root. Values already
+exported in the process environment take precedence. Both values are required,
+must be absolute, and must name existing directories. A sibling checkout is an
+optional convenience, not a resolution rule:
 
 ```text
 benchmark/
 ├── instrument/  # briteny-pwn/instrument-benchmark, distributed-model
-├── instance/    # briteny-pwn/instrument-benchmark-instances, main
-└── evaluator/   # briteny-pwn/instrument-benchmark-evaluator, main
+├── instrument-benchmark-instances/  # assigned to INSTANCES_REPO_PATH
+└── instrument-benchmark-evaluator/  # assigned to EVALUATOR_REPO_PATH
 ```
 
 The repositories communicate through versioned YAML manifests, evaluator
@@ -28,6 +43,12 @@ configs and reports are grouped beneath their source ID. Source registries and
 schema-v2 leaf manifests must agree before any image build or container start.
 Ungrouped legacy config, leaf, report, and artifact paths are invalid; there is
 no compatibility fallback, alias, scan, or root-manifest lookup.
+
+Run YAML uses schema version 3 and does not contain repository checkout paths.
+A relative `candidate_path` resolves beneath `EVALUATOR_REPO_PATH`, which is
+how bundled reference solutions are selected. An absolute `candidate_path`
+selects an external submission. Relative traversal or symlink escape outside
+the evaluator repository is rejected.
 
 From `instrument/`, run the reference benchmark with:
 
@@ -51,28 +72,33 @@ crosses `step_1`, `step_2`, `step_3`, and `step_4`. Run the complete native
 Linux Docker acceptance with:
 
 ```bash
-python scripts/validate_fibsem_benchmark.py \
-  --config configs/openfibsem/fibsem_liftout_v1.yaml
+PYTHONPATH=src \
+  "$EVALUATOR_REPO_PATH/scripts/validate_fibsem_benchmark.py" \
+  --instrument-root "$PWD" \
+  --config "$PWD/configs/openfibsem/fibsem_liftout_v1.yaml"
 ```
 
-That direct entrypoint requires Python 3.11, PyYAML, Git, and Docker on the
-host. On a native Linux x86_64 Docker host, the portable entrypoint supplies
-the Python/Git/Docker client environment in a pinned driver image:
+The validator and its container assets are owned by the evaluator repository.
+That direct entrypoint requires Python 3.11, python-dotenv, PyYAML, Git, and
+Docker on the host. On a native Linux x86_64 Docker host, its portable
+entrypoint supplies the Python/Git/Docker client environment in a pinned
+driver image:
 
 ```bash
-scripts/run_fibsem_linux_acceptance.sh \
-  configs/openfibsem/fibsem_liftout_v1.yaml
+"$EVALUATOR_REPO_PATH/scripts/run_fibsem_linux_acceptance.sh" \
+  "$PWD/configs/openfibsem/fibsem_liftout_v1.yaml"
 ```
 
 The driver runs as the invoking UID/GID, adds only the Docker socket group,
-and mounts the checkout parent and `/tmp` at an identical absolute path. This
+and mounts the configured instrument, instance, and evaluator repositories and
+`/tmp` at identical absolute paths. This
 is necessary because the driver and its sibling evaluator/candidate/simulator
 containers share one native daemon. The driver mounts the native host Git
 binary, exec path, and resolved dynamic libraries read-only; its image builds
 with `--network=none`. The trusted evaluator also builds with `--network=none`,
 and the driver, evaluator, candidate, and simulator runs have no network.
 
-On success, the schema-version-4 report is
+On success, the schema-version-5 report is
 `reports/openfibsem/fibsem_liftout_v1.json`. Forty read-only checkpoint bundles
 are under
 `reports/openfibsem/fibsem_liftout_v1.artifacts/{world_id}/{step_id}/`; each contains
@@ -94,9 +120,10 @@ PYTHONPATH=src python scripts/validate_distributed_benchmark.py
 ```
 
 The official path builds the trusted evaluator image for every run from only
-Git-tracked evaluator inputs. Python wheels, the Linux/amd64 Docker CLI, and
-the Docker Buildx plugin are vendored with SHA-256 manifests, and the image
-build uses `--network=none`.
+Git-tracked evaluator inputs. The evaluator repository owns the Dockerfiles,
+Python wheels, Linux/amd64 Docker CLI, Docker Buildx plugin and SHA-256
+manifests under `$EVALUATOR_REPO_PATH/container`; the image build uses
+`--network=none`.
 The non-root outer evaluator has no network, a read-only root filesystem and
 the host Docker socket. It uses that privileged socket only to create hardened
 sibling candidate containers; candidates never receive the socket or evaluator
@@ -141,5 +168,5 @@ PYTHONPATH=src python scripts/validate_distributed_benchmark.py \
 ```
 
 The PyVISA v1 and v2 top-level reports are schema versions 2 and 3,
-respectively; the OpenFIBSEM report is schema version 4. All require the
+respectively; the OpenFIBSEM report is schema version 5. All require the
 configured `source_id`.

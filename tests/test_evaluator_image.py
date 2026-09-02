@@ -21,6 +21,10 @@ from instrument_benchmark.evaluator_image import (  # noqa: E402
     verify_build_manifest,
 )
 from instrument_benchmark.repository_layout import resolve_evaluator_leaf  # noqa: E402
+from instrument_benchmark.environment import load_repository_paths  # noqa: E402
+
+
+ASSETS_ROOT = load_repository_paths(ROOT).evaluator_repo_path / "container"
 
 
 def canonical_json(value: object) -> bytes:
@@ -378,14 +382,11 @@ class EvaluatorImageTests(unittest.TestCase):
                 )
 
     def test_real_context_installs_hooked_sim_fork_before_evaluator(self) -> None:
-        evaluator = ROOT.parent / "evaluator"
-        if not evaluator.is_dir():
-            evaluator = ROOT.parents[2] / "evaluator" / ".worktrees" / ROOT.name
-        evaluator = evaluator.resolve()
+        evaluator = load_repository_paths(ROOT).evaluator_repo_path
         with tempfile.TemporaryDirectory() as directory:
             context = self.stage(
                 evaluator,
-                ROOT / "container",
+                ASSETS_ROOT,
                 Path(directory) / "context",
                 source_id=self.PYVISA_SOURCE,
                 evaluator_id=self.PYVISA_EVALUATOR,
@@ -394,7 +395,7 @@ class EvaluatorImageTests(unittest.TestCase):
             self.assertTrue((vendor / "pyproject.toml").is_file())
             self.assertTrue((vendor / "pyvisa_sim" / "hooks.py").is_file())
 
-        dockerfile = (ROOT / "container" / "evaluator.Dockerfile").read_text()
+        dockerfile = (ASSETS_ROOT / "evaluator.Dockerfile").read_text()
         normalized = " ".join(dockerfile.replace("\\", "").split())
         fork_install = (
             "python -m pip install --no-index --no-deps --no-build-isolation "
@@ -781,7 +782,7 @@ class EvaluatorImageTests(unittest.TestCase):
                     root / "symlink",
                 )
 
-    def test_evaluator_checkout_must_be_clean_even_for_other_source_content(self) -> None:
+    def test_evaluator_repository_must_be_clean_even_for_other_source_content(self) -> None:
         for untracked in (False, True):
             with (
                 self.subTest(untracked=untracked),
@@ -796,7 +797,7 @@ class EvaluatorImageTests(unittest.TestCase):
                     tracked = other_source / self.FIBSEM_EVALUATOR / "implementation.py"
                     tracked.write_text("DIRTY = True\n")
                 with self.assertRaisesRegex(
-                    EvaluatorImageError, "evaluator checkout must be clean"
+                    EvaluatorImageError, "evaluator repository must be clean"
                 ):
                     self.stage(
                         evaluator,
@@ -906,7 +907,7 @@ class EvaluatorImageTests(unittest.TestCase):
         )
         for name in ("evaluator.Dockerfile", "fibsem-evaluator.Dockerfile"):
             with self.subTest(name=name):
-                text = (ROOT / "container" / name).read_text(encoding="utf-8")
+                text = (ASSETS_ROOT / name).read_text(encoding="utf-8")
                 self.assertIn(
                     "COPY docker-buildx/docker-buildx "
                     "/usr/libexec/docker/cli-plugins/docker-buildx",

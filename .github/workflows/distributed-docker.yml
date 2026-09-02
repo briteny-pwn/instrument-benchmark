@@ -9,6 +9,9 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-24.04
+    env:
+      INSTANCES_REPO_PATH: ${{ github.workspace }}/instance
+      EVALUATOR_REPO_PATH: ${{ github.workspace }}/evaluator
     strategy:
       fail-fast: false
       matrix:
@@ -37,8 +40,6 @@ jobs:
         env:
           IAB_RUN_DOCKER_TESTS: "1"
           IAB_CONTAINER_OWNER: distributed-${{ matrix.version }}-${{ github.run_id }}-${{ github.run_attempt }}
-          IAB_INSTANCE_CHECKOUT: ${{ github.workspace }}/instance
-          IAB_EVALUATOR_CHECKOUT: ${{ github.workspace }}/evaluator
         run: >-
           PYTHONPATH=src python -m unittest
           tests.integration.test_v2_dual_container_linux -v
@@ -48,7 +49,7 @@ jobs:
           IAB_CONTAINER_OWNER: distributed-${{ matrix.version }}-${{ github.run_id }}-${{ github.run_attempt }}
         run: >-
           PYTHONPATH=src python scripts/validate_distributed_benchmark.py
-          --config configs/pyvisa_dut_validation_${{ matrix.version }}.yaml
+          --config configs/pyvisa/pyvisa_dut_validation_${{ matrix.version }}.yaml
       - name: Capture Docker evidence
         if: always()
         run: |

@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from instrument_benchmark.evaluator_image import EvaluatorImageBuilder  # noqa: E402
+from instrument_benchmark.environment import load_repository_paths  # noqa: E402
 
 
 @unittest.skipUnless(
@@ -20,11 +21,9 @@ from instrument_benchmark.evaluator_image import EvaluatorImageBuilder  # noqa: 
 )
 class EvaluatorImageLinuxTests(unittest.TestCase):
     def test_real_image_is_offline_non_root_and_contains_private_runtime(self) -> None:
-        evaluator = Path(
-            os.environ.get("IAB_EVALUATOR_CHECKOUT", ROOT.parent / "evaluator")
-        ).resolve()
+        evaluator = load_repository_paths(ROOT).evaluator_repo_path
         evidence = EvaluatorImageBuilder(
-            assets_root=ROOT / "container"
+            assets_root=evaluator / "container"
         ).build(
             evaluator,
             run_id="image-integration",
@@ -59,7 +58,7 @@ class EvaluatorImageLinuxTests(unittest.TestCase):
                         "assert shutil.which('docker')=='/usr/local/bin/docker'; "
                         "assert subprocess.run(['docker','--version']).returncode==0; "
                         "v=Path('/review/evaluator/vendor/pyvisa-sim-iab/pyvisa_sim'); "
-                        "w=Path('/review/instrument/container/wheelhouse/"
+                        "w=Path('/review/evaluator/container/wheelhouse/"
                         "pyvisa_sim-0.7.1-py3-none-any.whl'); "
                         "changed=set(); "
                         "z=ZipFile(w); "

@@ -11,8 +11,6 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-EVALUATOR_ROOT = str((ROOT.parent / "evaluator").resolve())
-sys.path.insert(0, EVALUATOR_ROOT)
 
 from instrument_benchmark.contracts import (  # noqa: E402
     ContractError,
@@ -23,20 +21,39 @@ from instrument_benchmark.orchestrator import (  # noqa: E402
     _build_evaluator_request,
     _publish_fibsem_artifacts,
 )
+from instrument_benchmark.environment import (  # noqa: E402
+    load_repository_paths,
+    read_repository_path_values,
+)
+INSTANCE_REPOSITORY_VALUE, EVALUATOR_REPOSITORY_VALUE = read_repository_path_values(ROOT)
+EVALUATOR_ROOT = str(Path(EVALUATOR_REPOSITORY_VALUE).resolve())
+sys.path.insert(0, EVALUATOR_ROOT)
 from sources.openfibsem.fibsem_liftout_v1.tests.test_reports import (  # noqa: E402
     complete_report,
+)
+from sources.openfibsem.fibsem_liftout_v1.tests import (  # noqa: E402
+    test_scoring as evaluator_test_scoring,
 )
 
 sys.path.remove(EVALUATOR_ROOT)
 
+evaluator_test_scoring.NOMINAL = (
+    Path(INSTANCE_REPOSITORY_VALUE).resolve()
+    / "sources/openfibsem/fibsem_liftout_v1/scenarios/nominal.json"
+)
+
 
 OPENFIBSEM_COMMIT = "2ebccb8b9721234ca66bb94de36d0f7cfe047af9"
+OPENFIBSEM_CHECKOUT = (
+    ROOT / "configs/openfibsem" / "../../../fibsem"
+).resolve()
 
 
 def test_three_repository_readmes_publish_fibsem_operator_contract() -> None:
+    repositories = load_repository_paths(ROOT)
     readmes = {
-        "instance": (ROOT.parent / "instance" / "README.md").read_text(),
-        "evaluator": (ROOT.parent / "evaluator" / "README.md").read_text(),
+        "instance": (repositories.instances_repo_path / "README.md").read_text(),
+        "evaluator": (repositories.evaluator_repo_path / "README.md").read_text(),
         "instrument": (ROOT / "README.md").read_text(),
     }
 
@@ -50,14 +67,21 @@ def test_three_repository_readmes_publish_fibsem_operator_contract() -> None:
     assert "native Linux Docker" in combined
     assert "reports/openfibsem/fibsem_liftout_v1.artifacts" in combined
     assert (
-        "python scripts/validate_fibsem_benchmark.py \\\n"
-        "  --config configs/openfibsem/fibsem_liftout_v1.yaml"
+        '"$EVALUATOR_REPO_PATH/scripts/run_fibsem_linux_acceptance.sh" \\\n'
+        '  "$PWD/configs/openfibsem/fibsem_liftout_v1.yaml"'
     ) in readmes["instrument"]
+    assert "python scripts/validate_fibsem_benchmark.py" not in readmes["instrument"]
 
 
+@pytest.mark.skipif(
+    not OPENFIBSEM_CHECKOUT.is_dir(),
+    reason="real OpenFIBSEM checkout is not available",
+)
 def test_real_fibsem_config_pins_all_three_repos_and_openfibsem_source() -> None:
+    repositories = load_repository_paths(ROOT)
     config = load_run_config(
-        ROOT / "configs" / "openfibsem" / "fibsem_liftout_v1.yaml"
+        ROOT / "configs" / "openfibsem" / "fibsem_liftout_v1.yaml",
+        repositories,
     )
 
     assert config.source_id == "openfibsem"
@@ -77,12 +101,10 @@ def test_openfibsem_fields_are_conditional_and_exact(tmp_path: Path) -> None:
     candidate = tmp_path / "solution.py"
     candidate.write_text("pass")
     base = {
-        "schema_version": 2,
+        "schema_version": 3,
         "run_id": "run",
         "source_id": "openfibsem",
-        "instance_checkout": str(instance),
         "instance_id": "fibsem_liftout_v1",
-        "evaluator_checkout": str(evaluator),
         "evaluator_id": "fibsem_liftout_v1",
         "candidate_path": str(candidate),
         "report_path": str(tmp_path / "report.json"),
@@ -96,31 +118,44 @@ def test_openfibsem_fields_are_conditional_and_exact(tmp_path: Path) -> None:
         "openfibsem_commit": OPENFIBSEM_COMMIT,
     }
     config = tmp_path / "run.yaml"
+    repositories = load_repository_paths(
+        tmp_path,
+        environ={
+            "INSTANCES_REPO_PATH": str(instance),
+            "EVALUATOR_REPO_PATH": str(evaluator),
+        },
+    )
 
     for missing in ("openfibsem_checkout", "openfibsem_commit"):
         value = dict(base)
         value.pop(missing)
         config.write_text(yaml.safe_dump(value))
         with pytest.raises(ContractError, match="OpenFIBSEM"):
-            load_run_config(config)
+            load_run_config(config, repositories)
 
     value = dict(base)
     value["instance_id"] = value["evaluator_id"] = "pyvisa_dut_validation_v2"
     config.write_text(yaml.safe_dump(value))
     with pytest.raises(ContractError, match="only valid for FIBSEM"):
-        load_run_config(config)
+        load_run_config(config, repositories)
 
 
+@pytest.mark.skipif(
+    not OPENFIBSEM_CHECKOUT.is_dir(),
+    reason="real OpenFIBSEM checkout is not available",
+)
 def test_fibsem_request_carries_exact_evaluator_image_id() -> None:
+    repositories = load_repository_paths(ROOT)
     config = load_run_config(
-        ROOT / "configs" / "openfibsem" / "fibsem_liftout_v1.yaml"
+        ROOT / "configs" / "openfibsem" / "fibsem_liftout_v1.yaml",
+        repositories,
     )
     image_id = "sha256:" + "a" * 64
 
     request = _build_evaluator_request(
         config,
         instance_root=(
-            config.instance_checkout
+            config.instances_repo_path
             / "sources"
             / config.source_id
             / config.instance_id

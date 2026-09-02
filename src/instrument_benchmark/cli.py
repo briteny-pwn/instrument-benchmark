@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .contracts import ContractError, load_run_config
+from .environment import load_repository_paths
 from .orchestrator import run_benchmark
 
 
@@ -18,9 +19,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--allow-dirty", action="store_true")
     arguments = parser.parse_args(argv)
     try:
+        repository_paths = load_repository_paths(ROOT)
         report = run_benchmark(
             arguments.config,
             instrument_checkout=ROOT,
+            repository_paths=repository_paths,
             allow_dirty=arguments.allow_dirty,
         )
     except ContractError as exc:
@@ -32,7 +35,9 @@ def main(argv: list[str] | None = None) -> int:
     print(
         json.dumps(
             {
-                "report": str(load_run_config(arguments.config).report_path),
+                "report": str(
+                    load_run_config(arguments.config, repository_paths).report_path
+                ),
                 "score": report["score"],
                 "strict_pass": report["strict_pass"],
             },

@@ -14,6 +14,10 @@ from scripts.validate_distributed_benchmark import (
     semantic_projection,
 )
 from instrument_benchmark.contracts import load_run_config
+from instrument_benchmark.environment import (  # noqa: E402
+    RepositoryPaths,
+    load_repository_paths,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -155,15 +159,24 @@ class FormalValidationScriptTests(unittest.TestCase):
         class StopAfterConfig(RuntimeError):
             pass
 
-        with mock.patch(
-            "scripts.validate_distributed_benchmark.load_run_config",
-            side_effect=StopAfterConfig,
-        ) as loader:
+        repositories = RepositoryPaths(Path("/instances"), Path("/evaluator"))
+        with (
+            mock.patch(
+                "scripts.validate_distributed_benchmark.load_repository_paths",
+                return_value=repositories,
+            ) as environment_loader,
+            mock.patch(
+                "scripts.validate_distributed_benchmark.load_run_config",
+                side_effect=StopAfterConfig,
+            ) as loader,
+        ):
             with self.assertRaises(StopAfterConfig):
                 main([])
 
+        environment_loader.assert_called_once_with(ROOT)
         loader.assert_called_once_with(
-            (ROOT / "configs/pyvisa/pyvisa_dut_validation_v1.yaml").resolve()
+            (ROOT / "configs/pyvisa/pyvisa_dut_validation_v1.yaml").resolve(),
+            repositories,
         )
 
     def test_source_grouped_pyvisa_configs_bind_exact_report_versions(self) -> None:
@@ -171,10 +184,12 @@ class FormalValidationScriptTests(unittest.TestCase):
             ("pyvisa_dut_validation_v1", 2),
             ("pyvisa_dut_validation_v2", 3),
         )
+        repositories = load_repository_paths(ROOT)
         for evaluator_id, report_version in cases:
             with self.subTest(evaluator_id=evaluator_id):
                 config = load_run_config(
-                    ROOT / "configs" / "pyvisa" / f"{evaluator_id}.yaml"
+                    ROOT / "configs" / "pyvisa" / f"{evaluator_id}.yaml",
+                    repositories,
                 )
                 self.assertEqual(config.source_id, "pyvisa")
                 self.assertEqual(config.evaluator_id, evaluator_id)
@@ -187,11 +202,18 @@ class FormalValidationScriptTests(unittest.TestCase):
         config = SimpleNamespace(
             source_id="openfibsem",
             evaluator_id="pyvisa_dut_validation_v1",
-            instance_checkout=ROOT.parent / "instance",
+            instances_repo_path=ROOT.parent / "instance",
         )
-        with mock.patch(
-            "scripts.validate_distributed_benchmark.load_run_config",
-            return_value=config,
+        repositories = RepositoryPaths(Path("/instances"), Path("/evaluator"))
+        with (
+            mock.patch(
+                "scripts.validate_distributed_benchmark.load_repository_paths",
+                return_value=repositories,
+            ),
+            mock.patch(
+                "scripts.validate_distributed_benchmark.load_run_config",
+                return_value=config,
+            ),
         ):
             with self.assertRaisesRegex(RuntimeError, "source.*evaluator|identity"):
                 main([])

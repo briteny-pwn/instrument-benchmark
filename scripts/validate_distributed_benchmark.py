@@ -20,6 +20,7 @@ if str(SOURCE) not in sys.path:
     sys.path.insert(0, str(SOURCE))
 
 from instrument_benchmark.contracts import dump_json, load_run_config
+from instrument_benchmark.environment import load_repository_paths
 from instrument_benchmark.orchestrator import run_benchmark
 from instrument_benchmark.evaluator_image import stage_evaluator_build_context
 
@@ -126,7 +127,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     arguments = parser.parse_args(argv)
     config_path = arguments.config.resolve()
-    config = load_run_config(config_path)
+    repository_paths = load_repository_paths(ROOT)
+    config = load_run_config(config_path, repository_paths)
     expected_report_schema = EXPECTED_IDENTITIES.get(
         (config.source_id, config.evaluator_id)
     )
@@ -134,8 +136,8 @@ def main(argv: list[str] | None = None) -> int:
         raise RuntimeError(
             "validator requires a supported (source_id, evaluator_id) identity"
         )
-    instance = config.instance_checkout
-    evaluator = config.evaluator_checkout
+    instance = config.instances_repo_path
+    evaluator = config.evaluator_repo_path
     instance_root = (
         instance / "sources" / config.source_id / config.instance_id
     )
@@ -179,6 +181,7 @@ def main(argv: list[str] | None = None) -> int:
     first = run_benchmark(
         config_path,
         instrument_checkout=ROOT,
+        repository_paths=repository_paths,
         allow_dirty=False,
     )
     manifest_output = ROOT / "reports" / "evaluator-build-manifest.json"
@@ -186,7 +189,7 @@ def main(argv: list[str] | None = None) -> int:
     with tempfile.TemporaryDirectory(prefix="iab-manifest-") as directory:
         context = stage_evaluator_build_context(
             evaluator,
-            ROOT / "container",
+            evaluator / "container",
             Path(directory) / "context",
             source_id=config.source_id,
             evaluator_id=config.evaluator_id,
@@ -196,6 +199,7 @@ def main(argv: list[str] | None = None) -> int:
         second = run_benchmark(
             config_path,
             instrument_checkout=ROOT,
+            repository_paths=repository_paths,
             allow_dirty=True,
         )
         reproducible: bool | None = (
