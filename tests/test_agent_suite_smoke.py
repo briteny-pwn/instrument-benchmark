@@ -78,6 +78,42 @@ def _write_task_repository(root: Path) -> None:
                 "source_id": "demo",
                 "visible_files": visible,
                 "submission": {"filename": "answer.json"},
+                "evaluator": {"id": "evaluator", "protocol_version": 2},
+                "container": {"protocol_version": 1},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_evaluator_repository(root: Path) -> None:
+    leaf = root / "sources" / "demo" / "evaluator"
+    leaf.mkdir(parents=True)
+    (leaf.parent / "source.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "source_id": "demo",
+                "display_name": "Demo",
+                "description": "Demo evaluator",
+                "evaluators": ["evaluator"],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (leaf / "evaluator.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 2,
+                "source_id": "demo",
+                "evaluator_id": "evaluator",
+                "protocol_version": 2,
+                "container_protocol_version": 1,
+                "candidate_execution": "docker",
+                "image_mode": "locked",
+                "supported_instances": ["task"],
             },
             sort_keys=False,
         ),
@@ -97,6 +133,7 @@ def test_cli_agent_suite_smoke(
     instrument.mkdir()
     evaluator.mkdir()
     _write_task_repository(tasks)
+    _write_evaluator_repository(evaluator)
     fake_bin = tmp_path / "bin"
     _write_fake_claude(fake_bin)
     monkeypatch.setenv("INSTANCES_REPO_PATH", str(tasks))

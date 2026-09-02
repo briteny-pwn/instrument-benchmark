@@ -64,7 +64,7 @@ def test_submission_filename_is_not_hard_coded(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "filename",
-    [None, "", "/tmp/answer.json", "../answer.json", "nested/answer.json"],
+    [None, "", ".", "..", "/tmp/answer.json", "../answer.json", "nested/answer.json"],
 )
 def test_rejects_invalid_submission_filename(
     tmp_path: Path, filename: object

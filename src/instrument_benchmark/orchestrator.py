@@ -268,6 +268,14 @@ def run_agent_benchmark(
     instance_leaf = resolve_instance_leaf(
         config.instances_repo_path, config.source_id, config.instance_id
     )
+    evaluator_leaf = resolve_evaluator_leaf(
+        config.evaluator_repo_path, config.source_id, config.evaluator_id
+    )
+    validate_dependencies(
+        config.source_id,
+        instance_leaf.manifest,
+        evaluator_leaf.manifest,
+    )
     validate_visible_hashes(instance_leaf.root, instance_leaf.manifest)
     prepared = prepare_workspace(
         instance_leaf.root,

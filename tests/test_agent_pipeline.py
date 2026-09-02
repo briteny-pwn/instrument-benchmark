@@ -60,6 +60,42 @@ def _write_task(
                 "source_id": "demo",
                 "visible_files": visible,
                 "submission": {"filename": filename},
+                "evaluator": {"id": "evaluator", "protocol_version": 2},
+                "container": {"protocol_version": 1},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_evaluator(repository: Path) -> None:
+    leaf = repository / "sources" / "demo" / "evaluator"
+    leaf.mkdir(parents=True)
+    (leaf.parent / "source.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "source_id": "demo",
+                "display_name": "Demo",
+                "description": "Demo evaluator",
+                "evaluators": ["evaluator"],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (leaf / "evaluator.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 2,
+                "source_id": "demo",
+                "evaluator_id": "evaluator",
+                "protocol_version": 2,
+                "container_protocol_version": 1,
+                "candidate_execution": "docker",
+                "image_mode": "locked",
+                "supported_instances": ["task"],
             },
             sort_keys=False,
         ),
@@ -74,6 +110,7 @@ def _fixture(tmp_path: Path, *, starter_candidate: bool = False):
     instrument.mkdir()
     evaluator.mkdir()
     _write_task(tasks, starter_candidate=starter_candidate)
+    _write_evaluator(evaluator)
     config = tmp_path / "run.yaml"
     report = tmp_path / "reports" / "run.json"
     config.write_text(
@@ -265,6 +302,41 @@ def test_rejects_unknown_agent_before_starting_runner(tmp_path: Path) -> None:
         run_agent_benchmark(
             config,
             agent="unknown",
+            workspace_root=tmp_path / "workspaces",
+            instrument_checkout=instrument,
+            repository_paths=repositories,
+            agent_runner_factory=factory,
+            environ=AGENT_ENVIRONMENT,
+        )
+
+    assert runner_created is False
+
+
+def test_rejects_task_evaluator_mismatch_before_starting_agent(
+    tmp_path: Path,
+) -> None:
+    instrument, repositories, config, _ = _fixture(tmp_path)
+    manifest_path = (
+        repositories.evaluator_repo_path
+        / "sources"
+        / "demo"
+        / "evaluator"
+        / "evaluator.yaml"
+    )
+    manifest = yaml.safe_load(manifest_path.read_text())
+    manifest["supported_instances"] = ["other_task"]
+    manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False))
+    runner_created = False
+
+    def factory() -> FakeAgentRunner:
+        nonlocal runner_created
+        runner_created = True
+        return FakeAgentRunner(status="completed", create_candidate=True)
+
+    with pytest.raises(ValueError, match="not supported by evaluator"):
+        run_agent_benchmark(
+            config,
+            agent="claudecode",
             workspace_root=tmp_path / "workspaces",
             instrument_checkout=instrument,
             repository_paths=repositories,

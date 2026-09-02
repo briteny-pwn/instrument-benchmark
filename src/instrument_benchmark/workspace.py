@@ -93,7 +93,12 @@ def _submission_filename(manifest: Mapping[str, Any]) -> str:
     if not isinstance(filename, str) or not filename.strip():
         raise ContractError("submission.filename must be a non-empty string")
     path = Path(filename)
-    if path.is_absolute() or len(path.parts) != 1 or path.name != filename:
+    if (
+        path.is_absolute()
+        or filename in {".", ".."}
+        or len(path.parts) != 1
+        or path.name != filename
+    ):
         raise ContractError("submission.filename must name one relative file")
     return filename
 
