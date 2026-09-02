@@ -1,7 +1,7 @@
 # Instrument Benchmark Orchestrator
 
 This branch contains the generic orchestration layer for the distributed
-instrument benchmark. Concrete model-visible instances and private evaluators
+instrument benchmark. Concrete model-visible tasks and private evaluators
 live in separate repositories.
 
 The orchestrator accepts independently sourced instance/evaluator pairs. A
@@ -17,9 +17,16 @@ cp .env.example .env
 ```
 
 ```dotenv
-INSTANCES_REPO_PATH=/absolute/path/instrument-benchmark-instances
+INSTANCES_REPO_PATH=/absolute/path/instrument-benchmark-tasks
 EVALUATOR_REPO_PATH=/absolute/path/instrument-benchmark-evaluator
+INSTRBENCH_AGENT_MODEL=claude-model-name-supported-by-your-gateway
+ANTHROPIC_BASE_URL=https://your-anthropic-compatible-gateway.example
+ANTHROPIC_AUTH_TOKEN=replace-with-your-token
 ```
+
+`ANTHROPIC_API_KEY` can be used instead of `ANTHROPIC_AUTH_TOKEN`. Process
+environment values take precedence over `.env`. Agent credentials are passed to
+Claude Code but are never written into benchmark reports.
 
 The orchestrator reads only `.env` at this repository root. Values already
 exported in the process environment take precedence. Both values are required,
@@ -29,7 +36,7 @@ optional convenience, not a resolution rule:
 ```text
 benchmark/
 ├── instrument/  # briteny-pwn/instrument-benchmark, distributed-model
-├── instrument-benchmark-instances/  # assigned to INSTANCES_REPO_PATH
+├── instrument-benchmark-tasks/  # assigned to INSTANCES_REPO_PATH
 └── instrument-benchmark-evaluator/  # assigned to EVALUATOR_REPO_PATH
 ```
 
@@ -55,18 +62,40 @@ Run one benchmark configuration:
 instrbench run --config configs/pyvisa/pyvisa_dut_validation_v1.yaml
 ```
 
-Run the bundled example suite:
+Install Claude Code on the host and ensure `claude` is available on `PATH`.
+Then run the bundled real-Agent example suite:
 
 ```bash
 instrbench run --suite suites/example.yaml
 ```
+
+The suite exposes only `agent: claudecode`. Instrument selects the model from
+`INSTRBENCH_AGENT_MODEL`, passes the Anthropic gateway environment through, and
+uses Claude Code's normal host configuration for all other behavior. Claude
+Code runs directly on the trusted host with a dedicated working directory; it
+does not run in a security sandbox. Reports therefore record
+`isolation: trusted_host`.
+
+For every run, Instrument verifies the task's `visible_files`, copies the
+contents of `starter/` into a fresh workspace root, preserves the paths of the
+other public files, and sends the task's unmodified `prompt.md` to Claude Code.
+The candidate name is read exclusively from the task manifest's
+`submission.filename`; `solution.py` is not assumed. Only a regular file inside
+the workspace is accepted. If Claude Code fails or times out after producing
+that file, the partial candidate is still evaluated.
+
+Workspaces and Agent logs are retained beneath the suite report directory's
+`workspaces/<suite_id>/<run_id>/` tree. Each run report includes Agent status,
+model, duration, exit code, workspace/log paths, candidate path and candidate
+SHA-256, but no gateway URL or authentication value.
 
 Suites execute their `runs` in YAML declaration order. Each run continues to
 write its own configured report; the suite additionally writes one aggregate
 report at its `result_path`. For the example, that aggregate is
 `reports/suites/example.json`. Its `runs` entries preserve run order and record
 each per-run report path, outcome, score, and strict-pass result; `summary`
-aggregates completed, infrastructure-failed, and strict-pass counts.
+aggregates generated candidates, evaluations, missing submissions,
+infrastructure failures, strict passes, and mean score.
 
 Successful single runs and suites exit with status 0. Invalid environment,
 config, or suite contracts exit with status 2. Benchmark infrastructure errors
@@ -86,11 +115,21 @@ schema-v2 leaf manifests must agree before any image build or container start.
 Ungrouped legacy config, leaf, report, and artifact paths are invalid; there is
 no compatibility fallback, alias, scan, or root-manifest lookup.
 
-Run YAML uses schema version 3 and does not contain repository checkout paths.
-A relative `candidate_path` resolves beneath `EVALUATOR_REPO_PATH`, which is
-how bundled reference solutions are selected. An absolute `candidate_path`
-selects an external submission. Relative traversal or symlink escape outside
-the evaluator repository is rejected.
+User-facing run and suite YAML use one current format and have no
+`schema_version` field. A relative `candidate_path` resolves beneath
+`EVALUATOR_REPO_PATH`, which is how direct `--config` runs can select bundled
+reference solutions. An absolute `candidate_path` selects an external
+submission. Relative traversal or symlink escape outside the evaluator
+repository is rejected. Agent suites instead use the task manifest's
+`submission.filename` from their prepared workspace.
+
+The default test suite never calls a real model. To run the opt-in Claude Code
+host smoke after setting the Agent environment variables:
+
+```bash
+INSTRBENCH_RUN_REAL_AGENT_TESTS=1 PYTHONPATH=src pytest -q \
+  tests/test_agent_suite_smoke.py::test_real_claude_code_can_create_manifest_named_candidate
+```
 
 From `instrument/`, run the reference benchmark with:
 

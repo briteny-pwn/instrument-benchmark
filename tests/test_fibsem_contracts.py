@@ -101,7 +101,6 @@ def test_openfibsem_fields_are_conditional_and_exact(tmp_path: Path) -> None:
     candidate = tmp_path / "solution.py"
     candidate.write_text("pass")
     base = {
-        "schema_version": 3,
         "run_id": "run",
         "source_id": "openfibsem",
         "instance_id": "fibsem_liftout_v1",

@@ -124,14 +124,13 @@ class DistributedOrchestratorTests(unittest.TestCase):
         )
         return leaf
 
-    def test_run_config_requires_schema_v3_and_source_id_before_git(self) -> None:
+    def test_run_config_requires_current_fields_before_git(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ("instance", "evaluator"):
                 (root / name).mkdir()
             (root / "solution.py").write_text("pass\n")
             base = {
-                "schema_version": 3,
                 "run_id": "run",
                 "source_id": "pyvisa",
                 "instance_id": "pyvisa_dut_validation_v1",
@@ -149,7 +148,6 @@ class DistributedOrchestratorTests(unittest.TestCase):
             repositories = self.repository_paths(root / "instance", root / "evaluator")
 
             for mutate in (
-                lambda value: value.update(schema_version=1),
                 lambda value: value.pop("source_id"),
                 lambda value: value.update(unknown_field=True),
             ):
@@ -165,14 +163,13 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 git.assert_not_called()
                 process.assert_not_called()
 
-    def test_run_config_v3_validates_all_composite_identity_ids(self) -> None:
+    def test_run_config_validates_all_composite_identity_ids(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ("instance", "evaluator"):
                 (root / name).mkdir()
             (root / "solution.py").write_text("pass\n")
             base = {
-                "schema_version": 3,
                 "run_id": "run",
                 "source_id": "pyvisa",
                 "instance_id": "pyvisa_dut_validation_v1",
@@ -197,14 +194,13 @@ class DistributedOrchestratorTests(unittest.TestCase):
 
             config.write_text(yaml.safe_dump(base))
             loaded = load_run_config(config, repositories)
-            self.assertEqual(loaded.schema_version, 3)
             self.assertEqual(loaded.source_id, "pyvisa")
 
-    def test_run_json_schema_v3_uses_environment_repository_paths(self) -> None:
+    def test_run_json_schema_uses_environment_repository_paths(self) -> None:
         schema = json.loads((ROOT / "schemas" / "run.schema.json").read_text())
         properties = schema["properties"]
 
-        self.assertEqual(properties["schema_version"], {"const": 3})
+        self.assertNotIn("schema_version", properties)
         self.assertIn("source_id", schema["required"])
         self.assertNotIn("instance_checkout", schema["required"])
         self.assertNotIn("evaluator_checkout", schema["required"])
@@ -249,7 +245,7 @@ class DistributedOrchestratorTests(unittest.TestCase):
         for relative, values in expected.items():
             with self.subTest(config=relative):
                 value = yaml.safe_load((ROOT / "configs" / relative).read_text())
-                self.assertEqual(value["schema_version"], 3)
+                self.assertNotIn("schema_version", value)
                 self.assertEqual(
                     (
                         value["source_id"],
@@ -309,7 +305,6 @@ class DistributedOrchestratorTests(unittest.TestCase):
             candidate.write_text("pass\n")
 
             common = dict(
-                schema_version=3,
                 run_id="run",
                 source_id="pyvisa",
                 instances_repo_path=root,
@@ -480,7 +475,6 @@ class DistributedOrchestratorTests(unittest.TestCase):
             config.write_text(
                 "\n".join(
                     (
-                        "schema_version: 3",
                         "run_id: run-v2",
                         "source_id: pyvisa",
                         "instance_id: pyvisa_dut_validation_v2",
@@ -737,7 +731,6 @@ class DistributedOrchestratorTests(unittest.TestCase):
             config.write_text(
                 "\n".join(
                     (
-                        "schema_version: 3",
                         "run_id: test",
                         "source_id: pyvisa",
                         "instance_id: pyvisa_dut_validation_v1",
@@ -795,12 +788,10 @@ class DistributedOrchestratorTests(unittest.TestCase):
             config.write_text(
                 "\n".join(
                     (
-                        "schema_version: 3",
                         "run_id: fake",
                         "source_id: pyvisa",
                         "instance_id: pyvisa_dut_validation_v1",
                         "evaluator_id: pyvisa_dut_validation_v1",
-                        f"candidate_path: {candidate}",
                         f"report_path: {report}",
                         "timeout_seconds: 30",
                         "max_output_bytes: 65536",
@@ -938,6 +929,7 @@ class DistributedOrchestratorTests(unittest.TestCase):
                     config,
                     instrument_checkout=instrument,
                     repository_paths=self.repository_paths(instance, evaluator),
+                    candidate_path=candidate,
                     allow_dirty=False,
                     image_builder_factory=lambda: builder,
                     runner_factory=FakeRunner,
@@ -1028,7 +1020,6 @@ class DistributedOrchestratorTests(unittest.TestCase):
                 config.write_text(
                     yaml.safe_dump(
                         {
-                            "schema_version": 3,
                             "run_id": "source-guard",
                             "source_id": "pyvisa",
                             "instance_id": "pyvisa_dut_validation_v1",

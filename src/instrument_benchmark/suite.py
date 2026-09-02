@@ -9,7 +9,7 @@ import yaml
 
 from .contracts import ContractError, RunConfig, dump_json, load_run_config
 from .environment import RepositoryPaths
-from .orchestrator import run_benchmark
+from .orchestrator import run_agent_benchmark
 
 
 _IDENTIFIER = re.compile(r"[a-z][a-z0-9_-]*")
@@ -23,8 +23,8 @@ class SuiteEntry:
 
 @dataclass(frozen=True)
 class SuiteConfig:
-    schema_version: int
     suite_id: str
+    agent: str
     suite_path: Path
     entries: tuple[SuiteEntry, ...]
     result_path: Path
@@ -77,8 +77,8 @@ def load_suite_config(path: Path, repository_paths: RepositoryPaths) -> SuiteCon
             f"suite input/output path collision: {sorted(collisions)[0]}"
         )
     return SuiteConfig(
-        schema_version=1,
         suite_id=value["suite_id"],
+        agent=value["agent"],
         suite_path=suite_path,
         entries=entries,
         result_path=result_path,
@@ -91,7 +91,7 @@ def run_suite(
     instrument_checkout: Path,
     repository_paths: RepositoryPaths,
     allow_dirty: bool = False,
-    benchmark_runner: BenchmarkRunner = run_benchmark,
+    benchmark_runner: BenchmarkRunner = run_agent_benchmark,
 ) -> SuiteExecution:
     runs: list[dict[str, Any]] = []
     infrastructure_failures = 0
@@ -109,6 +109,10 @@ def run_suite(
         try:
             result = benchmark_runner(
                 entry.config_path,
+                agent=config.agent,
+                workspace_root=(
+                    config.result_path.parent / "workspaces" / config.suite_id
+                ),
                 instrument_checkout=instrument_checkout,
                 repository_paths=repository_paths,
                 allow_dirty=allow_dirty,
@@ -121,6 +125,8 @@ def run_suite(
                     "status": "infrastructure_error",
                     "score": None,
                     "strict_pass": None,
+                    "candidate_available": False,
+                    "evaluated": False,
                     "error": f"{type(exc).__name__}: {exc}",
                 }
             )
@@ -128,9 +134,13 @@ def run_suite(
             runs.append(
                 {
                     **run,
-                    "status": "completed",
+                    "status": result.get("status", "completed"),
                     "score": result["score"],
                     "strict_pass": result["strict_pass"],
+                    "candidate_available": result.get(
+                        "candidate_available", True
+                    ),
+                    "evaluated": result.get("evaluated", True),
                     "error": None,
                 }
             )
@@ -140,6 +150,12 @@ def run_suite(
         run["status"] == "completed" and run["strict_pass"] is True
         for run in runs
     )
+    scored = [
+        float(run["score"])
+        for run in runs
+        if isinstance(run["score"], (int, float))
+        and not isinstance(run["score"], bool)
+    ]
     report = {
         "schema_version": 1,
         "suite_id": config.suite_id,
@@ -148,8 +164,15 @@ def run_suite(
         "summary": {
             "total": len(runs),
             "completed": completed,
+            "generated": sum(run["candidate_available"] is True for run in runs),
+            "evaluated": sum(run["evaluated"] is True for run in runs),
+            "missing_submission": sum(
+                run["status"] in {"missing_submission", "submission_error"}
+                for run in runs
+            ),
             "infrastructure_failed": infrastructure_failures,
             "strict_passed": strict_passed,
+            "mean_score": sum(scored) / len(scored) if scored else 0.0,
             "strict_pass": completed == len(runs) and strict_passed == len(runs),
         },
     }
@@ -161,14 +184,14 @@ def run_suite(
 
 
 def _validate_contract(value: Any) -> None:
-    required = {"schema_version", "suite_id", "runs", "result_path"}
+    required = {"suite_id", "agent", "runs", "result_path"}
     if not isinstance(value, dict) or set(value) != required:
-        raise ContractError("suite config fields do not match schema version 1")
-    if type(value["schema_version"]) is not int or value["schema_version"] != 1:
-        raise ContractError("unsupported suite config schema_version")
+        raise ContractError("suite config fields do not match")
     suite_id = value["suite_id"]
     if not isinstance(suite_id, str) or _IDENTIFIER.fullmatch(suite_id) is None:
         raise ContractError("suite_id must be an identifier")
+    if value["agent"] != "claudecode":
+        raise ContractError("suite agent must be claudecode")
     runs = value["runs"]
     if not isinstance(runs, list) or not runs:
         raise ContractError("runs must be a non-empty list")

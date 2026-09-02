@@ -1,4 +1,3 @@
-schema_version: 3
 run_id: fibsem-liftout-v1-reference
 source_id: openfibsem
 instance_id: fibsem_liftout_v1

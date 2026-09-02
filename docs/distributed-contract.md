@@ -18,13 +18,21 @@ produced; candidate failures remain normal report outcomes. Exit status `2`
 means an incompatible or invalid request. Any other status is evaluator
 infrastructure failure.
 
-Run YAML uses schema version 3. Repository locations are not YAML fields:
+Run and suite YAML use one current shape without a `schema_version` field.
+Repository locations are not YAML fields:
 `INSTANCES_REPO_PATH` and `EVALUATOR_REPO_PATH` must be absolute existing
 directories. The process environment has priority over the optional
 repository-root `.env` file. A relative `candidate_path` is evaluator-root
 relative and cannot escape that repository; an absolute path selects an
 external candidate. These run-config rules are independent of the evaluator
 request protocol version named by this document.
+
+For Agent suites, `agent: claudecode` selects Instrument's built-in host
+launcher. Instrument prepares visible task files in a fresh workspace and uses
+the task manifest's `submission.filename` as the candidate path; tasks provide
+no CLI. Model, gateway, and authentication values come from the Instrument
+process environment or repository-root `.env`. Agent output never bypasses the
+existing evaluator request and scoring boundary.
 
 Instance and evaluator leaves resolve only at
 `sources/<source_id>/<leaf_id>/`, after their source registries and schema-v2

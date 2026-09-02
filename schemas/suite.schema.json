@@ -3,13 +3,13 @@
   "title": "Instrument benchmark suite",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "suite_id", "runs", "result_path"],
+  "required": ["suite_id", "agent", "runs", "result_path"],
   "properties": {
-    "schema_version": {"const": 1},
     "suite_id": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]*$"
     },
+    "agent": {"const": "claudecode"},
     "runs": {
       "type": "array",
       "minItems": 1,

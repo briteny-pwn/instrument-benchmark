@@ -44,14 +44,13 @@ V2_COUNTED_EVENTS = {
 
 @dataclass(frozen=True)
 class RunConfig:
-    schema_version: int
     run_id: str
     source_id: str
     instances_repo_path: Path
     instance_id: str
     evaluator_repo_path: Path
     evaluator_id: str
-    candidate_path: Path
+    candidate_path: Path | None
     report_path: Path
     timeout_seconds: float
     max_output_bytes: int
@@ -88,12 +87,10 @@ def load_run_config(path: Path, repository_paths: RepositoryPaths) -> RunConfig:
     except (OSError, yaml.YAMLError) as exc:
         raise ContractError(f"cannot load run config: {exc}") from exc
     required = {
-        "schema_version",
         "run_id",
         "source_id",
         "instance_id",
         "evaluator_id",
-        "candidate_path",
         "report_path",
         "timeout_seconds",
         "max_output_bytes",
@@ -104,7 +101,7 @@ def load_run_config(path: Path, repository_paths: RepositoryPaths) -> RunConfig:
     }
     optional_openfibsem = {"openfibsem_checkout", "openfibsem_commit"}
     if not isinstance(value, dict):
-        raise ContractError("run config fields do not match schema version 3")
+        raise ContractError("run config fields do not match")
     is_fibsem = (
         value.get("source_id") == "openfibsem"
         and value.get("evaluator_id") == "fibsem_liftout_v1"
@@ -116,11 +113,11 @@ def load_run_config(path: Path, repository_paths: RepositoryPaths) -> RunConfig:
         )
     if not is_fibsem and present_openfibsem:
         raise ContractError("OpenFIBSEM fields are only valid for FIBSEM")
-    expected = required | (optional_openfibsem if is_fibsem else set())
-    if set(value) != expected:
-        raise ContractError("run config fields do not match schema version 3")
-    if value["schema_version"] != 3:
-        raise ContractError("unsupported run config schema_version")
+    expected = required | {"candidate_path"} | (
+        optional_openfibsem if is_fibsem else set()
+    )
+    if not required.issubset(value) or not set(value).issubset(expected):
+        raise ContractError("run config fields do not match")
     source_id = _identifier(value["source_id"], "source_id")
     instance_id = _identifier(value["instance_id"], "instance_id")
     evaluator_id = _identifier(value["evaluator_id"], "evaluator_id")
@@ -129,12 +126,14 @@ def load_run_config(path: Path, repository_paths: RepositoryPaths) -> RunConfig:
     evaluator_repo_path = repository_paths.evaluator_repo_path.resolve()
     if not instances_repo_path.is_dir() or not evaluator_repo_path.is_dir():
         raise ContractError("instance/evaluator repository path must be a directory")
-    candidate = _resolve_candidate(
-        evaluator_repo_path,
-        value["candidate_path"],
-    )
+    candidate = None
+    if "candidate_path" in value:
+        candidate = _resolve_candidate(
+            evaluator_repo_path,
+            value["candidate_path"],
+        )
     report = _resolve(root, value["report_path"], must_exist=False)
-    if not candidate.is_file():
+    if candidate is not None and not candidate.is_file():
         raise ContractError("candidate_path must be a file")
     openfibsem: Path | None = None
     openfibsem_commit: str | None = None
@@ -152,7 +151,6 @@ def load_run_config(path: Path, repository_paths: RepositoryPaths) -> RunConfig:
         value["container_protocol_version"], 1, "container_protocol_version"
     )
     return RunConfig(
-        schema_version=3,
         run_id=_non_empty(value["run_id"], "run_id"),
         source_id=source_id,
         instances_repo_path=instances_repo_path,
