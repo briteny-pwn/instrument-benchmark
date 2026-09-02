@@ -14,3 +14,8 @@ instrument-benchmark = "instrument_benchmark.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+markers = [
+  "smoke: fast end-to-end checks of public CLI workflows without benchmark containers",
+]

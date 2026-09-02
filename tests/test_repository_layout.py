@@ -306,7 +306,8 @@ def test_example_suite_contract_and_readme_command(tmp_path: Path) -> None:
     ).read_text(encoding="utf-8")
 
 
-def test_example_suite_runs_through_public_cli_in_order(
+@pytest.mark.smoke
+def test_instrbench_run_suite_smoke(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
     repositories = _example_suite_repositories(tmp_path)
