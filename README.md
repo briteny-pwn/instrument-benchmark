@@ -37,6 +37,48 @@ The repositories communicate through versioned YAML manifests, evaluator
 request/report JSON, CLI arguments, and exit statuses. Instrument never imports
 evaluator implementation modules on the host.
 
+## Install and run
+
+Install the orchestrator into an environment with Python 3.11 or newer:
+
+```bash
+python -m pip install -e .
+```
+
+Before every invocation, configure the two absolute repository paths described
+above through the process environment or this repository's `.env` file. The
+command-line interface is then available as `instrbench`.
+
+Run one benchmark configuration:
+
+```bash
+instrbench run --config configs/pyvisa/pyvisa_dut_validation_v1.yaml
+```
+
+Run the bundled example suite:
+
+```bash
+instrbench run --suite suites/example.yaml
+```
+
+Suites execute their `runs` in YAML declaration order. Each run continues to
+write its own configured report; the suite additionally writes one aggregate
+report at its `result_path`. For the example, that aggregate is
+`reports/suites/example.json`. Its `runs` entries preserve run order and record
+each per-run report path, outcome, score, and strict-pass result; `summary`
+aggregates completed, infrastructure-failed, and strict-pass counts.
+
+Successful single runs and suites exit with status 0. Invalid environment,
+config, or suite contracts exit with status 2. Benchmark infrastructure errors
+exit with status 3; a suite still writes its aggregate report and returns 3 if
+any constituent run has such an error. Pass `--allow-dirty` only for local
+development when the recorded Git revisions do not need to identify a clean
+checkout.
+
+For compatibility with earlier checkouts, the legacy positional config form is
+still accepted, but new scripts and documentation should use `instrbench run
+--config ...` or `instrbench run --suite ...`.
+
 Every run is bound by `(source_id, instance_id, evaluator_id)`. Instance and
 evaluator leaves resolve strictly at `sources/<source_id>/<leaf_id>/`, while
 configs and reports are grouped beneath their source ID. Source registries and
@@ -53,16 +95,14 @@ the evaluator repository is rejected.
 From `instrument/`, run the reference benchmark with:
 
 ```bash
-PYTHONPATH=src python -m instrument_benchmark.cli \
-  configs/pyvisa/pyvisa_dut_validation_v1.yaml
+instrbench run --config configs/pyvisa/pyvisa_dut_validation_v1.yaml
 ```
 
 The formal v2 configuration is selected independently, so v1 remains
 available without gaining v2-only request fields:
 
 ```bash
-PYTHONPATH=src python -m instrument_benchmark.cli \
-  configs/pyvisa/pyvisa_dut_validation_v2.yaml
+instrbench run --config configs/pyvisa/pyvisa_dut_validation_v2.yaml
 ```
 
 The FIBSEM reference configuration uses the same three-repository contract
