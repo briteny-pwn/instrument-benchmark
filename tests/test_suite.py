@@ -30,8 +30,7 @@ def _repositories(tmp_path: Path) -> RepositoryPaths:
 
 def _run_value(candidate_path: str, **updates: object) -> dict[str, object]:
     value: dict[str, object] = {
-        "schema_version": 3,
-        "run_id": "run-v3",
+        "run_id": "run",
         "source_id": "pyvisa",
         "instance_id": "instance-v1",
         "evaluator_id": "evaluator-v1",
@@ -88,8 +87,8 @@ def _write_suite(path: Path, value: object) -> Path:
 
 def _suite_value(*runs: object, **updates: object) -> dict[str, object]:
     value: dict[str, object] = {
-        "schema_version": 1,
         "suite_id": "example",
+        "agent": "claudecode",
         "runs": list(runs),
         "result_path": "results/example.json",
     }
@@ -205,8 +204,8 @@ def test_suite_resolves_ordered_run_and_result_paths_from_its_directory(
     suite_path = tmp_path / "suite" / "example.yaml"
     suite_path.parent.mkdir()
     suite_path.write_text(
-        "schema_version: 1\n"
         "suite_id: example\n"
+        "agent: claudecode\n"
         "runs:\n"
         f"  - ../{first.relative_to(tmp_path)}\n"
         f"  - ../{second.relative_to(tmp_path)}\n"
@@ -229,9 +228,9 @@ def test_suite_resolves_ordered_run_and_result_paths_from_its_directory(
     [
         ["not", "a", "mapping"],
         _suite_value("run.yaml", extra="field"),
-        {"schema_version": 1, "suite_id": "example", "runs": ["run.yaml"]},
-        _suite_value("run.yaml", schema_version=0),
-        _suite_value("run.yaml", schema_version=2),
+        {"suite_id": "example", "runs": ["run.yaml"]},
+        _suite_value("run.yaml", schema_version=1),
+        _suite_value("run.yaml", agent="unknown"),
         _suite_value("run.yaml", suite_id="Bad Identifier"),
         _suite_value(),
         _suite_value(runs="run.yaml"),

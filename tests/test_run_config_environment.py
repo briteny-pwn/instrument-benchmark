@@ -25,14 +25,14 @@ def _repositories(tmp_path: Path) -> RepositoryPaths:
     )
 
 
-def _config_value(candidate_path: str, **updates: object) -> dict[str, object]:
+def _config_value(
+    candidate_path: str | None = None, **updates: object
+) -> dict[str, object]:
     value: dict[str, object] = {
-        "schema_version": 3,
-        "run_id": "run-v3",
+        "run_id": "run",
         "source_id": "pyvisa",
         "instance_id": "instance-v1",
         "evaluator_id": "evaluator-v1",
-        "candidate_path": candidate_path,
         "report_path": "reports/result.json",
         "timeout_seconds": 30,
         "max_output_bytes": 1024,
@@ -41,6 +41,8 @@ def _config_value(candidate_path: str, **updates: object) -> dict[str, object]:
         "container_protocol_version": 1,
         "image_mode": "locked",
     }
+    if candidate_path is not None:
+        value["candidate_path"] = candidate_path
     value.update(updates)
     return value
 
@@ -63,7 +65,6 @@ def test_relative_candidate_resolves_from_evaluator_repository(tmp_path: Path) -
 
     loaded = load_run_config(config_path, repositories)
 
-    assert loaded.schema_version == 3
     assert loaded.instances_repo_path == repositories.instances_repo_path
     assert loaded.evaluator_repo_path == repositories.evaluator_repo_path
     assert loaded.candidate_path == candidate.resolve()
@@ -106,21 +107,30 @@ def test_relative_candidate_symlink_cannot_escape_evaluator_repository(
         load_run_config(config_path, repositories)
 
 
-def test_schema_version_two_is_rejected(tmp_path: Path) -> None:
+def test_candidate_path_is_optional_for_agent_suite(tmp_path: Path) -> None:
+    repositories = _repositories(tmp_path)
+    config_path = _write_config(tmp_path, _config_value())
+
+    loaded = load_run_config(config_path, repositories)
+
+    assert loaded.candidate_path is None
+
+
+def test_user_config_rejects_schema_version_field(tmp_path: Path) -> None:
     repositories = _repositories(tmp_path)
     candidate = repositories.evaluator_repo_path / "solution.py"
     candidate.write_text("pass\n", encoding="utf-8")
     config_path = _write_config(
         tmp_path,
-        _config_value("solution.py", schema_version=2),
+        _config_value("solution.py", schema_version=3),
     )
 
-    with pytest.raises(ContractError, match="unsupported run config schema_version"):
+    with pytest.raises(ContractError, match="run config fields do not match"):
         load_run_config(config_path, repositories)
 
 
 @pytest.mark.parametrize("legacy_key", ["instance_checkout", "evaluator_checkout"])
-def test_schema_version_three_rejects_legacy_checkout_keys(
+def test_run_config_rejects_legacy_checkout_keys(
     tmp_path: Path,
     legacy_key: str,
 ) -> None:
@@ -134,6 +144,6 @@ def test_schema_version_three_rejects_legacy_checkout_keys(
 
     with pytest.raises(
         ContractError,
-        match="run config fields do not match schema version 3",
+        match="run config fields do not match",
     ):
         load_run_config(config_path, repositories)

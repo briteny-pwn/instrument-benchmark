@@ -23,8 +23,8 @@ class SuiteEntry:
 
 @dataclass(frozen=True)
 class SuiteConfig:
-    schema_version: int
     suite_id: str
+    agent: str
     suite_path: Path
     entries: tuple[SuiteEntry, ...]
     result_path: Path
@@ -77,8 +77,8 @@ def load_suite_config(path: Path, repository_paths: RepositoryPaths) -> SuiteCon
             f"suite input/output path collision: {sorted(collisions)[0]}"
         )
     return SuiteConfig(
-        schema_version=1,
         suite_id=value["suite_id"],
+        agent=value["agent"],
         suite_path=suite_path,
         entries=entries,
         result_path=result_path,
@@ -161,14 +161,14 @@ def run_suite(
 
 
 def _validate_contract(value: Any) -> None:
-    required = {"schema_version", "suite_id", "runs", "result_path"}
+    required = {"suite_id", "agent", "runs", "result_path"}
     if not isinstance(value, dict) or set(value) != required:
-        raise ContractError("suite config fields do not match schema version 1")
-    if type(value["schema_version"]) is not int or value["schema_version"] != 1:
-        raise ContractError("unsupported suite config schema_version")
+        raise ContractError("suite config fields do not match")
     suite_id = value["suite_id"]
     if not isinstance(suite_id, str) or _IDENTIFIER.fullmatch(suite_id) is None:
         raise ContractError("suite_id must be an identifier")
+    if value["agent"] != "claudecode":
+        raise ContractError("suite agent must be claudecode")
     runs = value["runs"]
     if not isinstance(runs, list) or not runs:
         raise ContractError("runs must be a non-empty list")

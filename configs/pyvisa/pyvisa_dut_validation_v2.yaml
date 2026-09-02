@@ -1,4 +1,3 @@
-schema_version: 3
 run_id: pyvisa-dut-validation-v2-reference
 source_id: pyvisa
 instance_id: pyvisa_dut_validation_v2

@@ -22,7 +22,7 @@ def test_cli_loads_repository_paths_once_and_propagates_them(
     capsys,
 ) -> None:
     config_path = tmp_path / "run.yaml"
-    config_path.write_text("schema_version: 3\n", encoding="utf-8")
+    config_path.write_text("run_id: run\n", encoding="utf-8")
     instances = tmp_path / "instances"
     evaluator = tmp_path / "evaluator"
     instances.mkdir()

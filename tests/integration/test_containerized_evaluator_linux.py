@@ -36,7 +36,6 @@ class ContainerizedEvaluatorLinuxTests(unittest.TestCase):
             config.write_text(
                 yaml.safe_dump(
                     {
-                        "schema_version": 3,
                         "run_id": owner,
                         "source_id": "pyvisa",
                         "instance_id": "pyvisa_dut_validation_v1",
