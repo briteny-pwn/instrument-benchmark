@@ -9,8 +9,10 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any, Callable
 
+from .agent import ClaudeCodeRunner, load_claude_code_settings
 from .contracts import (
     ContractError,
     RunConfig,
@@ -30,6 +32,7 @@ from .evaluator_runtime import (
 )
 from .environment import RepositoryPaths
 from .repository_layout import resolve_evaluator_leaf, resolve_instance_leaf
+from .workspace import candidate_sha256, prepare_workspace
 
 
 ImageBuilderFactory = Callable[[], EvaluatorImageBuilder]
@@ -42,10 +45,17 @@ def run_benchmark(
     instrument_checkout: Path,
     repository_paths: RepositoryPaths,
     allow_dirty: bool = False,
+    candidate_path: Path | None = None,
     image_builder_factory: ImageBuilderFactory | None = None,
     runner_factory: RunnerFactory | None = None,
 ) -> dict[str, Any]:
     config = load_run_config(config_path, repository_paths)
+    selected_candidate = candidate_path or config.candidate_path
+    if selected_candidate is None:
+        raise ContractError("candidate_path is required for direct runs")
+    selected_candidate = selected_candidate.resolve()
+    if not selected_candidate.is_file():
+        raise ContractError("candidate_path must be a file")
     instance_leaf = resolve_instance_leaf(
         config.instances_repo_path, config.source_id, config.instance_id
     )
@@ -130,6 +140,7 @@ def run_benchmark(
             evaluator_report_path = run_root / "evaluator-report.json"
             request = _build_evaluator_request(
                 config,
+                candidate_path=selected_candidate,
                 instance_root=instance_root,
                 shared_run_root=run_root,
                 evaluator_manifest=evaluator_manifest,
@@ -141,7 +152,7 @@ def run_benchmark(
                 request_path=request_path,
                 report_path=evaluator_report_path,
                 instance_path=instance_root,
-                candidate_path=config.candidate_path,
+                candidate_path=selected_candidate,
                 shared_run_root=run_root,
                 run_id=config.run_id,
                 timeout=config.timeout_seconds
@@ -238,14 +249,144 @@ def run_benchmark(
     return report
 
 
+def run_agent_benchmark(
+    config_path: Path,
+    *,
+    agent: str,
+    workspace_root: Path,
+    instrument_checkout: Path,
+    repository_paths: RepositoryPaths,
+    allow_dirty: bool = False,
+    agent_runner_factory: Callable[[], ClaudeCodeRunner] | None = None,
+    benchmark_runner: Callable[..., dict[str, Any]] | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    if agent != "claudecode":
+        raise ContractError(f"unsupported agent: {agent}")
+
+    config = load_run_config(config_path, repository_paths)
+    instance_leaf = resolve_instance_leaf(
+        config.instances_repo_path, config.source_id, config.instance_id
+    )
+    validate_visible_hashes(instance_leaf.root, instance_leaf.manifest)
+    prepared = prepare_workspace(
+        instance_leaf.root,
+        instance_leaf.manifest,
+        workspace_root.resolve() / config.run_id,
+    )
+    settings = load_claude_code_settings(
+        instrument_checkout,
+        environ=environ,
+    )
+    runner = (
+        agent_runner_factory()
+        if agent_runner_factory is not None
+        else ClaudeCodeRunner()
+    )
+    artifacts_root = prepared.root.with_name(f"{prepared.root.name}-artifacts")
+    execution = runner.run(
+        settings=settings,
+        prompt=prepared.prompt,
+        workspace=prepared.root,
+        artifacts_root=artifacts_root,
+        environ=environ,
+    )
+
+    try:
+        digest = candidate_sha256(prepared.candidate_path, prepared.root)
+    except ContractError as exc:
+        agent_evidence = execution.to_dict()
+        agent_evidence.update(
+            {
+                "candidate_path": None,
+                "candidate_sha256": None,
+                "candidate_changed": None,
+            }
+        )
+        report = _agent_submission_report(
+            config,
+            agent_evidence,
+            status="submission_error",
+            error=str(exc),
+        )
+        dump_json(config.report_path, report)
+        return report
+    agent_evidence = execution.to_dict()
+    agent_evidence.update(
+        {
+            "candidate_path": (
+                str(prepared.candidate_path) if digest is not None else None
+            ),
+            "candidate_sha256": digest,
+            "candidate_changed": (
+                digest != prepared.initial_candidate_sha256
+                if digest is not None
+                else None
+            ),
+        }
+    )
+
+    if digest is None:
+        report = _agent_submission_report(
+            config,
+            agent_evidence,
+            status="missing_submission",
+            error=None,
+        )
+        dump_json(config.report_path, report)
+        return report
+
+    evaluator = benchmark_runner or run_benchmark
+    report = dict(
+        evaluator(
+            config_path,
+            instrument_checkout=instrument_checkout,
+            repository_paths=repository_paths,
+            allow_dirty=allow_dirty,
+            candidate_path=prepared.candidate_path,
+        )
+    )
+    report["agent_execution"] = agent_evidence
+    report["candidate_available"] = True
+    report["evaluated"] = True
+    dump_json(config.report_path, report)
+    return report
+
+
+def _agent_submission_report(
+    config: RunConfig,
+    agent_evidence: dict[str, Any],
+    *,
+    status: str,
+    error: str | None,
+) -> dict[str, Any]:
+    return {
+        "run_id": config.run_id,
+        "source_id": config.source_id,
+        "instance_id": config.instance_id,
+        "evaluator_id": config.evaluator_id,
+        "status": status,
+        "score": 0.0,
+        "strict_pass": False,
+        "candidate_available": False,
+        "evaluated": False,
+        "error": error,
+        "agent_execution": agent_evidence,
+    }
+
+
 def _build_evaluator_request(
     config: RunConfig,
     *,
+    candidate_path: Path | None = None,
     instance_root: Path,
     shared_run_root: Path,
     evaluator_manifest: dict[str, Any],
     evaluator_image_id: str,
 ) -> dict[str, Any]:
+    selected_candidate = candidate_path or config.candidate_path
+    if selected_candidate is None:
+        raise ContractError("candidate_path is required for evaluator request")
     request = {
         "protocol_version": 2,
         "run_id": config.run_id,
@@ -253,7 +394,7 @@ def _build_evaluator_request(
         "instance_id": config.instance_id,
         "evaluator_id": config.evaluator_id,
         "instance_path": str(instance_root),
-        "candidate_path": str(config.candidate_path),
+        "candidate_path": str(selected_candidate),
         "shared_run_root": str(shared_run_root),
         "timeout_seconds": config.timeout_seconds,
         "max_output_bytes": config.max_output_bytes,

@@ -127,8 +127,12 @@ def test_run_suite_executes_every_entry_in_declaration_order_and_publishes(
     assert execution.report["summary"] == {
         "total": 2,
         "completed": 2,
+        "generated": 2,
+        "evaluated": 2,
+        "missing_submission": 0,
         "infrastructure_failed": 0,
         "strict_passed": 1,
+        "mean_score": 100.0,
         "strict_pass": False,
     }
     assert execution.report["runs"] == [
@@ -143,6 +147,8 @@ def test_run_suite_executes_every_entry_in_declaration_order_and_publishes(
             "status": "completed",
             "score": 100.0,
             "strict_pass": True,
+            "candidate_available": True,
+            "evaluated": True,
             "error": None,
         },
         {
@@ -156,6 +162,8 @@ def test_run_suite_executes_every_entry_in_declaration_order_and_publishes(
             "status": "completed",
             "score": 100.0,
             "strict_pass": False,
+            "candidate_available": True,
+            "evaluated": True,
             "error": None,
         },
     ]
@@ -189,12 +197,59 @@ def test_run_suite_continues_after_infrastructure_failure(
         assert kwargs["instrument_checkout"] == tmp_path
         assert kwargs["repository_paths"] is repositories
         assert kwargs["allow_dirty"] is True
+        assert kwargs["agent"] == "claudecode"
+        assert kwargs["workspace_root"] == (
+            suite.result_path.parent / "workspaces" / suite.suite_id
+        )
     first = execution.report["runs"][0]
     assert first["status"] == "infrastructure_error"
     assert first["score"] is None
     assert first["strict_pass"] is None
+    assert first["candidate_available"] is False
+    assert first["evaluated"] is False
     assert first["error"] == "RuntimeError: docker unavailable"
     assert execution.has_infrastructure_failures is True
+
+
+def test_run_suite_aggregates_missing_agent_submission(tmp_path: Path) -> None:
+    suite, repositories = loaded_suite_fixture(tmp_path)
+    results = iter(
+        (
+            {
+                "status": "missing_submission",
+                "score": 0.0,
+                "strict_pass": False,
+                "candidate_available": False,
+                "evaluated": False,
+            },
+            {
+                "status": "completed",
+                "score": 60.0,
+                "strict_pass": True,
+                "candidate_available": True,
+                "evaluated": True,
+            },
+        )
+    )
+
+    execution = run_suite(
+        suite,
+        instrument_checkout=tmp_path,
+        repository_paths=repositories,
+        benchmark_runner=lambda *args, **kwargs: next(results),
+    )
+
+    assert execution.report["summary"] == {
+        "total": 2,
+        "completed": 2,
+        "generated": 1,
+        "evaluated": 1,
+        "missing_submission": 1,
+        "infrastructure_failed": 0,
+        "strict_passed": 1,
+        "mean_score": 30.0,
+        "strict_pass": False,
+    }
 
 
 def test_suite_resolves_ordered_run_and_result_paths_from_its_directory(
@@ -216,6 +271,7 @@ def test_suite_resolves_ordered_run_and_result_paths_from_its_directory(
     suite = load_suite_config(suite_path, repositories)
 
     assert suite.suite_id == "example"
+    assert suite.agent == "claudecode"
     assert tuple(entry.config_path for entry in suite.entries) == (
         first.resolve(),
         second.resolve(),
