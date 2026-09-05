@@ -24,6 +24,14 @@ class ResolvedLeaf:
     source_manifest: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class ResolvedSource:
+    source_id: str
+    root: Path
+    manifest_path: Path
+    manifest: dict[str, Any]
+
+
 def resolve_instance_leaf(
     checkout: Path, source_id: str, instance_id: str
 ) -> ResolvedLeaf:
@@ -37,17 +45,51 @@ def resolve_instance_leaf(
     )
 
 
-def resolve_evaluator_leaf(
-    checkout: Path, source_id: str, evaluator_id: str
-) -> ResolvedLeaf:
-    return _resolve_registered_leaf(
-        checkout,
-        source_id,
-        evaluator_id,
-        registry_key="evaluators",
-        manifest_name="evaluator.yaml",
-        identity_key="evaluator_id",
-    )
+def resolve_evaluator_source(checkout: Path, source_id: str) -> ResolvedSource:
+    source = _resolve_source(checkout, source_id)
+    evaluator = source.manifest.get("evaluator")
+    entrypoint = evaluator.get("entrypoint") if isinstance(evaluator, dict) else None
+    if (
+        set(source.manifest) != {
+            "schema_version",
+            "source_id",
+            "display_name",
+            "description",
+            "evaluator",
+        }
+        or set(evaluator or {}) != {"entrypoint"}
+        or not isinstance(entrypoint, str)
+        or not entrypoint.startswith(f"sources.{source_id}.")
+        or ":" not in entrypoint
+    ):
+        raise ContractError("evaluator source manifest is invalid")
+    return source
+
+
+def _resolve_source(checkout: Path, source_id: str) -> ResolvedSource:
+    _require_id(source_id, "source_id")
+    checkout = checkout.resolve(strict=True)
+    sources_path = checkout / "sources"
+    if sources_path.is_symlink() or not sources_path.is_dir():
+        raise ContractError("sources directory is missing or is a symlink")
+    source_path = sources_path / source_id
+    if source_path.is_symlink() or not source_path.is_dir():
+        raise ContractError("registered source directory is missing or is a symlink")
+    root = source_path.resolve(strict=True)
+    if not root.is_relative_to(sources_path.resolve(strict=True)):
+        raise ContractError("source path escapes sources directory")
+    manifest_path = root / "source.yaml"
+    manifest = _load_mapping(manifest_path, "source manifest")
+    if (
+        manifest.get("schema_version") != 1
+        or manifest.get("source_id") != source_id
+        or not all(
+            isinstance(manifest.get(name), str) and bool(manifest[name].strip())
+            for name in ("display_name", "description")
+        )
+    ):
+        raise ContractError("source manifest identity is invalid")
+    return ResolvedSource(source_id, root, manifest_path, manifest)
 
 
 def _load_mapping(path: Path, label: str) -> dict[str, Any]:
@@ -86,8 +128,6 @@ def _resolve_registered_leaf(
         checkout.glob(f"*/{manifest_name}")
     ):
         raise ContractError("legacy flat leaf layout is forbidden")
-    if manifest_name == "evaluator.yaml" and (checkout / "evaluators").exists():
-        raise ContractError("legacy evaluators directory is forbidden")
     source_path = sources_path / source_id
     if source_path.is_symlink() or not source_path.is_dir():
         raise ContractError("registered source directory is missing or is a symlink")
@@ -96,13 +136,14 @@ def _resolve_registered_leaf(
         raise ContractError("source path escapes sources directory")
     source_manifest_path = source_root / "source.yaml"
     source = _load_mapping(source_manifest_path, "source manifest")
-    if set(source) != {
+    required_source_fields = {
         "schema_version",
         "source_id",
         "display_name",
         "description",
         registry_key,
-    }:
+    }
+    if not required_source_fields.issubset(source):
         raise ContractError("source manifest fields are invalid")
     if source["schema_version"] != 1 or source["source_id"] != source_id:
         raise ContractError("source manifest identity is invalid")

@@ -1,6 +1,7 @@
 suite_id: example
 agent: claudecode
 runs:
+  - ../configs/openfibsem/fibsem_liftout_v1.yaml
   - ../configs/pyvisa/pyvisa_dut_validation_v1.yaml
   - ../configs/pyvisa/pyvisa_dut_validation_v2.yaml
 result_path: ../reports/suites/example.json

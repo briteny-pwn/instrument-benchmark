@@ -1,21 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Distributed instrument benchmark run",
+  "title": "Source-routed instrument benchmark run",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "run_id",
-    "source_id",
-    "instance_id",
-    "evaluator_id",
-    "report_path",
-    "timeout_seconds",
-    "max_output_bytes",
-    "repeated_worlds",
-    "repeated_base_seed",
-    "container_protocol_version",
-    "image_mode"
-  ],
+  "required": ["run_id", "source_id", "instance_id", "report_path"],
   "properties": {
     "run_id": {"type": "string", "minLength": 1},
     "source_id": {
@@ -26,39 +14,6 @@
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]*$"
     },
-    "evaluator_id": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9_-]*$"
-    },
-    "candidate_path": {"type": "string", "minLength": 1},
-    "report_path": {"type": "string", "minLength": 1},
-    "timeout_seconds": {"type": "number", "exclusiveMinimum": 0},
-    "max_output_bytes": {"type": "integer", "minimum": 1},
-    "repeated_worlds": {"type": "integer", "minimum": 1},
-    "repeated_base_seed": {"type": "integer", "minimum": 1},
-    "container_protocol_version": {"const": 1},
-    "image_mode": {"const": "locked"},
-    "openfibsem_checkout": {"type": "string", "minLength": 1},
-    "openfibsem_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
-  },
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "source_id": {"const": "openfibsem"},
-          "evaluator_id": {"const": "fibsem_liftout_v1"}
-        },
-        "required": ["source_id", "evaluator_id"]
-      },
-      "then": {"required": ["openfibsem_checkout", "openfibsem_commit"]},
-      "else": {
-        "not": {
-          "anyOf": [
-            {"required": ["openfibsem_checkout"]},
-            {"required": ["openfibsem_commit"]}
-          ]
-        }
-      }
-    }
-  ]
+    "report_path": {"type": "string", "minLength": 1}
+  }
 }

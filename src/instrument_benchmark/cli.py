@@ -37,7 +37,6 @@ def main(argv: list[str] | None = None) -> int:
     target = run.add_mutually_exclusive_group(required=True)
     target.add_argument("--config", type=Path)
     target.add_argument("--suite", type=Path)
-    run.add_argument("--allow-dirty", action="store_true")
 
     command_line = _normalize_legacy_args(list(sys.argv[1:] if argv is None else argv))
     arguments = parser.parse_args(command_line)
@@ -49,7 +48,6 @@ def main(argv: list[str] | None = None) -> int:
                 suite,
                 instrument_checkout=ROOT,
                 repository_paths=repository_paths,
-                allow_dirty=arguments.allow_dirty,
             )
             output = {
                 "report": str(suite.result_path),
@@ -61,7 +59,6 @@ def main(argv: list[str] | None = None) -> int:
                 arguments.config,
                 instrument_checkout=ROOT,
                 repository_paths=repository_paths,
-                allow_dirty=arguments.allow_dirty,
             )
             output = {
                 "report": str(

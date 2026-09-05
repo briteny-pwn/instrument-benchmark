@@ -1,8 +1,19 @@
-# Distributed Contract Version 2
+# Source-routed distributed contract
 
-The orchestrator validates the instance and evaluator manifests, hashes every
-candidate-visible instance file, records all three repository commit IDs, and
-then invokes:
+The three repositories meet at `source_id`.
+
+- Instrument run YAML selects `source_id` and `instance_id`.
+- The task source manifest registers instances and defines one candidate file
+  contract for the whole source.
+- The evaluator source manifest defines one evaluator entrypoint for the whole
+  source.
+- `instance_id` selects task input; it does not select an evaluator.
+
+Repository locations come only from the absolute `INSTANCES_REPO_PATH` and
+`EVALUATOR_REPO_PATH` environment variables (or the Instrument root `.env`).
+They are intentionally absent from portable run YAML.
+
+Instrument invokes the evaluator repository through:
 
 ```text
 python -m instrument_benchmark_evaluator.cli run
@@ -10,79 +21,30 @@ python -m instrument_benchmark_evaluator.cli run
   --report <absolute JSON path>
 ```
 
-The request identifies `source_id`, `instance_id`, `evaluator_id`, the run,
-candidate, protocol version, limits, and repeated-world seed range. The
-composite run binding is `(source_id, instance_id, evaluator_id)`. Exit status
-`0` means an evaluator report was
-produced; candidate failures remain normal report outcomes. Exit status `2`
-means an incompatible or invalid request. Any other status is evaluator
-infrastructure failure.
+The request contains `run_id`, `source_id`, `instance_id`, the resolved task
+instance directory, candidate handoff root, and three sorted inventories:
+valid files, missing files, and invalid files. It contains neither
+`evaluator_id` nor a special single-file `candidate_path`.
 
-Run and suite YAML use one current shape without a `schema_version` field.
-Repository locations are not YAML fields:
-`INSTANCES_REPO_PATH` and `EVALUATOR_REPO_PATH` must be absolute existing
-directories. The process environment has priority over the optional
-repository-root `.env` file. A relative `candidate_path` is evaluator-root
-relative and cannot escape that repository; an absolute path selects an
-external candidate. These run-config rules are independent of the evaluator
-request protocol version named by this document.
+Candidate file paths are always source-defined relative file paths. Directory
+candidates are unsupported. Instrument rejects symlinks, non-regular files,
+and paths escaping the handoff root.
 
-For Agent suites, `agent: claudecode` selects Instrument's built-in host
-launcher. Instrument prepares visible task files in a fresh workspace and uses
-the task manifest's `submission.filename` as the candidate path; tasks provide
-no CLI. Model, gateway, and authentication values come from the Instrument
-process environment or repository-root `.env`. Agent output never bypasses the
-existing evaluator request and scoring boundary.
+For `producer: agent`, the handoff root is the prepared Agent workspace. For
+`producer: task_environment`, Instrument builds and starts the task source's
+base environment, mounts a dedicated candidate handoff and evidence directory,
+and gives Claude Code only the declared socket environment variable. The task
+environment exports checkpoint artifacts directly into the handoff.
 
-Instance and evaluator leaves resolve only at
-`sources/<source_id>/<leaf_id>/`, after their source registries and schema-v2
-manifests agree. Source-grouped config and report paths are also mandatory.
-Legacy ungrouped paths are invalid and no compatibility fallback, alias,
-search, or root-manifest lookup exists.
+Claude Code runs as a host process using the prepared workspace as `cwd`.
+Model, base URL, and authentication are supplied by environment variables;
+other Claude Code behavior uses defaults. Agent failure does not suppress task
+environment finalization, inventory, or partial evaluation.
 
-The evaluator owns raw evidence, worlds, oracle, scoring, and safety gates. The
-orchestrator validates but never changes the evaluator score. It adds:
+The evaluator returns the run/source/instance identity, score, and
+`evaluator_strict_pass`. Instrument preserves evaluator scoring and adds Agent,
+candidate, and routing information. The final `strict_pass` is:
 
-- `run_id`;
-- instrument, instance, and evaluator Git provenance;
-- orchestration protocol and evaluator exit status.
-
-## Independent runtime profiles
-
-The three repositories define the benchmark distribution boundary, not a
-shared instrument inheritance hierarchy. Each instance declares its own task
-type, evaluator, public API, image lock, report schema, and optional external
-source inputs. `fibsem_liftout_v1` therefore selects the evaluator-owned
-`$EVALUATOR_REPO_PATH/container/fibsem-evaluator.Dockerfile`, OpenFIBSEM
-wheel/system-package locks, and pinned OpenFIBSEM source tree without staging
-the PyVISA lock or wheelhouse. The evaluator CLI also imports PyVISA
-implementations lazily, so the FIBSEM route can start when `pyvisa` is absent.
-
-For `fibsem_liftout_v1`, the request binds the exact evaluator image ID and the
-external source commit. The evaluator runs one public nominal world, four
-hidden fixed worlds, and five deterministic seeded worlds. At each of
-`step_1` through `step_4`, it freezes the simulator before exporting the
-trusted scene. The final schema-version-5 report binds source identity, journal heads,
-connectivity/pose metrics, artifact hashes, sibling container evidence,
-cleanup state, all three repository commits, and OpenFIBSEM commit/source
-digest. The operator validator is:
-
-```bash
-PYTHONPATH=src "$EVALUATOR_REPO_PATH/scripts/validate_fibsem_benchmark.py" \
-  --instrument-root "$PWD" \
-  --config "$PWD/configs/openfibsem/fibsem_liftout_v1.yaml"
-"$EVALUATOR_REPO_PATH/scripts/run_fibsem_linux_acceptance.sh" \
-  "$PWD/configs/openfibsem/fibsem_liftout_v1.yaml"
+```text
+candidate_complete AND evaluator_strict_pass
 ```
-
-The validated output is
-`reports/openfibsem/fibsem_liftout_v1.json`, with checkpoint bundles below
-`reports/openfibsem/fibsem_liftout_v1.artifacts/{world_id}/{step_id}/`.
-PyVISA v1 and v2 reports use top-level schema versions 2 and 3, respectively.
-
-Native Linux Docker is required because the non-root outer evaluator receives
-daemon access only through the Docker socket group GID. Docker Desktop socket
-ownership is not relaxed or bypassed. A simulator/import/export failure is an
-infrastructure retry; a missing state, invalid order, unsafe terminal state,
-or forbidden access is a candidate failure. Results do not transfer physical
-hardware authority or safety.

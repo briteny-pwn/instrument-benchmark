@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import shutil
 import stat
 import tempfile
@@ -16,8 +15,6 @@ from .contracts import ContractError
 class PreparedWorkspace:
     root: Path
     prompt: str
-    candidate_path: Path
-    initial_candidate_sha256: str | None
 
 
 def prepare_workspace(
@@ -26,7 +23,6 @@ def prepare_workspace(
     workspace_root: Path,
 ) -> PreparedWorkspace:
     instance = instance_root.resolve()
-    filename = _submission_filename(manifest)
     inputs = _visible_inputs(instance, manifest)
     prompt_source = instance / "prompt.md"
     if prompt_source not in {source for source, _ in inputs}:
@@ -35,9 +31,6 @@ def prepare_workspace(
         prompt = prompt_source.read_text(encoding="utf-8")
     except OSError as exc:
         raise ContractError(f"cannot load prompt.md: {exc}") from exc
-    if filename not in prompt:
-        raise ContractError("prompt.md must mention submission.filename")
-
     try:
         workspace_parent = workspace_root.resolve()
         workspace_parent.mkdir(parents=True, exist_ok=True)
@@ -51,56 +44,10 @@ def prepare_workspace(
     except OSError as exc:
         raise ContractError(f"cannot prepare task workspace: {exc}") from exc
 
-    candidate = workspace / filename
     return PreparedWorkspace(
         root=workspace,
         prompt=prompt,
-        candidate_path=candidate,
-        initial_candidate_sha256=candidate_sha256(candidate, workspace),
     )
-
-
-def candidate_sha256(candidate_path: Path, workspace: Path) -> str | None:
-    try:
-        metadata = candidate_path.lstat()
-    except FileNotFoundError:
-        return None
-    except OSError as exc:
-        raise ContractError(f"cannot inspect candidate file: {exc}") from exc
-
-    workspace_root = workspace.resolve()
-    try:
-        resolved = candidate_path.resolve(strict=True)
-    except OSError as exc:
-        raise ContractError(f"candidate must be a regular file: {exc}") from exc
-    if (
-        stat.S_ISLNK(metadata.st_mode)
-        or not stat.S_ISREG(metadata.st_mode)
-        or not resolved.is_relative_to(workspace_root)
-    ):
-        raise ContractError("candidate must be a regular file inside the workspace")
-    try:
-        return hashlib.sha256(candidate_path.read_bytes()).hexdigest()
-    except OSError as exc:
-        raise ContractError(f"cannot read candidate file: {exc}") from exc
-
-
-def _submission_filename(manifest: Mapping[str, Any]) -> str:
-    submission = manifest.get("submission")
-    if not isinstance(submission, Mapping):
-        raise ContractError("submission.filename is required")
-    filename = submission.get("filename")
-    if not isinstance(filename, str) or not filename.strip():
-        raise ContractError("submission.filename must be a non-empty string")
-    path = Path(filename)
-    if (
-        path.is_absolute()
-        or filename in {".", ".."}
-        or len(path.parts) != 1
-        or path.name != filename
-    ):
-        raise ContractError("submission.filename must name one relative file")
-    return filename
 
 
 def _visible_inputs(

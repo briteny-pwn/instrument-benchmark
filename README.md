@@ -1,16 +1,22 @@
-# Instrument Benchmark Orchestrator
+# Instrument Benchmark
 
-This branch contains the generic orchestration layer for the distributed
-instrument benchmark. Concrete model-visible tasks and private evaluators
-live in separate repositories.
+Instrument Benchmark is the orchestration layer for real-Agent instrument
+tests. Its core responsibilities are intentionally small:
 
-The orchestrator accepts independently sourced instance/evaluator pairs. A
-runtime profile is selected by the versioned manifests; one instance is never
-treated as the base class or dependency template for another. In particular,
-`fibsem_liftout_v1` uses OpenFIBSEM and has no runtime dependency on PyVISA.
+1. select a task instance and evaluator by `source_id`;
+2. prepare the task workspace and, when required, start the source-owned base
+   test environment;
+3. launch Claude Code as a host process;
+4. inventory the source-defined candidate files, invoke the matching source
+   evaluator, and aggregate the result.
 
-Configure their absolute roots before running the orchestrator. For local
-development, copy the tracked example and edit both values:
+Task inputs and task environments live in `instrument-benchmark-tasks`.
+Private scoring lives in `instrument-benchmark-evaluator`. Instrument does not
+define source-specific candidate names and does not select an evaluator leaf.
+
+## Configuration
+
+Create `.env` from the example and use absolute paths:
 
 ```bash
 cp .env.example .env
@@ -24,228 +30,70 @@ ANTHROPIC_BASE_URL=https://your-anthropic-compatible-gateway.example
 ANTHROPIC_AUTH_TOKEN=replace-with-your-token
 ```
 
-`ANTHROPIC_API_KEY` can be used instead of `ANTHROPIC_AUTH_TOKEN`. Process
-environment values take precedence over `.env`. Agent credentials are passed to
-Claude Code but are never written into benchmark reports.
+`ANTHROPIC_API_KEY` may replace `ANTHROPIC_AUTH_TOKEN`. Process environment
+values override `.env`. Claude Code uses its normal defaults for all settings
+that are not listed above.
 
-The orchestrator reads only `.env` at this repository root. Values already
-exported in the process environment take precedence. Both values are required,
-must be absolute, and must name existing directories. A sibling checkout is an
-optional convenience, not a resolution rule:
+A run YAML contains only orchestration identity and output location:
+
+```yaml
+run_id: fibsem-liftout
+source_id: openfibsem
+instance_id: fibsem_liftout_v1
+report_path: ../../reports/openfibsem/fibsem_liftout_v1.json
+```
+
+`source_id` performs the one-level route:
 
 ```text
-benchmark/
-├── instrument/  # briteny-pwn/instrument-benchmark, distributed-model
-├── instrument-benchmark-tasks/  # assigned to INSTANCES_REPO_PATH
-└── instrument-benchmark-evaluator/  # assigned to EVALUATOR_REPO_PATH
+run config
+  ├─ tasks/sources/<source_id>/source.yaml
+  │    ├─ instance registry
+  │    ├─ candidate file contract
+  │    └─ optional task environment
+  └─ evaluator/sources/<source_id>/source.yaml
+       └─ one evaluator entrypoint
 ```
 
-The repositories communicate through versioned YAML manifests, evaluator
-request/report JSON, CLI arguments, and exit statuses. Instrument never imports
-evaluator implementation modules on the host.
+`instance_id` selects the task input only. There is no `evaluator_id` or
+`candidate_path` in run configuration.
 
-## Install and run
+## Run
 
-Install the orchestrator into an environment with Python 3.11 or newer:
-
-```bash
-python -m pip install -e .
-```
-
-Before every invocation, configure the two absolute repository paths described
-above through the process environment or this repository's `.env` file. The
-command-line interface is then available as `instrbench`.
-
-Run one benchmark configuration:
+Install Python 3.11+, this package and the evaluator package into the same
+environment, Docker for task environments that need it, and Claude Code on the
+host:
 
 ```bash
-instrbench run --config configs/pyvisa/pyvisa_dut_validation_v1.yaml
-```
-
-Install Claude Code on the host and ensure `claude` is available on `PATH`.
-Then run the bundled real-Agent example suite:
-
-```bash
+python -m pip install -e /absolute/path/instrument-benchmark-evaluator -e .
+instrbench run --config configs/openfibsem/fibsem_liftout_v1.yaml
 instrbench run --suite suites/example.yaml
 ```
 
-The suite exposes only `agent: claudecode`. Instrument selects the model from
-`INSTRBENCH_AGENT_MODEL`, passes the Anthropic gateway environment through, and
-uses Claude Code's normal host configuration for all other behavior. Claude
-Code runs directly on the trusted host with a dedicated working directory; it
-does not run in a security sandbox. Reports therefore record
-`isolation: trusted_host`.
+The suite exposes only `agent: claudecode`. Claude Code runs directly on the
+trusted host with a fresh working directory. This is a trusted-environment MVP,
+not a strong process sandbox.
 
-For every run, Instrument verifies the task's `visible_files`, copies the
-contents of `starter/` into a fresh workspace root, preserves the paths of the
-other public files, and sends the task's unmodified `prompt.md` to Claude Code.
-The candidate name is read exclusively from the task manifest's
-`submission.filename`; `solution.py` is not assumed. Only a regular file inside
-the workspace is accepted. If Claude Code fails or times out after producing
-that file, the partial candidate is still evaluated.
+For an `agent` candidate source such as PyVISA, candidate files are collected
+from the Agent workspace. For a `task_environment` candidate source such as
+OpenFIBSEM, Instrument starts the task repository's Docker environment and
+passes its Unix-socket path to Claude Code. Successful task checkpoints export
+STL, GLB, PNG, and JSON files directly into the candidate handoff.
 
-Workspaces and Agent logs are retained beneath the suite report directory's
-`workspaces/<suite_id>/<run_id>/` tree. Each run report includes Agent status,
-model, duration, exit code, workspace/log paths, candidate path and candidate
-SHA-256, but no gateway URL or authentication value.
+Instrument inventories every expected file after Agent completion, failure, or
+timeout. The evaluator always receives the valid files plus the missing and
+invalid path lists, so it may score a safe partial result. Final strict pass is
+true only when the source candidate is complete and the evaluator reports a
+strict pass.
 
-Suites execute their `runs` in YAML declaration order. Each run continues to
-write its own configured report; the suite additionally writes one aggregate
-report at its `result_path`. For the example, that aggregate is
-`reports/suites/example.json`. Its `runs` entries preserve run order and record
-each per-run report path, outcome, score, and strict-pass result; `summary`
-aggregates generated candidates, evaluations, missing submissions,
-infrastructure failures, strict passes, and mean score.
-
-Successful single runs and suites exit with status 0. Invalid environment,
-config, or suite contracts exit with status 2. Benchmark infrastructure errors
-exit with status 3; a suite still writes its aggregate report and returns 3 if
-any constituent run has such an error. Pass `--allow-dirty` only for local
-development when the recorded Git revisions do not need to identify a clean
-checkout.
-
-For compatibility with earlier checkouts, the legacy positional config form is
-still accepted, but new scripts and documentation should use `instrbench run
---config ...` or `instrbench run --suite ...`.
-
-Every run is bound by `(source_id, instance_id, evaluator_id)`. Instance and
-evaluator leaves resolve strictly at `sources/<source_id>/<leaf_id>/`, while
-configs and reports are grouped beneath their source ID. Source registries and
-schema-v2 leaf manifests must agree before any image build or container start.
-Ungrouped legacy config, leaf, report, and artifact paths are invalid; there is
-no compatibility fallback, alias, scan, or root-manifest lookup.
-
-User-facing run and suite YAML use one current format and have no
-`schema_version` field. A relative `candidate_path` resolves beneath
-`EVALUATOR_REPO_PATH`, which is how direct `--config` runs can select bundled
-reference solutions. An absolute `candidate_path` selects an external
-submission. Relative traversal or symlink escape outside the evaluator
-repository is rejected. Agent suites instead use the task manifest's
-`submission.filename` from their prepared workspace.
-
-The default test suite never calls a real model. To run the opt-in Claude Code
-host smoke after setting the Agent environment variables:
+Run the current source-routing acceptance checks with:
 
 ```bash
-INSTRBENCH_RUN_REAL_AGENT_TESTS=1 PYTHONPATH=src pytest -q \
-  tests/test_agent_suite_smoke.py::test_real_claude_code_can_create_manifest_named_candidate
+PYTHONPATH=src pytest -q \
+  tests/test_candidate_inventory.py \
+  tests/test_evaluator_process.py \
+  tests/test_source_routed_run_config.py \
+  tests/test_source_routed_pipeline.py \
+  tests/test_source_routed_suite.py \
+  tests/test_three_repo_source_smoke.py
 ```
-
-From `instrument/`, run the reference benchmark with:
-
-```bash
-instrbench run --config configs/pyvisa/pyvisa_dut_validation_v1.yaml
-```
-
-The formal v2 configuration is selected independently, so v1 remains
-available without gaining v2-only request fields:
-
-```bash
-instrbench run --config configs/pyvisa/pyvisa_dut_validation_v2.yaml
-```
-
-The FIBSEM reference configuration uses the same three-repository contract
-plus a separately pinned OpenFIBSEM source input. Candidate code implements
-`run_experiment(microscope, scenario, checkpoint, output_dir) -> dict` and
-crosses `step_1`, `step_2`, `step_3`, and `step_4`. Run the complete native
-Linux Docker acceptance with:
-
-```bash
-PYTHONPATH=src \
-  "$EVALUATOR_REPO_PATH/scripts/validate_fibsem_benchmark.py" \
-  --instrument-root "$PWD" \
-  --config "$PWD/configs/openfibsem/fibsem_liftout_v1.yaml"
-```
-
-The validator and its container assets are owned by the evaluator repository.
-That direct entrypoint requires Python 3.11, python-dotenv, PyYAML, Git, and
-Docker on the host. On a native Linux x86_64 Docker host, its portable
-entrypoint supplies the Python/Git/Docker client environment in a pinned
-driver image:
-
-```bash
-"$EVALUATOR_REPO_PATH/scripts/run_fibsem_linux_acceptance.sh" \
-  "$PWD/configs/openfibsem/fibsem_liftout_v1.yaml"
-```
-
-The driver runs as the invoking UID/GID, adds only the Docker socket group,
-and mounts the configured instrument, instance, and evaluator repositories and
-`/tmp` at identical absolute paths. This
-is necessary because the driver and its sibling evaluator/candidate/simulator
-containers share one native daemon. The driver mounts the native host Git
-binary, exec path, and resolved dynamic libraries read-only; its image builds
-with `--network=none`. The trusted evaluator also builds with `--network=none`,
-and the driver, evaluator, candidate, and simulator runs have no network.
-
-On success, the schema-version-5 report is
-`reports/openfibsem/fibsem_liftout_v1.json`. Forty read-only checkpoint bundles
-are under
-`reports/openfibsem/fibsem_liftout_v1.artifacts/{world_id}/{step_id}/`; each contains
-`scene.glb`, merged `scene.stl`, SEM/FIB PNG, `checkpoint.json`, and component
-STL files. The validator parses every artifact, checks trusted geometry and
-image hashes, runs all ten worlds twice, compares deterministic evidence, and
-requires zero surviving managed containers.
-
-By default every checkout must be clean so the recorded Git commit IDs fully
-identify the run. `--allow-dirty` exists only for local development.
-
-Official evaluation requires a native Linux Docker host. Each report records
-the three repository commits plus the Dockerfile hash, locked image digest,
-Docker Engine version, per-world security settings, artifact hashes, and
-forced-cleanup outcome. Run the complete Linux gate with:
-
-```bash
-PYTHONPATH=src python scripts/validate_distributed_benchmark.py
-```
-
-The official path builds the trusted evaluator image for every run from only
-Git-tracked evaluator inputs. The evaluator repository owns the Dockerfiles,
-Python wheels, Linux/amd64 Docker CLI, Docker Buildx plugin and SHA-256
-manifests under `$EVALUATOR_REPO_PATH/container`; the image build uses
-`--network=none`.
-The non-root outer evaluator has no network, a read-only root filesystem and
-the host Docker socket. It uses that privileged socket only to create hardened
-sibling candidate containers; candidates never receive the socket or evaluator
-files. The socket grants daemon-equivalent authority, so the evaluator image is
-part of the trusted computing base and must never contain candidate code.
-
-A unique, canonical shared run root is mounted at the identical absolute path
-inside the evaluator. World sockets, staged bootstrap files and outputs remain
-below it. Outer build/runtime/report errors are retry-eligible infrastructure
-failures, while candidate outcomes remain evaluator results. Final
-`orchestration.evaluator_container` describes the trusted outer container;
-each world's `container_evidence` independently describes its untrusted sibling.
-Docker Desktop is intentionally unsupported because its VM can rewrite bind
-mount and Docker-socket ownership semantics.
-
-For FIBSEM, the candidate sees only its public scenario, public client,
-workspace, output, and read-only socket parent. The sim sibling sees the
-hidden world, transport, and evidence directory but no candidate workspace or
-outer request. `step_1` retains the source bridge; `step_2` proves needle
-connection before source separation; `step_3` proves positioning before target
-deposition; `step_4` proves target retention and needle separation/retraction.
-Candidate-generated artifacts are for display only; trusted simulator
-snapshots are scored. Passing is evidence for simulation, not physical FIB-SEM
-safety.
-
-For v2, each world has separate candidate and sim evidence. Candidate code
-uses the literal `pyvisa.ResourceManager("@iab")`; both workload siblings have
-networking disabled and communicate only through a shared Unix socket whose
-parent is read-only in the candidate. The sim sibling owns the hidden world,
-PyVISA-sim state, complete event journal, forced-safe cleanup, and no candidate
-workspace mount. The outer evaluator passes its label-scoped cleanup owner to
-both siblings, and infrastructure failures are retryable only when trusted
-errors are recorded.
-
-Run the native-Linux formal v2 gate with:
-
-```bash
-IAB_RUN_DOCKER_TESTS=1 PYTHONPATH=src python -m unittest \
-  tests.integration.test_v2_dual_container_linux -v
-PYTHONPATH=src python scripts/validate_distributed_benchmark.py \
-  --config configs/pyvisa/pyvisa_dut_validation_v2.yaml
-```
-
-The PyVISA v1 and v2 top-level reports are schema versions 2 and 3,
-respectively; the OpenFIBSEM report is schema version 5. All require the
-configured `source_id`.

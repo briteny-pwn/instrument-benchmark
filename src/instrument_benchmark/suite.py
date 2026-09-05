@@ -90,7 +90,6 @@ def run_suite(
     *,
     instrument_checkout: Path,
     repository_paths: RepositoryPaths,
-    allow_dirty: bool = False,
     benchmark_runner: BenchmarkRunner = run_agent_benchmark,
 ) -> SuiteExecution:
     runs: list[dict[str, Any]] = []
@@ -103,7 +102,6 @@ def run_suite(
             "run_id": entry.config.run_id,
             "source_id": entry.config.source_id,
             "instance_id": entry.config.instance_id,
-            "evaluator_id": entry.config.evaluator_id,
             "report_path": str(entry.config.report_path),
         }
         try:
@@ -115,7 +113,6 @@ def run_suite(
                 ),
                 instrument_checkout=instrument_checkout,
                 repository_paths=repository_paths,
-                allow_dirty=allow_dirty,
             )
         except Exception as exc:
             infrastructure_failures += 1
@@ -126,6 +123,7 @@ def run_suite(
                     "score": None,
                     "strict_pass": None,
                     "candidate_available": False,
+                    "candidate_complete": False,
                     "evaluated": False,
                     "error": f"{type(exc).__name__}: {exc}",
                 }
@@ -139,6 +137,9 @@ def run_suite(
                     "strict_pass": result["strict_pass"],
                     "candidate_available": result.get(
                         "candidate_available", True
+                    ),
+                    "candidate_complete": result.get(
+                        "candidate_complete", True
                     ),
                     "evaluated": result.get("evaluated", True),
                     "error": None,
@@ -165,11 +166,13 @@ def run_suite(
             "total": len(runs),
             "completed": completed,
             "generated": sum(run["candidate_available"] is True for run in runs),
-            "evaluated": sum(run["evaluated"] is True for run in runs),
-            "missing_submission": sum(
-                run["status"] in {"missing_submission", "submission_error"}
-                for run in runs
+            "complete_candidates": sum(
+                run["candidate_complete"] is True for run in runs
             ),
+            "incomplete_candidates": sum(
+                run["candidate_complete"] is False for run in runs
+            ),
+            "evaluated": sum(run["evaluated"] is True for run in runs),
             "infrastructure_failed": infrastructure_failures,
             "strict_passed": strict_passed,
             "mean_score": sum(scored) / len(scored) if scored else 0.0,

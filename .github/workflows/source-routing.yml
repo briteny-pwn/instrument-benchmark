@@ -1,0 +1,23 @@
+name: source-routing
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -e . pytest
+      - run: >-
+          python -m pytest -q
+          tests/test_candidate_inventory.py
+          tests/test_evaluator_process.py
+          tests/test_source_routed_run_config.py
+          tests/test_source_routed_pipeline.py
+          tests/test_source_routed_suite.py
+          tests/test_task_environment_runner.py
