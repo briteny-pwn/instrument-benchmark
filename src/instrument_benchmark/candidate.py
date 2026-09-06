@@ -40,7 +40,9 @@ class CandidateContract:
                 value["files_per_group"], "candidate.files_per_group"
             )
             files = tuple(
-                sorted(f"{group}/{relative}" for group in groups for relative in per_group)
+                sorted(
+                    f"{group}/{relative}" for group in groups for relative in per_group
+                )
             )
         else:
             raise ContractError("source candidate contract is invalid")
@@ -68,12 +70,17 @@ class CandidateInventory:
 
 
 def inventory_candidate(root: Path, contract: CandidateContract) -> CandidateInventory:
+    from .progress import operation
+
     candidate_root = root.resolve()
     candidate_root.mkdir(parents=True, exist_ok=True)
     files: list[str] = []
     missing: list[str] = []
     invalid: list[str] = []
-    for relative in contract.files:
+    for index, relative in enumerate(contract.files, 1):
+        operation(
+            "检查 candidate 文件", file=relative, count=f"{index}/{len(contract.files)}"
+        )
         path = candidate_root / relative
         try:
             metadata = path.lstat()

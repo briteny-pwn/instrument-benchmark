@@ -9,6 +9,10 @@ from instrument_benchmark.agent import AgentExecution
 from instrument_benchmark.environment import RepositoryPaths
 from instrument_benchmark.orchestrator import run_agent_benchmark
 from instrument_benchmark.task_environment import TaskEnvironmentHandle
+from instrument_benchmark.task_environment_status import (
+    EnvironmentStatusReader,
+    TaskEnvironmentResult,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,7 +45,7 @@ class ExportingTaskEnvironment:
         service = FibsemService(
             RecordingBackend(),
             scenario,
-            EventJournal("smoke", "nominal"),
+            EventJournal(str(kwargs["run_id"]), "nominal"),
             CheckpointExporter(candidate),
             evidence_root=evidence,
         )
@@ -52,11 +56,18 @@ class ExportingTaskEnvironment:
             candidate,
             evidence,
             {"FIBSEM_IAB_SOCKET": str(run_root / "unused.sock")},
+            run_id=str(kwargs["run_id"]),
         )
 
-    def finalize(self, handle: TaskEnvironmentHandle) -> None:
+    def finalize(self, handle: TaskEnvironmentHandle) -> TaskEnvironmentResult:
         assert handle.candidate_root.is_dir()
         self.finalized = True
+        return EnvironmentStatusReader(
+            handle.evidence_root, handle.run_id
+        ).read_result()
+
+    def check_health(self, handle: TaskEnvironmentHandle) -> None:
+        assert handle.evidence_root.is_dir()
 
 
 class NoOpAgent:
@@ -122,8 +133,7 @@ def test_three_repo_source_routed_artifact_smoke(tmp_path: Path) -> None:
     ]
     assert shape_metrics
     assert any(
-        metrics["candidate_geometry_sha256"]
-        != metrics["reference_geometry_sha256"]
+        metrics["candidate_geometry_sha256"] != metrics["reference_geometry_sha256"]
         for metrics in shape_metrics
     )
     assert 0.0 < report["score"] < 100.0

@@ -11,6 +11,7 @@ from instrument_benchmark.agent import AgentExecution
 from instrument_benchmark.environment import RepositoryPaths
 from instrument_benchmark.orchestrator import run_agent_benchmark
 from instrument_benchmark.task_environment import TaskEnvironmentHandle
+from instrument_benchmark.task_environment_status import TaskEnvironmentResult
 
 
 AGENT_ENVIRONMENT = {
@@ -117,9 +118,13 @@ class FakeTaskRunner:
         )
         return self.handle
 
-    def finalize(self, handle: TaskEnvironmentHandle) -> None:
+    def finalize(self, handle: TaskEnvironmentHandle) -> TaskEnvironmentResult:
         assert handle is self.handle
         self.finalized = True
+        return TaskEnvironmentResult("completed")
+
+    def check_health(self, handle: TaskEnvironmentHandle) -> None:
+        assert handle is self.handle
 
 
 class FakeAgentRunner:
@@ -273,9 +278,7 @@ def test_repeated_run_id_uses_a_fresh_candidate_handoff(tmp_path: Path) -> None:
             workspace_root=tmp_path / "workspaces",
             instrument_checkout=instrument,
             repository_paths=repositories,
-            agent_runner_factory=lambda task=task: FakeAgentRunner(
-                task, complete=True
-            ),
+            agent_runner_factory=lambda task=task: FakeAgentRunner(task, complete=True),
             task_environment_runner_factory=lambda task=task: task,
             evaluator_runner_factory=lambda evaluator=evaluator: evaluator,
             environ=AGENT_ENVIRONMENT,

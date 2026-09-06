@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Protocol
+
+from .diagnostics import Redactor
+from .progress import current_progress, operation
+from .streaming_process import stream_process
 
 
 class EvaluatorProcessError(RuntimeError):
@@ -34,6 +37,11 @@ class HostSourceEvaluatorRunner:
         artifacts_root.mkdir(parents=True, exist_ok=True)
         request_path = artifacts_root / "evaluator-request.json"
         report_path = artifacts_root / "evaluator-report.json"
+        stdout_path = artifacts_root / "evaluator-stdout.log"
+        stderr_path = artifacts_root / "evaluator-stderr.log"
+        operation(
+            "写入评分请求", logs=[stdout_path, stderr_path], path=str(request_path)
+        )
         request_path.write_text(
             json.dumps(request, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
@@ -52,7 +60,11 @@ class HostSourceEvaluatorRunner:
         if environment.get("PYTHONPATH"):
             pythonpath.append(environment["PYTHONPATH"])
         environment["PYTHONPATH"] = os.pathsep.join(pythonpath)
-        completed = subprocess.run(
+        progress = current_progress()
+        sanitize = progress.sanitize if progress else Redactor()
+        sanitize.add_environment(os.environ)
+        operation("启动 Evaluator 子进程", logs=[stdout_path, stderr_path])
+        completed = stream_process(
             [
                 sys.executable,
                 "-m",
@@ -65,26 +77,28 @@ class HostSourceEvaluatorRunner:
             ],
             cwd=evaluator_checkout.resolve(),
             env=environment,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-        )
-        (artifacts_root / "evaluator-stdout.log").write_text(
-            completed.stdout, encoding="utf-8"
-        )
-        (artifacts_root / "evaluator-stderr.log").write_text(
-            completed.stderr, encoding="utf-8"
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+            sanitize=sanitize,
+            on_stdout_line=(lambda _: progress.activity("Evaluator stdout 已更新"))
+            if progress
+            else None,
+            on_stderr_line=(lambda _: progress.activity("Evaluator stderr 已更新"))
+            if progress
+            else None,
         )
         if completed.returncode != 0:
             raise EvaluatorProcessError(
-                "source evaluator failed: "
-                + (completed.stderr.strip() or f"exit {completed.returncode}")
+                f"source evaluator failed, exit_code={completed.returncode}: "
+                + (completed.stderr.strip()[-2000:] or completed.stdout.strip()[-2000:])
             )
+        operation("读取评分报告", path=str(report_path))
         try:
             report = json.loads(report_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            raise EvaluatorProcessError(f"source evaluator report is invalid: {exc}") from exc
+            raise EvaluatorProcessError(
+                f"source evaluator report is invalid: {exc}"
+            ) from exc
         if not isinstance(report, dict):
             raise EvaluatorProcessError("source evaluator report must be an object")
         return report

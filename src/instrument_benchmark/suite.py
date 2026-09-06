@@ -10,7 +10,7 @@ import yaml
 from .contracts import ContractError, RunConfig, dump_json, load_run_config
 from .environment import RepositoryPaths
 from .orchestrator import run_agent_benchmark
-
+from .progress import STAGES, ProgressReporter, current_progress
 
 _IDENTIFIER = re.compile(r"[a-z][a-z0-9_-]*")
 
@@ -92,10 +92,23 @@ def run_suite(
     repository_paths: RepositoryPaths,
     benchmark_runner: BenchmarkRunner = run_agent_benchmark,
 ) -> SuiteExecution:
+    progress = current_progress()
+    if progress is None:
+        with ProgressReporter():
+            return run_suite(
+                config,
+                instrument_checkout=instrument_checkout,
+                repository_paths=repository_paths,
+                benchmark_runner=benchmark_runner,
+            )
+    progress.start_suite(config.suite_id, len(config.entries))
     runs: list[dict[str, Any]] = []
     infrastructure_failures = 0
 
     for index, entry in enumerate(config.entries):
+        progress.start_run(
+            entry.config.run_id, entry.config.source_id, entry.config.instance_id
+        )
         run = {
             "index": index,
             "config_path": str(entry.config_path),
@@ -114,20 +127,61 @@ def run_suite(
                 instrument_checkout=instrument_checkout,
                 repository_paths=repository_paths,
             )
+        except KeyboardInterrupt as exc:
+            progress.record_error(exc)
+            runs.append(
+                {
+                    **run,
+                    **getattr(exc, "_instrbench_failure_report", {}),
+                    "status": "interrupted",
+                    "score": None,
+                    "strict_pass": None,
+                    "candidate_available": False,
+                    "candidate_complete": False,
+                    "evaluated": False,
+                    "error": "KeyboardInterrupt",
+                    "diagnostics": list(progress.diagnostics),
+                }
+            )
+            if progress.active:
+                progress.finish_run(interrupted=True)
+            partial = _suite_report(
+                config, runs, infrastructure_failures, interrupted=True
+            )
+            try:
+                dump_json(config.result_path, partial)
+            except OSError as save_error:
+                progress.record_error(save_error)
+            raise
         except Exception as exc:
+            progress.record_error(exc)
             infrastructure_failures += 1
             runs.append(
                 {
                     **run,
+                    **getattr(exc, "_instrbench_failure_report", {}),
                     "status": "infrastructure_error",
                     "score": None,
                     "strict_pass": None,
                     "candidate_available": False,
                     "candidate_complete": False,
                     "evaluated": False,
-                    "error": f"{type(exc).__name__}: {exc}",
+                    "error": progress.sanitize(f"{type(exc).__name__}: {exc}"),
+                    "diagnostics": getattr(
+                        exc, "_instrbench_diagnostics", list(progress.diagnostics)
+                    ),
+                    **getattr(exc, "_instrbench_candidate", {}),
+                    **{
+                        key: value
+                        for key, value in getattr(
+                            exc, "_instrbench_failure_report", {}
+                        ).items()
+                        if key in {"candidate_available", "candidate_complete"}
+                    },
                 }
             )
+            if progress.active:
+                progress.finish_run(failed=True)
         else:
             runs.append(
                 {
@@ -135,27 +189,54 @@ def run_suite(
                     "status": result.get("status", "completed"),
                     "score": result["score"],
                     "strict_pass": result["strict_pass"],
-                    "candidate_available": result.get(
-                        "candidate_available", True
-                    ),
-                    "candidate_complete": result.get(
-                        "candidate_complete", True
-                    ),
+                    "candidate_available": result.get("candidate_available", True),
+                    "candidate_complete": result.get("candidate_complete", True),
                     "evaluated": result.get("evaluated", True),
                     "error": None,
+                    "diagnostics": result.get("diagnostics", []),
+                    **{
+                        key: result[key]
+                        for key in ("task_environment", "candidate")
+                        if key in result
+                    },
                 }
             )
+            if progress.active:
+                progress.finish_run(report=result)
+        progress.stage_name = STAGES["report"]
+        progress.operation("保存 Suite 汇总", logs=[], path=str(config.result_path))
+        try:
+            dump_json(
+                config.result_path, _suite_report(config, runs, infrastructure_failures)
+            )
+        except OSError as exc:
+            progress.record_error(exc)
+            raise
 
-    completed = len(runs) - infrastructure_failures
+    return SuiteExecution(
+        report=_suite_report(config, runs, infrastructure_failures),
+        has_infrastructure_failures=bool(infrastructure_failures),
+    )
+
+
+def _suite_report(
+    config: SuiteConfig,
+    runs: list[dict[str, Any]],
+    infrastructure_failures: int,
+    *,
+    interrupted: bool = False,
+) -> dict[str, Any]:
+
+    completed = sum(
+        run["status"] not in {"infrastructure_error", "interrupted"} for run in runs
+    )
     strict_passed = sum(
-        run["status"] == "completed" and run["strict_pass"] is True
-        for run in runs
+        run["status"] == "completed" and run["strict_pass"] is True for run in runs
     )
     scored = [
         float(run["score"])
         for run in runs
-        if isinstance(run["score"], (int, float))
-        and not isinstance(run["score"], bool)
+        if isinstance(run["score"], (int, float)) and not isinstance(run["score"], bool)
     ]
     report = {
         "schema_version": 1,
@@ -163,7 +244,7 @@ def run_suite(
         "suite_path": str(config.suite_path),
         "runs": runs,
         "summary": {
-            "total": len(runs),
+            "total": len(config.entries),
             "completed": completed,
             "generated": sum(run["candidate_available"] is True for run in runs),
             "complete_candidates": sum(
@@ -175,15 +256,14 @@ def run_suite(
             "evaluated": sum(run["evaluated"] is True for run in runs),
             "infrastructure_failed": infrastructure_failures,
             "strict_passed": strict_passed,
-            "mean_score": sum(scored) / len(scored) if scored else 0.0,
-            "strict_pass": completed == len(runs) and strict_passed == len(runs),
+            "mean_score": sum(scored) / len(scored) if scored else None,
+            "strict_pass": completed == len(config.entries)
+            and strict_passed == len(config.entries),
         },
     }
-    dump_json(config.result_path, report)
-    return SuiteExecution(
-        report=report,
-        has_infrastructure_failures=bool(infrastructure_failures),
-    )
+    if interrupted:
+        report["interrupted"] = True
+    return report
 
 
 def _validate_contract(value: Any) -> None:

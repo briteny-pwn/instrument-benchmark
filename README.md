@@ -74,6 +74,50 @@ The suite exposes only `agent: claudecode`. Claude Code runs directly on the
 trusted host with a fresh working directory. This is a trusted-environment MVP,
 not a strong process sandbox.
 
+### Progress and errors
+
+Both commands show progress automatically. Interactive terminals use tqdm for
+the suite's finished-task count, the current run's eight workflow stages, and
+source-defined candidate file counts. Stages cover input validation, workspace
+preparation, task environment startup, Agent execution, environment cleanup,
+candidate inventory, evaluation, and report persistence. Operations and elapsed
+time remain visible during long-running stages; Agent tool names and counts
+come from actual stream events. Agent text, tool arguments, and internal
+reasoning are not echoed by the progress renderer.
+
+Candidate files observed while the Agent runs are explicitly provisional;
+the final inventory is collected after task environment cleanup. Neither a
+file's presence nor a finished stage implies a passing score. Evaluator
+internals have no progress-event contract, so the display shows process status
+and elapsed time, not an invented scoring percentage.
+
+Progress and diagnostics go to **stderr**; **stdout remains the final JSON**.
+Pipes and non-interactive terminals receive line-based events instead of cursor
+control sequences. Each attempt saves `progress.jsonl` alongside the existing
+Agent, environment, and evaluator logs. Child output is flushed as logical
+records arrive; a record exceeding 1 MiB is replaced with an omission marker to
+bound memory without exposing a partially redacted record. Configured secrets
+and common credential forms are redacted from emitted process logs and
+diagnostics; terminal control characters are removed.
+
+An error block contains exactly four fields:
+
+```text
+任务：source/instance (run_id=...)
+步骤：stage → operation
+错误：exception type, message, and exit status when available
+日志：absolute paths to existing logs, or 未保存
+```
+
+There are no troubleshooting suggestions or prescribed user actions. Primary
+failures remain visible if cleanup also fails. Reports include a `diagnostics`
+list without changing the evaluator request contract or scoring rules. Suite
+results are checkpointed after each run; Ctrl+C stops the suite, performs
+bounded child-process cleanup, and attempts to save the partial suite report.
+The CLI returns 130 for interruption, 2 for invalid input contracts, and 3 for
+infrastructure failures. A completed evaluation can still have a failing
+score or incomplete candidate while the CLI exits normally.
+
 For an `agent` candidate source such as PyVISA, candidate files are collected
 from the Agent workspace. For a `task_environment` candidate source such as
 OpenFIBSEM, Instrument starts the task repository's Docker environment and
@@ -81,15 +125,41 @@ passes its Unix-socket path to Claude Code. Successful task checkpoints export
 STL, GLB, PNG, and JSON files directly into the candidate handoff.
 
 Instrument inventories every expected file after Agent completion, failure, or
-timeout. The evaluator always receives the valid files plus the missing and
-invalid path lists, so it may score a safe partial result. Final strict pass is
+timeout. With a valid task environment, the evaluator receives the valid files
+plus the missing and invalid path lists, so it may score a partial result. Final strict pass is
 true only when the source candidate is complete and the evaluator reports a
 strict pass.
+
+Task containers run with the host's numeric, non-root UID/GID. Instrument owns
+private candidate/evidence mounts and an independently allocated short socket
+directory; long report paths do not lengthen the Unix socket address. Before
+starting the Agent, it verifies container write/rename/delete probes, host
+readback, run identity, and an actual socket connection. No experiment operation
+is performed by this readiness check. Native Linux is required for the full
+host-to-container Unix socket path.
+
+Tasks publish incremental `task-evidence/environment-events.jsonl` and an atomic
+`task-evidence/environment-result.json`. They classify their own domain errors
+and retain original exception chains in `environment-errors.log`. Instrument
+monitors fatal events even while the Agent is silent and stops its process group
+when the environment fails. A missing/invalid terminal result, unexpected
+container exit, or infrastructure failure skips evaluation: `score: null`,
+`evaluated: false`, `strict_pass: null`. These runs are counted as infrastructure
+failures and excluded from `mean_score`; the mean is `null` if nothing was scored.
+An ordinary `candidate_incomplete` or `candidate_failure` can still be evaluated.
+Candidate files and evidence remain available after container/socket cleanup.
+This is a trusted-host MVP, not a security boundary against hostile Agents.
 
 Run the current source-routing acceptance checks with:
 
 ```bash
 PYTHONPATH=src pytest -q \
+  tests/test_progress.py \
+  tests/test_progress_pipeline.py \
+  tests/test_progress_processes.py \
+  tests/test_progress_cli.py \
+  tests/test_progress_review_fixes.py \
+  tests/test_streaming_process.py \
   tests/test_candidate_inventory.py \
   tests/test_evaluator_process.py \
   tests/test_source_routed_run_config.py \

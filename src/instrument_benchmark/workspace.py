@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .contracts import ContractError
+from .progress import operation
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,7 @@ def prepare_workspace(
     if prompt_source not in {source for source, _ in inputs}:
         raise ContractError("prompt.md must be a visible file")
     try:
+        operation("加载任务提示词", path=str(prompt_source))
         prompt = prompt_source.read_text(encoding="utf-8")
     except OSError as exc:
         raise ContractError(f"cannot load prompt.md: {exc}") from exc
@@ -37,7 +39,12 @@ def prepare_workspace(
         workspace = Path(
             tempfile.mkdtemp(prefix="run-", dir=workspace_parent)
         ).resolve()
-        for source, relative_destination in inputs:
+        for index, (source, relative_destination) in enumerate(inputs, 1):
+            operation(
+                "复制可见文件",
+                file=str(relative_destination),
+                count=f"{index}/{len(inputs)}",
+            )
             destination = workspace / relative_destination
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination)
@@ -63,7 +70,9 @@ def _visible_inputs(
         if not isinstance(raw_relative, str) or not raw_relative:
             raise ContractError("visible file paths must be non-empty strings")
         relative = Path(raw_relative)
-        if relative.is_absolute() or any(part in {"", ".", ".."} for part in relative.parts):
+        if relative.is_absolute() or any(
+            part in {"", ".", ".."} for part in relative.parts
+        ):
             raise ContractError(f"invalid visible file path: {raw_relative}")
         source = instance_root / relative
         _require_regular_source(instance_root, source, raw_relative)

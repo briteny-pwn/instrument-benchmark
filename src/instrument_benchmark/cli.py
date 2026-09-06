@@ -5,11 +5,13 @@ import json
 import sys
 from pathlib import Path
 
+from dotenv import dotenv_values
+
 from .contracts import ContractError, load_run_config
 from .environment import load_repository_paths
 from .orchestrator import run_benchmark
+from .progress import ProgressReporter
 from .suite import load_suite_config, run_suite
-
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -40,40 +42,53 @@ def main(argv: list[str] | None = None) -> int:
 
     command_line = _normalize_legacy_args(list(sys.argv[1:] if argv is None else argv))
     arguments = parser.parse_args(command_line)
-    try:
-        repository_paths = load_repository_paths(ROOT)
-        if arguments.suite is not None:
-            suite = load_suite_config(arguments.suite, repository_paths)
-            execution = run_suite(
-                suite,
-                instrument_checkout=ROOT,
-                repository_paths=repository_paths,
-            )
-            output = {
-                "report": str(suite.result_path),
-                "summary": execution.report["summary"],
-            }
-            exit_status = 3 if execution.has_infrastructure_failures else 0
-        else:
-            report = run_benchmark(
-                arguments.config,
-                instrument_checkout=ROOT,
-                repository_paths=repository_paths,
-            )
-            output = {
-                "report": str(
-                    load_run_config(arguments.config, repository_paths).report_path
-                ),
-                "score": report["score"],
-                "strict_pass": report["strict_pass"],
-            }
-            exit_status = 0
-    except ContractError as exc:
-        print(f"invalid benchmark contract: {exc}", file=sys.stderr)
-        return 2
-    except Exception as exc:
-        print(f"benchmark infrastructure failure: {exc}", file=sys.stderr)
-        return 3
+    with ProgressReporter(stream=sys.stderr) as progress:
+        progress.task = progress.sanitize.line(
+            str((arguments.suite or arguments.config).resolve())
+        )
+        try:
+            progress.sanitize.add_environment(dotenv_values(ROOT / ".env"))
+            progress.operation("加载仓库环境变量")
+            repository_paths = load_repository_paths(ROOT)
+            if arguments.suite is not None:
+                progress.operation(
+                    "加载 Suite 配置", config=str(arguments.suite.resolve())
+                )
+                suite = load_suite_config(arguments.suite, repository_paths)
+                execution = run_suite(
+                    suite, instrument_checkout=ROOT, repository_paths=repository_paths
+                )
+                output = {
+                    "report": str(suite.result_path),
+                    "summary": execution.report["summary"],
+                }
+                exit_status = 3 if execution.has_infrastructure_failures else 0
+            else:
+                progress.operation(
+                    "加载单任务配置", config=str(arguments.config.resolve())
+                )
+                report = run_benchmark(
+                    arguments.config,
+                    instrument_checkout=ROOT,
+                    repository_paths=repository_paths,
+                )
+                output = {
+                    "report": str(
+                        load_run_config(arguments.config, repository_paths).report_path
+                    ),
+                    "score": report["score"],
+                    "strict_pass": report["strict_pass"],
+                }
+                exit_status = 0
+        except KeyboardInterrupt as exc:
+            progress.record_error(exc)
+            return 130
+        except ContractError as exc:
+            progress.record_error(exc)
+            return 2
+        except Exception as exc:
+            progress.record_error(exc)
+            return 3
     print(json.dumps(output, sort_keys=True))
     return exit_status
 

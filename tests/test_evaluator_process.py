@@ -27,7 +27,7 @@ def test_evaluator_subprocess_does_not_receive_agent_credentials(
         "INSTRBENCH_AGENT_MODEL",
     ):
         monkeypatch.setenv(name, "secret")
-    monkeypatch.setattr("instrument_benchmark.evaluator_process.subprocess.run", run)
+    monkeypatch.setattr("instrument_benchmark.evaluator_process.stream_process", run)
 
     HostSourceEvaluatorRunner().evaluate(
         evaluator_checkout=evaluator,
